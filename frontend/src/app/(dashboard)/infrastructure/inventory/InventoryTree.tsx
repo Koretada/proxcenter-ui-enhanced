@@ -1023,7 +1023,8 @@ return next
     let alive = true
 
     async function load() {
-      setLoading(true)
+      // Only show loading skeleton on initial load, not on action-triggered refreshes
+      if (reloadTick === 0) setLoading(true)
       setError(null)
 
       try {

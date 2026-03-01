@@ -3588,29 +3588,41 @@ return (
             // Track the task if we got an UPID
             const upid = json.data
             if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
+              const refreshAll = () => {
+                onRefresh?.()
+                fetchDetails(selection).then(payload => {
+                  setData(payload)
+                  setLocalTags(payload.tags || [])
+                })
+              }
+
               trackTask({
                 upid,
                 connId,
                 node,
                 description: `${data?.title || `VM ${vmid}`}: ${t(`vmActions.${action}`)}`,
                 onSuccess: () => {
-                  onVmActionEnd?.(connId, vmid)
-                  onRefresh?.()
-                  // Recharger les données après la completion
-                  fetchDetails(selection).then(payload => {
-                    setData(payload)
-                    setLocalTags(payload.tags || [])
-                  })
+                  // PVE task completes quickly (e.g. "send ACPI signal") but VM status
+                  // takes seconds to change. Stagger refreshes to catch the actual change.
+                  refreshAll()
+                  setTimeout(refreshAll, 3000)
+                  setTimeout(() => {
+                    onVmActionEnd?.(connId, vmid)
+                    refreshAll()
+                  }, 6000)
                 },
                 onError: () => {
                   onVmActionEnd?.(connId, vmid)
                 },
               })
             } else {
-              // Pas d'UPID, afficher le toast de succès direct
-              onVmActionEnd?.(connId, vmid)
-              onRefresh?.()
+              // Pas d'UPID — refresh avec délai puis retirer le spinner
               toast.success(t(`vmActions.${action}Success`))
+              onRefresh?.()
+              setTimeout(() => {
+                onVmActionEnd?.(connId, vmid)
+                onRefresh?.()
+              }, 3000)
             }
 
             setConfirmAction(null)
@@ -3643,29 +3655,40 @@ return
       // Track the task if we got an UPID
       const upid = json.data
       if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
+        const refreshAll = () => {
+          onRefresh?.()
+          fetchDetails(selection).then(payload => {
+            setData(payload)
+            setLocalTags(payload.tags || [])
+          })
+        }
+
         trackTask({
           upid,
           connId,
           node,
           description: `${data?.title || `VM ${vmid}`}: ${t(`vmActions.${action}`)}`,
           onSuccess: () => {
-            onVmActionEnd?.(connId, vmid)
-            onRefresh?.()
-            // Recharger les données après la completion
-            fetchDetails(selection).then(payload => {
-              setData(payload)
-              setLocalTags(payload.tags || [])
-            })
+            // PVE task completes quickly but VM status takes seconds to change
+            refreshAll()
+            setTimeout(refreshAll, 3000)
+            setTimeout(() => {
+              onVmActionEnd?.(connId, vmid)
+              refreshAll()
+            }, 6000)
           },
           onError: () => {
             onVmActionEnd?.(connId, vmid)
           },
         })
       } else {
-        // Pas d'UPID, afficher le toast de succès direct
-        onVmActionEnd?.(connId, vmid)
-        onRefresh?.()
+        // Pas d'UPID — refresh avec délai puis retirer le spinner
         toast.success(t(`vmActions.${action}Success`))
+        onRefresh?.()
+        setTimeout(() => {
+          onVmActionEnd?.(connId, vmid)
+          onRefresh?.()
+        }, 3000)
       }
     } catch (e: any) {
       onVmActionEnd?.(connId, vmid)
