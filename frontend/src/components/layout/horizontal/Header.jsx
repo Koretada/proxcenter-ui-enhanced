@@ -86,16 +86,14 @@ const Header = () => {
     <>
       <LayoutHeader overrideStyles={darkOverrideStyles}>
         <Navbar>
-          {/* Logo + Burger on the left */}
+          {/* Logo on the left */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 2 }}>
-            {/* Logo */}
             <Box
               sx={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1,
                 cursor: 'pointer',
-                mr: 0.5,
                 color: 'text.primary'
               }}
               onClick={() => router.push('/home')}
@@ -113,35 +111,38 @@ const Header = () => {
                 ProxCenter
               </Typography>
             </Box>
-
-            {/* Burger button */}
-            <Button
-              size='small'
-              onClick={(e) => setBurgerAnchor(e.currentTarget)}
-              sx={{
-                textTransform: 'none',
-                fontSize: 12,
-                fontWeight: 500,
-                minWidth: 'auto',
-                px: 1,
-                py: 0.5,
-                borderRadius: 1,
-                color: 'text.secondary',
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                  color: 'text.primary'
-                }
-              }}
-            >
-              <i className='ri-menu-line' style={{ fontSize: 18, marginRight: 4 }} />
-              <Box component='span' sx={{ display: { xs: 'none', sm: 'inline' } }}>Menu</Box>
-            </Button>
           </Box>
 
           {/* NavbarContent (search, icons, profile, etc.) */}
           <NavbarContent />
         </Navbar>
-        {!isBreakpointReached && <Navigation />}
+        {!isBreakpointReached && (
+          <Navigation
+            burgerButton={
+              <Button
+                size='small'
+                onClick={(e) => setBurgerAnchor(e.currentTarget)}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  minWidth: 'auto',
+                  px: 1,
+                  py: 0.5,
+                  borderRadius: 1,
+                  color: 'text.secondary',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                    color: 'text.primary'
+                  }
+                }}
+              >
+                <i className='ri-menu-line' style={{ fontSize: 18, marginRight: 4 }} />
+                <Box component='span' sx={{ display: { xs: 'none', sm: 'inline' } }}>Menu</Box>
+              </Button>
+            }
+          />
+        )}
       </LayoutHeader>
       {isBreakpointReached && <Navigation />}
 
