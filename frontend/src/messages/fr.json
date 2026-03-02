@@ -3451,8 +3451,6 @@
     "haConflictGroups": "{groups} groupe(s) HA avec restrictions de nœuds",
     "haConflictHint": "Le DRS ne respecte pas les restrictions de groupes HA Proxmox ni les règles d'affinité natives PVE 9. Vérifiez les recommandations avant d'exécuter les migrations sur ces clusters.",
     "haConflictRecommendation": "Choisissez un seul système de règles : soit les règles HA natives Proxmox, soit les règles DRS ProxCenter. Utiliser les deux peut causer des conflits.",
-    "exportHARules": "Exporter les règles HA",
-    "exportHARulesSuccess": "Règles HA exportées avec succès",
     "enforceRules": "Forcer les règles",
     "enforceRulesSuccess": "{violations} violation(s) trouvée(s), {migrations} migration(s) lancée(s)",
     "enforceRulesNoViolation": "Aucune violation de règle détectée",

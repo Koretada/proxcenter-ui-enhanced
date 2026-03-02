@@ -1702,33 +1702,6 @@ return next
     }
   }, [mutateRecs, t])
 
-  const handleExportHARules = useCallback(() => {
-    if (!haDataMap) return
-    const exportData: any[] = []
-    for (const c of clusters) {
-      const ha = haDataMap[c.id]
-      if (!ha) continue
-      exportData.push({
-        cluster_name: c.name,
-        cluster_id: c.id,
-        groups: ha.groups,
-        ha_vmids: Array.from(ha.haVmids),
-        vm_group_map: Object.fromEntries(ha.vmGroupMap),
-        restricted_groups: ha.restrictedGroups,
-        rules_count: ha.rules,
-        major_version: ha.majorVersion
-      })
-    }
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `proxcenter-ha-backup-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    setSnackbar({ open: true, message: t('drsPage.exportHARulesSuccess'), severity: 'success' })
-  }, [haDataMap, clusters, t])
-
   const openRecommendation = useCallback(async (rec: DRSRecommendation) => {
     setSelectedRec(rec)
     setDrawerOpen(true)
@@ -2146,17 +2119,6 @@ return next
           <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 500 }}>
             {t('drsPage.haConflictRecommendation')}
           </Typography>
-          <Box sx={{ mt: 1 }}>
-            <Button
-              size="small"
-              variant="outlined"
-              color="warning"
-              startIcon={<i className="ri-download-2-line" style={{ fontSize: 16 }} />}
-              onClick={handleExportHARules}
-            >
-              {t('drsPage.exportHARules')}
-            </Button>
-          </Box>
         </Alert>
       )}
 
