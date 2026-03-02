@@ -36,7 +36,7 @@ function formatUptime(seconds: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
   
-return `${Math.floor(seconds / 86400)}j ${Math.floor((seconds % 86400) / 3600)}h`
+return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`
 }
 
 function getTaskLevel(status?: string): 'info' | 'warning' | 'error' {
@@ -53,50 +53,6 @@ function getLogLevel(pri: number): 'info' | 'warning' | 'error' {
   if (pri <= 4) return 'warning'
   
 return 'info'
-}
-
-function formatTaskType(type: string): string {
-  const types: Record<string, string> = {
-    'qmstart': 'Start VM',
-    'qmstop': 'Stop VM',
-    'qmshutdown': 'Shutdown VM',
-    'qmreboot': 'Reboot VM',
-    'qmsuspend': 'Suspend VM',
-    'qmresume': 'Resume VM',
-    'qmclone': 'Clone VM',
-    'qmcreate': 'Create VM',
-    'qmdestroy': 'Destroy VM',
-    'qmmigrate': 'Migrate VM',
-    'qmrollback': 'Rollback VM',
-    'qmsnapshot': 'Snapshot VM',
-    'qmdelsnapshot': 'Delete Snapshot VM',
-    'vzstart': 'Start LXC',
-    'vzstop': 'Stop LXC',
-    'vzshutdown': 'Shutdown LXC',
-    'vzreboot': 'Reboot LXC',
-    'vzsuspend': 'Suspend LXC',
-    'vzresume': 'Resume LXC',
-    'vzcreate': 'Create LXC',
-    'vzdestroy': 'Destroy LXC',
-    'vzmigrate': 'Migrate LXC',
-    'vzdump': 'Backup',
-    'qmbackup': 'Backup VM',
-    'vzbackup': 'Backup LXC',
-    'vncproxy': 'VNC Console',
-    'spiceproxy': 'SPICE Console',
-    'startall': 'Start All',
-    'stopall': 'Stop All',
-    'aptupdate': 'APT Update',
-    'imgcopy': 'Image Copy',
-    'download': 'Download',
-    'srvreload': 'Reload Service',
-    'srvrestart': 'Restart Service',
-    'cephcreateosd': 'Create Ceph OSD',
-    'cephdestroyosd': 'Destroy Ceph OSD',
-  }
-
-  
-return types[type] || type
 }
 
 export async function GET(req: Request) {
@@ -194,7 +150,7 @@ export async function GET(req: Request) {
                 level: getTaskLevel(task.status),
                 category: 'task',
                 type: task.type,
-                typeLabel: formatTaskType(task.type),
+                typeLabel: task.type,
                 entity: task.id || task.node,
                 entityName: vmName,
                 node: task.node,
@@ -202,7 +158,7 @@ export async function GET(req: Request) {
                 status: task.status || 'running',
                 duration: formatUptime(duration),
                 durationSec: duration,
-                message: `${formatTaskType(task.type)}${task.id ? ` (${vmName || task.id})` : ''} - ${task.status || 'En cours...'}`,
+                message: `${task.type}${task.id ? ` (${vmName || task.id})` : ''} - ${task.status || 'running'}`,
                 connectionId: conn.id,
                 connectionName: conn.name,
                 source: 'proxmox-task'
@@ -272,7 +228,7 @@ export async function GET(req: Request) {
     console.error('Erreur API events:', error)
     
 return NextResponse.json(
-      { error: error?.message || 'Erreur serveur' },
+      { error: error?.message || 'Server error' },
       { status: 500 }
     )
   }

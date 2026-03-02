@@ -26,6 +26,7 @@ export const createConnectionSchema = z.object({
   sshKey: z.nullable(z.string().transform(s => s.trim())).optional(),
   sshPassphrase: z.nullable(z.string().transform(s => s.trim())).optional(),
   sshPassword: z.nullable(z.string().transform(s => s.trim())).optional(),
+  sshUseSudo: z.boolean().default(false),
 }).superRefine((data, ctx) => {
   if (data.sshEnabled) {
     if (!data.sshAuthMethod) {
@@ -73,6 +74,7 @@ export const updateConnectionSchema = z.object({
   sshKey: z.nullable(z.string().transform(s => s.trim())).optional(),
   sshPassphrase: z.nullable(z.string().transform(s => s.trim())).optional(),
   sshPassword: z.nullable(z.string().transform(s => s.trim())).optional(),
+  sshUseSudo: z.boolean().optional(),
 })
 
 // ─── Alerts ────────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 
 import { SimpleTreeView, TreeItem } from '@mui/x-tree-view'
 import { 
@@ -470,6 +471,7 @@ function safeJson<T>(x: any): T {
 export default function InventoryTree({ selected, onSelect, onRefreshRef, viewMode: controlledViewMode, onViewModeChange, onAllVmsChange, onHostsChange, onPoolsChange, onTagsChange, onPbsServersChange, favorites: propFavorites, onToggleFavorite, migratingVmIds, pendingActionVmIds, onRefresh, refreshLoading, onCollapse, isCollapsed, allowedViewModes }: Props) {
   const t = useTranslations()
   const theme = useTheme()
+  const router = useRouter()
   const { trackTask } = useTaskTracker()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1503,6 +1505,11 @@ return favorites.has(vmKey)
               </IconButton>
             </Tooltip>
           )}
+          <Tooltip title={t('settings.connections')}>
+            <IconButton size='small' onClick={() => router.push('/settings?tab=connections')}>
+              <i className='ri-add-circle-line' style={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
           {onCollapse && (
             <Tooltip title={isCollapsed ? t('common.showMore') : t('common.showLess')}>
               <IconButton

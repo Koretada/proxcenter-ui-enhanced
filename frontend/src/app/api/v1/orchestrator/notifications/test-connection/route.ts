@@ -2,10 +2,13 @@ import { NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator'
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    const body = await request.json().catch(() => ({}))
+
     const data = await orchestratorFetch('/notifications/test-connection', {
-      method: 'POST'
+      method: 'POST',
+      body: { locale: body.locale || 'en', config: body.config }
     })
 
     

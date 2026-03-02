@@ -932,20 +932,18 @@ export function MigrateVmDialog({
                         display: 'flex',
                         alignItems: 'center',
                         gap: 1.5,
-                        position: 'relative',
                       }}
                     >
-                      {recommended && (
-                        <Tooltip title={t('hardware.recommended')} arrow>
-                          <Box sx={{ position: 'absolute', top: -8, right: -8, color: 'warning.main', fontSize: 16, lineHeight: 1, bgcolor: 'background.paper', borderRadius: '50%', display: 'flex' }}>
-                            <i className="ri-star-fill" />
-                          </Box>
-                        </Tooltip>
-                      )}
-
                       <Typography variant="body2" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 100, flexShrink: 0 }}>
                         <i className="ri-server-line" style={{ fontSize: 14, opacity: 0.7 }} />
                         {node.node}
+                        {recommended && (
+                          <Tooltip title={t('hardware.recommended')} arrow>
+                            <Box component="span" sx={{ color: 'warning.main', fontSize: 14, lineHeight: 1, display: 'inline-flex', ml: 0.5 }}>
+                              <i className="ri-star-fill" />
+                            </Box>
+                          </Tooltip>
+                        )}
                       </Typography>
 
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>

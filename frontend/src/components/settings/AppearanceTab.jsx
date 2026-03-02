@@ -59,104 +59,50 @@ function ThemePreviewCard({ themeConfig, selected, onSelect, t }) {
         overflow: 'hidden',
         '&:hover': {
           borderColor: 'primary.main',
-          transform: 'translateY(-4px)',
+          transform: 'translateY(-2px)',
           boxShadow: `0 8px 24px ${alpha(muiTheme.palette.primary.main, 0.2)}`
         }
       }}
     >
       {isSelected && (
-        <Box sx={{ position: 'absolute', top: 8, right: 8, width: 24, height: 24, borderRadius: '50%', backgroundColor: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
-          <i className='ri-check-line' style={{ color: '#fff', fontSize: 14 }} />
+        <Box sx={{ position: 'absolute', top: 6, right: 6, width: 20, height: 20, borderRadius: '50%', backgroundColor: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+          <i className='ri-check-line' style={{ color: '#fff', fontSize: 12 }} />
         </Box>
       )}
 
-      <Box sx={{ height: 120, background: themeConfig.preview.cardBg, position: 'relative', p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Box sx={{ flex: 1, borderRadius: `${styles.card.borderRadius}px`, background: styles.card.background === 'var(--mui-palette-background-paper)' ? 'rgba(255,255,255,0.1)' : styles.card.background, backdropFilter: styles.card.backdropFilter !== 'none' ? styles.card.backdropFilter : undefined, border: styles.card.border !== 'none' ? styles.card.border : '1px solid rgba(255,255,255,0.1)', boxShadow: styles.card.boxShadow, p: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      <Box sx={{ height: 80, background: themeConfig.preview.cardBg, position: 'relative', p: 1, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+        <Box sx={{ flex: 1, borderRadius: `${styles.card.borderRadius}px`, background: styles.card.background === 'var(--mui-palette-background-paper)' ? 'rgba(255,255,255,0.1)' : styles.card.background, backdropFilter: styles.card.backdropFilter !== 'none' ? styles.card.backdropFilter : undefined, border: styles.card.border !== 'none' ? styles.card.border : '1px solid rgba(255,255,255,0.1)', boxShadow: styles.card.boxShadow, p: 0.75, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-            <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: themeConfig.preview.accent }} />
-            <Box sx={{ height: 6, flex: 1, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 1 }} />
+            <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: themeConfig.preview.accent }} />
+            <Box sx={{ height: 4, flex: 1, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 1 }} />
           </Box>
-          <Box sx={{ height: 4, width: '80%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 1 }} />
-          <Box sx={{ height: 4, width: '60%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 1 }} />
+          <Box sx={{ height: 3, width: '80%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 1 }} />
+          <Box sx={{ height: 3, width: '60%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 1 }} />
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Box sx={{ height: 20, px: 1.5, borderRadius: `${styles.button.borderRadius}px`, backgroundColor: themeConfig.preview.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Typography sx={{ fontSize: 8, color: '#fff', fontWeight: styles.button.fontWeight, textTransform: styles.button.textTransform }}>Button</Typography>
+        <Box sx={{ display: 'flex', gap: 0.75 }}>
+          <Box sx={{ height: 16, px: 1, borderRadius: `${styles.button.borderRadius}px`, backgroundColor: themeConfig.preview.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography sx={{ fontSize: 7, color: '#fff', fontWeight: styles.button.fontWeight, textTransform: styles.button.textTransform }}>Button</Typography>
           </Box>
-          <Box sx={{ height: 20, px: 1.5, borderRadius: `${styles.button.borderRadius}px`, border: `1px solid ${themeConfig.preview.accent}`, display: 'flex', alignItems: 'center' }}>
-            <Typography sx={{ fontSize: 8, color: themeConfig.preview.accent, fontWeight: styles.button.fontWeight, textTransform: styles.button.textTransform }}>Outlined</Typography>
+          <Box sx={{ height: 16, px: 1, borderRadius: `${styles.button.borderRadius}px`, border: `1px solid ${themeConfig.preview.accent}`, display: 'flex', alignItems: 'center' }}>
+            <Typography sx={{ fontSize: 7, color: themeConfig.preview.accent, fontWeight: styles.button.fontWeight, textTransform: styles.button.textTransform }}>Outlined</Typography>
           </Box>
         </Box>
       </Box>
 
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 40, height: 40, borderRadius: 2, backgroundColor: alpha(themeConfig.preview.accent, 0.15), display: 'flex', alignItems: 'center', justifyContent: 'center', color: themeConfig.preview.accent }}>
+      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ width: 28, height: 28, borderRadius: 1.5, backgroundColor: alpha(themeConfig.preview.accent, 0.15), display: 'flex', alignItems: 'center', justifyContent: 'center', color: themeConfig.preview.accent, flexShrink: 0 }}>
             {themeConfig.icon === 'proxcenter-logo' ? (
-              <LogoIcon size={22} accentColor={themeConfig.preview.accent} />
+              <LogoIcon size={16} accentColor={themeConfig.preview.accent} />
             ) : (
-              <i className={themeConfig.icon} style={{ fontSize: 20 }} />
+              <i className={themeConfig.icon} style={{ fontSize: 15 }} />
             )}
           </Box>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant='subtitle2' fontWeight={600}>{themeConfig.name}</Typography>
-            <Typography variant='caption' color='text.secondary'>{t(themeConfig.descriptionKey)}</Typography>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant='body2' fontWeight={600} noWrap>{themeConfig.name}</Typography>
           </Box>
         </Box>
-
-        <Box sx={{ display: 'flex', gap: 0.5, mt: 1.5, flexWrap: 'wrap' }}>
-          <Chip size='small' label={`Radius: ${styles.card.borderRadius}px`} sx={{ height: 20, fontSize: 10 }} />
-          <Chip size='small' label={t(densityConfig[styles.density]?.labelKey) || styles.density} sx={{ height: 20, fontSize: 10 }} />
-          {styles.card.backdropFilter !== 'none' && <Chip size='small' label='Blur' color='info' sx={{ height: 20, fontSize: 10 }} />}
-          {themeConfig.tagKeys?.map((tagKey) => (
-            <Chip key={tagKey} size='small' label={t(tagKey)} color={tagKey === 'themes.tags.popular' ? 'success' : tagKey === 'themes.tags.wcagAAA' ? 'warning' : 'default'} variant='outlined' sx={{ height: 20, fontSize: 10 }} />
-          ))}
-        </Box>
-      </CardContent>
-    </Card>
-  )
-}
-
-/* ==================== Live Preview Component ==================== */
-
-function LivePreview({ customRadius, t }) {
-  return (
-    <Card variant='outlined' sx={{ overflow: 'hidden' }}>
-      <CardContent sx={{ p: 2 }}>
-        <Typography variant='subtitle2' fontWeight={600} sx={{ mb: 2 }}>{t('settings.livePreview')}</Typography>
-
-        <Card variant='outlined' sx={{ mb: 2, ...(customRadius !== null && customRadius !== undefined && { borderRadius: `${customRadius}px` }) }}>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Box sx={{ width: 32, height: 32, borderRadius: 1, backgroundColor: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className='ri-server-line' style={{ color: '#fff', fontSize: 16 }} />
-              </Box>
-              <Box>
-                <Typography variant='body2' fontWeight={600}>Server PVE-01</Typography>
-                <Typography variant='caption' color='text.secondary'>192.168.1.10</Typography>
-              </Box>
-              <Chip size='small' label={t('settings.serverOnline')} color='success' sx={{ ml: 'auto' }} />
-            </Box>
-            <Divider sx={{ my: 1.5 }} />
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button size='small' variant='contained'>{t('settings.connect')}</Button>
-              <Button size='small' variant='outlined'>{t('settings.details')}</Button>
-              <Button size='small' variant='text' color='error'>{t('common.delete')}</Button>
-            </Box>
-          </CardContent>
-        </Card>
-
-        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-          <FormControl size='small' sx={{ minWidth: 120 }}>
-            <InputLabel>Region</InputLabel>
-            <Select label='Region' value='gra'><MenuItem value='gra'>GRA</MenuItem><MenuItem value='rbx'>RBX</MenuItem></Select>
-          </FormControl>
-          <Chip label='CPU: 45%' color='warning' />
-          <Chip label='RAM: 62%' color='info' />
-        </Box>
-
-        <Alert severity='info'>{t('settings.changesAutoSaved')}</Alert>
       </CardContent>
     </Card>
   )
@@ -304,13 +250,13 @@ return (
 
           <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 3 }}>{t('settings.visualStyleDesc')}</Typography>
 
-          <Grid container spacing={2}>
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
             {filteredThemes.map((themeConf) => (
-              <Grid item xs={12} sm={6} md={4} key={themeConf.id}>
+              <Box key={themeConf.id} sx={{ width: 180, flexShrink: 0 }}>
                 <ThemePreviewCard themeConfig={themeConf} selected={settings.globalTheme || 'default'} onSelect={handleGlobalThemeChange} t={t} />
-              </Grid>
+              </Box>
             ))}
-          </Grid>
+          </Box>
         </CardContent>
       </Card>
 
@@ -471,15 +417,6 @@ return (
           <FormControlLabel control={<Switch checked={settings.semiDark || false} onChange={handleSemiDarkChange} />} label={<Box><Typography variant='body2'>{t('settings.semiDarkMenu')}</Typography><Typography variant='caption' color='text.secondary'>{t('settings.semiDarkMenuDesc')}</Typography></Box>} />
         </CardContent>
       </Card>
-
-      {/* Section: Preview */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant='subtitle1' fontWeight={700} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <i className='ri-eye-line' style={{ color: theme.palette.primary.main }} />
-          {t('settings.livePreview')}
-        </Typography>
-        <LivePreview customRadius={settings.customBorderRadius} t={t} />
-      </Box>
 
       {/* Reset */}
       <Card variant='outlined'>

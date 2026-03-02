@@ -73,7 +73,7 @@ function RoleChip({ roles, t }) {
   return (
     <Chip
       size='small'
-      label={role.name}
+      label={t ? t(`rbac.roles.${role.id}`, { defaultValue: role.name }) : role.name}
       sx={{
         bgcolor: role.color ? `${role.color}20` : undefined,
         color: role.color || undefined,
@@ -269,7 +269,7 @@ return
             options={rbacRoles}
             value={selectedRole}
             onChange={(_, newValue) => setSelectedRole(newValue)}
-            getOptionLabel={(option) => option.name}
+            getOptionLabel={(option) => t ? t(`rbac.roles.${option.id}`, { defaultValue: option.name }) : option.name}
             isOptionEqualToValue={(option, value) => option.id === value.id}
             renderInput={(params) => (
               <TextField
@@ -291,7 +291,7 @@ return
                     }}
                   />
                   <Box>
-                    <Typography variant='body2'>{option.name}</Typography>
+                    <Typography variant='body2'>{t ? t(`rbac.roles.${option.id}`, { defaultValue: option.name }) : option.name}</Typography>
                     <Typography variant='caption' sx={{ opacity: 0.6 }}>{option.description}</Typography>
                   </Box>
                 </Box>

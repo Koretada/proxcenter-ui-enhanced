@@ -151,6 +151,8 @@ try {
     { table: 'ManagedHost', column: 'ip',          type: 'TEXT' },
     { table: 'ManagedHost', column: 'description', type: 'TEXT' },
     { table: 'ManagedHost', column: 'tags',        type: 'TEXT' },
+    // SSH sudo option (2026-03-02)
+    { table: 'Connection', column: 'sshUseSudo', type: 'INTEGER DEFAULT 0' },
   ]
 
   let applied = 0

@@ -32,6 +32,7 @@ model Connection {
   sshAuthMethod String?
   sshKeyEnc     String?
   sshPassEnc    String?
+  sshUseSudo    Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

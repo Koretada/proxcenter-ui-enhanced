@@ -42,6 +42,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         sshPort: true,
         sshUser: true,
         sshAuthMethod: true,
+        sshUseSudo: true,
         // Pour vérifier si configuré
         sshKeyEnc: true,
         sshPassEnc: true,
@@ -126,7 +127,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
     if (body.sshPort !== undefined) data.sshPort = body.sshPort
     if (body.sshUser !== undefined) data.sshUser = body.sshUser || 'root'
-    if (body.sshAuthMethod !== undefined) data.sshAuthMethod = body.sshAuthMethod || null
+    if (body.sshUseSudo !== undefined) data.sshUseSudo = body.sshUseSudo
+    if (body.sshAuthMethod !== undefined) {
+      data.sshAuthMethod = body.sshAuthMethod || null
+
+      // Clear old credentials when switching auth method
+      if (body.sshAuthMethod === 'password') {
+        data.sshKeyEnc = null
+      } else if (body.sshAuthMethod === 'key') {
+        // Only clear password if no passphrase provided (password field reused for passphrase)
+        if (!body.sshPassphrase) {
+          data.sshPassEnc = null
+        }
+      }
+    }
 
     // Mise à jour de la clé SSH
     if (body.sshKey !== undefined) {
@@ -196,6 +210,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         sshPort: true,
         sshUser: true,
         sshAuthMethod: true,
+        sshUseSudo: true,
         sshKeyEnc: true,
         sshPassEnc: true,
         createdAt: true,

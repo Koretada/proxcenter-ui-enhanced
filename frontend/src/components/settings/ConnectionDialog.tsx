@@ -49,6 +49,7 @@ export type ConnectionFormData = {
   sshKey: string
   sshPassphrase: string
   sshPassword: string
+  sshUseSudo: boolean
 }
 
 type ConnectionDialogProps = {
@@ -81,6 +82,7 @@ const defaultFormData: ConnectionFormData = {
   sshKey: '',
   sshPassphrase: '',
   sshPassword: '',
+  sshUseSudo: false,
 }
 
 export default function ConnectionDialog({
@@ -97,6 +99,9 @@ export default function ConnectionDialog({
   const [error, setError] = useState<string | null>(null)
   const [showSshKey, setShowSshKey] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [tokenId, setTokenId] = useState('')
+  const [tokenSecret, setTokenSecret] = useState('')
+  const [showTokenSecret, setShowTokenSecret] = useState(false)
   
   // Test SSH
   const [testingSSH, setTestingSSH] = useState(false)
@@ -131,6 +136,9 @@ export default function ConnectionDialog({
       }
       setError(null)
       setSshTestResult(null)
+      setTokenId('')
+      setTokenSecret('')
+      setShowTokenSecret(false)
     }
   }, [open, initialData])
 
@@ -203,6 +211,12 @@ export default function ConnectionDialog({
       return
     }
     
+    // Assemble API token from split fields if they were used
+    if (tokenId.trim() && tokenSecret.trim()) {
+      const separator = type === 'pbs' ? ':' : '='
+      form.apiToken = `${tokenId.trim()}${separator}${tokenSecret.trim()}`
+    }
+
     if (mode === 'create' && !form.apiToken.trim()) {
       setError(t('settings.errorTokenRequired'))
       return
@@ -226,11 +240,27 @@ export default function ConnectionDialog({
       }
     }
 
+    // Auto-append default port if not specified
+    const defaultPort = type === 'pbs' ? '8007' : '8006'
+    let finalForm = { ...form }
+    try {
+      const url = new URL(finalForm.baseUrl)
+      if (!url.port) {
+        url.port = defaultPort
+        finalForm.baseUrl = url.toString().replace(/\/$/, '')
+      }
+    } catch {
+      // If URL parsing fails, try simple append
+      if (finalForm.baseUrl && !finalForm.baseUrl.match(/:\d+/)) {
+        finalForm.baseUrl = finalForm.baseUrl.replace(/\/$/, '') + ':' + defaultPort
+      }
+    }
+
     setSaving(true)
     setError(null)
-    
+
     try {
-      await onSave(form)
+      await onSave(finalForm)
       onClose()
     } catch (e: any) {
       setError(e.message || 'Error saving connection')
@@ -267,7 +297,9 @@ export default function ConnectionDialog({
         </Typography>
 
         <Alert severity="info" sx={{ mb: 2 }}>
-          <span dangerouslySetInnerHTML={{ __html: isPbs ? t('settings.pbsPortInfo') : t('settings.pvePortInfo') }} />
+          {t.rich(isPbs ? 'settings.pbsPortInfo' : 'settings.pvePortInfo', {
+            b: (chunks) => <b>{chunks}</b>
+          })}
         </Alert>
 
         <TextField
@@ -319,19 +351,56 @@ export default function ConnectionDialog({
 
         <TextField
           fullWidth
-          label={t('settings.apiToken')}
-          value={form.apiToken}
-          onChange={e => handleChange('apiToken', e.target.value)}
-          placeholder={isPbs ? "user@realm!tokenid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" : "user@realm!tokenid=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
-          helperText={isEdit ? t('settings.apiTokenHelperEdit') : t(isPbs ? 'settings.pbsApiTokenHelper' : 'settings.apiTokenHelper')}
+          label={t('settings.apiTokenId')}
+          value={tokenId}
+          onChange={e => setTokenId(e.target.value)}
+          placeholder="user@realm!tokenid"
+          helperText={isEdit ? t('settings.apiTokenHelperEdit') : t('settings.apiTokenIdHelper')}
           sx={{ mt: 1 }}
           required={!isEdit}
+        />
+        <TextField
+          fullWidth
+          label={t('settings.apiTokenSecret')}
+          value={tokenSecret}
+          onChange={e => setTokenSecret(e.target.value)}
+          type={showTokenSecret ? 'text' : 'password'}
+          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+          helperText={isEdit ? t('settings.apiTokenHelperEdit') : t('settings.apiTokenSecretHelper')}
+          sx={{ mt: 1.5 }}
+          required={!isEdit}
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setShowTokenSecret(!showTokenSecret)} edge="end">
+                    <i className={showTokenSecret ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }
+          }}
         />
 
         {!isPbs && (
           <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
             <Typography variant="body2">
               {t('settings.pvePrivsepHint')}
+            </Typography>
+          </Alert>
+        )}
+
+        {isPbs && (
+          <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              {t('settings.pbsAuthHintTitle')}
+            </Typography>
+            <Typography variant="body2" component="div">
+              <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
+                <li>{t('settings.pbsAuthHintRealm')}</li>
+                <li>{t('settings.pbsAuthHintFormat')}</li>
+                <li>{t('settings.pbsAuthHintPerms')}</li>
+              </ul>
             </Typography>
           </Alert>
         )}
@@ -482,6 +551,23 @@ export default function ConnectionDialog({
               </Box>
             </Collapse>
 
+            {/* Use sudo for privileged commands */}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.sshUseSudo}
+                  onChange={e => setForm({ ...form, sshUseSudo: e.target.checked })}
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2">{t('settings.sshUseSudo')}</Typography>
+                  <Typography variant="caption" color="text.secondary">{t('settings.sshUseSudoHelper')}</Typography>
+                </Box>
+              }
+              sx={{ mt: 1, ml: 0 }}
+            />
+
             {/* Test SSH Button (only in edit mode with existing connection) */}
             {isEdit && initialData?.id && form.sshEnabled && (
               <Box sx={{ mt: 2 }}>
@@ -582,7 +668,7 @@ export default function ConnectionDialog({
           variant="contained"
           color={isPbs ? 'secondary' : 'primary'}
           onClick={handleSave}
-          disabled={saving || !form.name.trim() || !form.baseUrl.trim() || (!isEdit && !form.apiToken.trim())}
+          disabled={saving || !form.name.trim() || !form.baseUrl.trim() || (!isEdit && !tokenId.trim() && !tokenSecret.trim() && !form.apiToken.trim())}
           startIcon={saving ? <CircularProgress size={16} /> : <i className="ri-save-line" />}
         >
           {t('common.save')}

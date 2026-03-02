@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 import dynamic from 'next/dynamic'
 
 import {
@@ -51,6 +51,7 @@ return json
 
 export default function NotificationsTab() {
   const t = useTranslations()
+  const locale = useLocale()
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -98,7 +99,9 @@ export default function NotificationsTab() {
 
     try {
       const result = await fetchJson('/api/v1/orchestrator/notifications/test-connection', {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale, config: settings?.email })
       })
 
       if (result.success) {
@@ -126,7 +129,7 @@ return
       await fetchJson('/api/v1/orchestrator/notifications/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient: testEmail })
+        body: JSON.stringify({ recipient: testEmail, locale, config: settings?.email })
       })
       setMessage({ type: 'success', text: t('notifications.testEmailSent', { email: testEmail }) })
     } catch (err) {

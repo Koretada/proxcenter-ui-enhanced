@@ -46,6 +46,12 @@ function timeAgo(date, t) {
 return t('eventsPage.daysAgo', { count: Math.floor(diff / 86400) })
 }
 
+function formatTaskType(type, t) {
+  const key = `events.taskTypes.${type}`
+  const translated = t(key, { defaultValue: '' })
+  return translated || type
+}
+
 /* --------------------------------
    Components
 -------------------------------- */
@@ -281,7 +287,7 @@ return { total, errors, warnings, running }
         width: 160,
         renderCell: params => (
           <Typography variant='body2' sx={{ fontWeight: 500 }}>
-            {params.row.typeLabel || params.row.type}
+            {formatTaskType(params.row.type, t) || params.row.typeLabel || params.row.type}
           </Typography>
         )
       },

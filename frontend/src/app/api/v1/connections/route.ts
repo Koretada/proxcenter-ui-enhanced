@@ -49,6 +49,7 @@ export async function GET(req: Request) {
         sshPort: true,
         sshUser: true,
         sshAuthMethod: true,
+        sshUseSudo: true,
         // Inclure les champs chiffrés pour vérifier si configuré (ne pas renvoyer au client)
         sshKeyEnc: true,
         sshPassEnc: true,
@@ -104,7 +105,7 @@ export async function POST(req: Request) {
       name, type, baseUrl, uiUrl, insecureTLS, hasCeph, apiToken,
       latitude, longitude, locationLabel,
       sshEnabled, sshPort, sshUser, sshAuthMethod,
-      sshKey, sshPassphrase, sshPassword,
+      sshKey, sshPassphrase, sshPassword, sshUseSudo,
     } = parseResult.data
 
     // Préparer les données
@@ -123,6 +124,7 @@ export async function POST(req: Request) {
       sshPort,
       sshUser,
       sshAuthMethod: sshEnabled ? sshAuthMethod : null,
+      sshUseSudo: sshEnabled ? sshUseSudo : false,
     }
 
     // Chiffrer les secrets SSH si fournis
@@ -156,12 +158,19 @@ export async function POST(req: Request) {
           const cephStatus = await pveFetch<any>(
             { baseUrl, apiToken, insecureDev: insecureTLS },
             `/nodes/${encodeURIComponent(onlineNode.node)}/ceph/status`
-          ).catch(() => null)
+          ).catch((e: any) => {
+            console.log(`[ceph-detect] Ceph probe failed on ${onlineNode.node}: ${e?.message || 'unknown error'}`)
+            return null
+          })
 
           data.hasCeph = !!(cephStatus?.health)
+          console.log(`[ceph-detect] Ceph detection result: ${data.hasCeph} (node: ${onlineNode.node})`)
+        } else {
+          console.log('[ceph-detect] No online node found for Ceph probe')
         }
-      } catch {
+      } catch (e: any) {
         // If probe fails, leave hasCeph as false
+        console.log(`[ceph-detect] Ceph detection failed: ${e?.message || 'unknown error'}`)
         data.hasCeph = false
       }
     }
@@ -195,6 +204,7 @@ export async function POST(req: Request) {
         sshPort: true,
         sshUser: true,
         sshAuthMethod: true,
+        sshUseSudo: true,
         createdAt: true,
         updatedAt: true,
       },

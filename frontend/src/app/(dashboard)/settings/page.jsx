@@ -609,10 +609,14 @@ function ConnectionsTab() {
               columns={pveColumns}
               loading={pveLoading}
               getRowId={r => r.id}
+              getRowHeight={() => 'auto'}
               pageSizeOptions={[10, 25, 50]}
               initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
               disableRowSelectionOnClick
-              sx={{ '& .MuiDataGrid-row:hover': { backgroundColor: 'action.hover' } }}
+              sx={{
+                '& .MuiDataGrid-row:hover': { backgroundColor: 'action.hover' },
+                '& .MuiDataGrid-cell': { py: 1 },
+              }}
             />
           )}
         </Box>
@@ -1757,7 +1761,6 @@ export default function SettingsPage() {
   const t = useTranslations()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [mainTab, setMainTab] = useState(0)
   const { hasFeature, loading: licenseLoading } = useLicense()
 
   const { setPageInfo } = usePageTitle()
@@ -1783,6 +1786,8 @@ export default function SettingsPage() {
     return hasFeature(tab.requiredFeature)
   }
 
+  const tabNames = ['connections', 'appearance', 'notifications', 'ldap', 'oidc', 'license', 'ai', 'green']
+
   const tabs = [
     { label: t('settings.connections'), icon: 'ri-link', component: ConnectionsTab },
     { label: t('settings.appearance'), icon: 'ri-palette-line', component: AppearanceTab },
@@ -1794,13 +1799,31 @@ export default function SettingsPage() {
     { label: 'RSE / Green IT', icon: 'ri-leaf-line', component: GreenTab, requiredFeature: Features.GREEN_METRICS },
   ]
 
-  // Deep-link: ?tab=green opens the Green IT tab directly
+  // Resolve tab index from URL param
+  const resolveTabIndex = () => {
+    if (!tabParam) return 0
+    const idx = tabNames.indexOf(tabParam)
+    return idx >= 0 ? idx : 0
+  }
+
+  const [mainTab, setMainTab] = useState(resolveTabIndex)
+
+  // Sync tab from URL changes
   useEffect(() => {
-    if (tabParam === 'green') {
-      const greenIdx = tabs.findIndex(t => t.component === GreenTab)
-      if (greenIdx >= 0) setMainTab(greenIdx)
+    if (tabParam) {
+      const idx = tabNames.indexOf(tabParam)
+      if (idx >= 0 && idx !== mainTab) setMainTab(idx)
     }
   }, [tabParam])
+
+  // Update URL when tab changes
+  const handleTabChange = (newIndex) => {
+    setMainTab(newIndex)
+    const name = tabNames[newIndex] || 'connections'
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', name)
+    router.replace(`/settings?${params.toString()}`, { scroll: false })
+  }
 
   return (
     <Box sx={{ p: 0 }}>
@@ -1830,7 +1853,7 @@ export default function SettingsPage() {
           <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3, pt: 2 }}>
             <Tabs
               value={mainTab}
-              onChange={(_, v) => setMainTab(v)}
+              onChange={(_, v) => handleTabChange(v)}
               sx={{
                 '& .MuiTab-root': {
                   minHeight: 56,

@@ -30,6 +30,7 @@ export async function executeSSH(
       sshAuthMethod: true,
       sshKeyEnc: true,
       sshPassEnc: true,
+      sshUseSudo: true,
     },
   })
 
@@ -40,35 +41,53 @@ export async function executeSSH(
   const port = connection.sshPort || 22
   const user = connection.sshUser || "root"
 
-  // Decrypt credentials
+  // Decrypt credentials based on configured auth method
   let key: string | undefined
   let password: string | undefined
   let passphrase: string | undefined
 
-  if (connection.sshKeyEnc) {
+  const authMethod = connection.sshAuthMethod || (connection.sshKeyEnc ? "key" : "password")
+
+  if (authMethod === "key" && connection.sshKeyEnc) {
     try {
       key = decryptSecret(connection.sshKeyEnc)
     } catch {
       return { success: false, error: "Failed to decrypt SSH key" }
     }
-  }
-
-  if (connection.sshPassEnc) {
-    try {
-      const decrypted = decryptSecret(connection.sshPassEnc)
-      if (connection.sshAuthMethod === "key") {
-        passphrase = decrypted
-      } else {
-        password = decrypted
+    // Passphrase for key
+    if (connection.sshPassEnc) {
+      try {
+        passphrase = decryptSecret(connection.sshPassEnc)
+      } catch {
+        // Ignore passphrase decryption errors
       }
+    }
+  } else if (authMethod === "password" && connection.sshPassEnc) {
+    try {
+      password = decryptSecret(connection.sshPassEnc)
     } catch {
-      // Ignore passphrase decryption errors
+      return { success: false, error: "Failed to decrypt SSH password" }
+    }
+  } else {
+    // Fallback: try whatever is available
+    if (connection.sshKeyEnc) {
+      try { key = decryptSecret(connection.sshKeyEnc) } catch {}
+    }
+    if (connection.sshPassEnc) {
+      try {
+        const decrypted = decryptSecret(connection.sshPassEnc)
+        if (key) passphrase = decrypted
+        else password = decrypted
+      } catch {}
     }
   }
 
+  // Prefix command with sudo if configured
+  const finalCommand = connection.sshUseSudo ? `sudo ${command}` : command
+
   // 1. Try orchestrator
   try {
-    const body: Record<string, unknown> = { host: nodeIp, port, user, command }
+    const body: Record<string, unknown> = { host: nodeIp, port, user, command: finalCommand }
     if (key) body.key = key
     if (password) body.password = password
     if (passphrase) body.passphrase = passphrase
@@ -93,7 +112,7 @@ export async function executeSSH(
   }
 
   // 2. Fallback: direct ssh2
-  return executeSSHDirect({ host: nodeIp, port, user, key, password, passphrase, command })
+  return executeSSHDirect({ host: nodeIp, port, user, key, password, passphrase, command: finalCommand })
 }
 
 /**

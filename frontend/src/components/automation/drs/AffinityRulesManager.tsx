@@ -309,7 +309,7 @@ export default function AffinityRulesManager({
                             {rule.name}
                           </Typography>
                           {rule.required && (
-                            <Chip label="Obligatoire" size="small" color="error" sx={{ mt: 0.5, height: 18, fontSize: '0.65rem' }} />
+                            <Chip label={t('drsPage.required')} size="small" color="error" sx={{ mt: 0.5, height: 18, fontSize: '0.65rem' }} />
                           )}
                         </Box>
                       </TableCell>
@@ -350,22 +350,24 @@ export default function AffinityRulesManager({
                       </TableCell>
                       <TableCell>
                         {rule.nodes?.length > 0 ? (
-                          <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                            {rule.nodes.slice(0, 2).map(node => (
-                              <Chip 
-                                key={node} 
-                                label={node} 
-                                size="small" 
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                            {rule.nodes.slice(0, 3).map(node => (
+                              <Chip
+                                key={node}
+                                label={node}
+                                size="small"
                                 variant="outlined"
                                 sx={{ height: 22, fontSize: '0.7rem' }}
                               />
                             ))}
-                            {rule.nodes.length > 2 && (
-                              <Chip 
-                                label={`+${rule.nodes.length - 2}`} 
-                                size="small"
-                                sx={{ height: 22, fontSize: '0.7rem' }}
-                              />
+                            {rule.nodes.length > 3 && (
+                              <Tooltip title={rule.nodes.join(', ')} arrow>
+                                <Chip
+                                  label={`+${rule.nodes.length - 3}`}
+                                  size="small"
+                                  sx={{ height: 22, fontSize: '0.7rem' }}
+                                />
+                              </Tooltip>
                             )}
                           </Stack>
                         ) : (
@@ -374,7 +376,7 @@ export default function AffinityRulesManager({
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={rule.fromTag ? 'Tag' : rule.fromPool ? 'Pool' : 'Manuel'}
+                          label={rule.fromTag ? 'Tag' : rule.fromPool ? 'Pool' : t('drsPage.manual')}
                           size="small"
                           color={rule.fromTag ? 'secondary' : rule.fromPool ? 'info' : 'default'}
                           variant="outlined"
