@@ -293,6 +293,11 @@ return this.get<DRSRecommendation[]>(`/drs/recommendations${query}`)
     return this.post<{ status: string }>('/drs/evaluate')
   }
 
+  // Force enforce all affinity rules
+  enforceRules() {
+    return this.post<{ violations_found: number; migrations_started: number; errors?: string[] }>('/drs/enforce-rules')
+  }
+
   // Affinity Rules
   getRules() {
     return this.get<AffinityRule[]>('/rules')

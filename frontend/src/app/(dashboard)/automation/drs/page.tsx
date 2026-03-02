@@ -32,6 +32,7 @@ import {
   Paper,
   Select,
   Skeleton,
+  Snackbar,
   Stack,
   Switch,
   Tab,
@@ -1312,6 +1313,7 @@ export default function DRSPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedRec, setSelectedRec] = useState<DRSRecommendation | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'warning' | 'error' }>({ open: false, message: '', severity: 'success' })
   const [selectedCluster, setSelectedCluster] = useState<string>('')
   const [executedRecIds, setExecutedRecIds] = useState<Set<string>>(new Set())
   const [visibleRecCount, setVisibleRecCount] = useState(8)
@@ -1678,6 +1680,55 @@ return next
     }
   }, [mutateRecs])
 
+  const handleEnforceRules = useCallback(async () => {
+    try {
+      setActionLoading('enforce-rules')
+      const result = await apiAction('/api/v1/orchestrator/drs/enforce-rules', 'POST')
+      if (result.violations_found === 0) {
+        setSnackbar({ open: true, message: t('drsPage.enforceRulesNoViolation'), severity: 'success' })
+      } else {
+        setSnackbar({
+          open: true,
+          message: t('drsPage.enforceRulesSuccess', { violations: result.violations_found, migrations: result.migrations_started }),
+          severity: result.migrations_started > 0 ? 'warning' : 'success'
+        })
+      }
+      await mutateRecs()
+    } catch (e) {
+      console.error(e)
+      setSnackbar({ open: true, message: String(e), severity: 'error' })
+    } finally {
+      setActionLoading(null)
+    }
+  }, [mutateRecs, t])
+
+  const handleExportHARules = useCallback(() => {
+    if (!haDataMap) return
+    const exportData: any[] = []
+    for (const c of clusters) {
+      const ha = haDataMap[c.id]
+      if (!ha) continue
+      exportData.push({
+        cluster_name: c.name,
+        cluster_id: c.id,
+        groups: ha.groups,
+        ha_vmids: Array.from(ha.haVmids),
+        vm_group_map: Object.fromEntries(ha.vmGroupMap),
+        restricted_groups: ha.restrictedGroups,
+        rules_count: ha.rules,
+        major_version: ha.majorVersion
+      })
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `proxcenter-ha-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setSnackbar({ open: true, message: t('drsPage.exportHARulesSuccess'), severity: 'success' })
+  }, [haDataMap, clusters, t])
+
   const openRecommendation = useCallback(async (rec: DRSRecommendation) => {
     setSelectedRec(rec)
     setDrawerOpen(true)
@@ -1900,6 +1951,16 @@ return next
         >
           {t('drsPage.evaluate')}
         </Button>
+        <Button
+          variant="outlined"
+          color="warning"
+          size="small"
+          startIcon={actionLoading === 'enforce-rules' ? <CircularProgress size={16} /> : <i className="ri-shield-check-line" style={{ fontSize: 18 }} />}
+          onClick={handleEnforceRules}
+          disabled={!!actionLoading}
+        >
+          {t('drsPage.enforceRules')}
+        </Button>
       </Box>
 
       {/* KPI Dashboard */}
@@ -2092,6 +2153,20 @@ return next
           <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.85 }}>
             {t('drsPage.haConflictHint')}
           </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 500 }}>
+            {t('drsPage.haConflictRecommendation')}
+          </Typography>
+          <Box sx={{ mt: 1 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              color="warning"
+              startIcon={<i className="ri-download-2-line" style={{ fontSize: 16 }} />}
+              onClick={handleExportHARules}
+            >
+              {t('drsPage.exportHARules')}
+            </Button>
+          </Box>
         </Alert>
       )}
 
@@ -2474,6 +2549,21 @@ return next
           </Stack>
         )}
       </Drawer>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar(s => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar(s => ({ ...s, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
     </EnterpriseGuard>
   )
