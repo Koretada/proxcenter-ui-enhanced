@@ -109,6 +109,7 @@ export default function SiteRecoveryPage() {
       connId: vm.connId,
       type: vm.type,
       status: vm.status,
+      diskGb: vm.diskGb || 0,
       tags: Array.isArray(vm.tags) ? vm.tags : vm.tags ? String(vm.tags).split(';').filter(Boolean) : []
     }))
   , [allVMsData])

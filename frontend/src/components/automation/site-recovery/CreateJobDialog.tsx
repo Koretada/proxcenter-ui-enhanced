@@ -29,6 +29,7 @@ interface VM {
   type: string
   status: string
   tags: string[]
+  diskGb?: number
 }
 
 interface CreateJobDialogProps {
@@ -51,7 +52,6 @@ const fetcher = (url: string) => fetch(url).then(res => {
 export default function CreateJobDialog({ open, onClose, onSubmit, connections, allVMs }: CreateJobDialogProps) {
   const t = useTranslations()
 
-  const [engine, setEngine] = useState<'ceph' | 'zfs'>('ceph')
   const [sourceCluster, setSourceCluster] = useState('')
   const [selectedVMs, setSelectedVMs] = useState<number[]>([])
   const [targetCluster, setTargetCluster] = useState('')
@@ -61,6 +61,17 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
   const [selectionMode, setSelectionMode] = useState<'vms' | 'tags'>('vms')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [vmidPrefix, setVmidPrefix] = useState<number>(0)
+
+  // Ceph VM IDs for the source cluster (only VMs with disks on RBD storage)
+  const { data: cephVMsData } = useSWR(
+    sourceCluster ? `/api/v1/connections/${sourceCluster}/ceph-vms` : null,
+    fetcher
+  )
+  const cephVMMap = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const v of (cephVMsData?.data || [])) m.set(v.vmid, v.cephDiskGb)
+    return m
+  }, [cephVMsData])
 
   // SSH connectivity check state
   const [sshCheck, setSshCheck] = useState<'idle' | 'checking' | 'success' | 'failed'>('idle')
@@ -115,14 +126,15 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
     cephConnections.filter(c => c.id !== sourceCluster)
   , [cephConnections, sourceCluster])
 
-  // VMs filtered by source cluster (only running qemu VMs)
+  // VMs filtered by source cluster (only running qemu VMs on Ceph storage)
   const sourceVMs = useMemo(() =>
     allVMs.filter(vm =>
       vm.connId === sourceCluster &&
       vm.status === 'running' &&
-      vm.type === 'qemu'
+      vm.type === 'qemu' &&
+      cephVMMap.has(vm.vmid)
     )
-  , [allVMs, sourceCluster])
+  , [allVMs, sourceCluster, cephVMMap])
 
   // Collect all unique tags from source VMs
   const allTags = useMemo(() => {
@@ -259,17 +271,12 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
           {/* Replication Engine */}
           <Box>
             <Typography variant='subtitle2' sx={{ mb: 0.5 }}>{t('siteRecovery.createJob.engine')}</Typography>
-            <Select value={engine} onChange={e => setEngine(e.target.value as 'ceph' | 'zfs')} size='small' fullWidth>
-              <MenuItem value='ceph'>
-                <ListItemIcon sx={{ minWidth: 28 }}><i className='ri-database-2-line' /></ListItemIcon>
-                {t('siteRecovery.createJob.engineCeph')}
-              </MenuItem>
-              <MenuItem value='zfs' disabled>
-                <ListItemIcon sx={{ minWidth: 28 }}><i className='ri-hard-drive-3-line' /></ListItemIcon>
-                {t('siteRecovery.createJob.engineZfs')}
-                <Typography variant='caption' sx={{ ml: 1, color: 'text.disabled' }}>({t('siteRecovery.createJob.engineComingSoon')})</Typography>
-              </MenuItem>
-            </Select>
+            <Chip
+              icon={<i className='ri-database-2-line' />}
+              label={t('siteRecovery.createJob.engineCeph')}
+              color='primary'
+              variant='outlined'
+            />
           </Box>
 
           {/* Source Cluster */}
@@ -329,29 +336,50 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
                     {filteredVMs.length === 0 ? (
                       <Typography variant='caption' sx={{ p: 1, color: 'text.secondary' }}>{t('siteRecovery.createJob.noVMs')}</Typography>
                     ) : (
-                      filteredVMs.map(vm => (
-                        <FormControlLabel
-                          key={vm.vmid}
-                          control={<Checkbox size='small' checked={selectedVMs.includes(vm.vmid)} onChange={() => toggleVM(vm.vmid)} />}
-                          label={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                              <Typography variant='body2'>{vm.name}</Typography>
-                              <Typography variant='caption' sx={{ color: 'text.secondary' }}>({vm.vmid})</Typography>
-                              {vm.tags?.map(tag => (
-                                <Chip key={tag} label={tag} size='small' sx={{ height: 18, fontSize: '0.6rem', bgcolor: tagColor(tag), color: '#fff' }} />
-                              ))}
-                            </Box>
-                          }
-                          sx={{ display: 'flex', m: 0, py: 0.25, px: 0.5, borderRadius: 1, '&:hover': { bgcolor: 'action.hover' } }}
-                        />
-                      ))
+                      filteredVMs.map(vm => {
+                        const diskGb = cephVMMap.get(vm.vmid)
+                        return (
+                          <FormControlLabel
+                            key={vm.vmid}
+                            control={<Checkbox size='small' checked={selectedVMs.includes(vm.vmid)} onChange={() => toggleVM(vm.vmid)} />}
+                            label={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                <Typography variant='body2'>{vm.name}</Typography>
+                                <Typography variant='caption' sx={{ color: 'text.secondary' }}>({vm.vmid})</Typography>
+                                {diskGb != null && (
+                                  <Chip label={`${diskGb} GB`} size='small' variant='outlined' sx={{ height: 18, fontSize: '0.6rem' }} />
+                                )}
+                                {vm.tags?.map(tag => (
+                                  <Chip key={tag} label={tag} size='small' sx={{ height: 18, fontSize: '0.6rem', bgcolor: tagColor(tag), color: '#fff' }} />
+                                ))}
+                              </Box>
+                            }
+                            sx={{ display: 'flex', m: 0, py: 0.25, px: 0.5, borderRadius: 1, '&:hover': { bgcolor: 'action.hover' } }}
+                          />
+                        )
+                      })
                     )}
                   </Box>
-                  {selectedVMs.length > 0 && (
-                    <Typography variant='caption' sx={{ color: 'primary.main', mt: 0.5 }}>
-                      {t('siteRecovery.createJob.selectedCount', { count: selectedVMs.length })}
-                    </Typography>
-                  )}
+                  {selectedVMs.length > 0 && (() => {
+                    const totalGb = selectedVMs.reduce((sum, vmid) => sum + (cephVMMap.get(vmid) || 0), 0)
+                    return (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                        <Typography variant='caption' sx={{ color: 'primary.main' }}>
+                          {t('siteRecovery.createJob.selectedCount', { count: selectedVMs.length })}
+                        </Typography>
+                        {totalGb > 0 && (
+                          <Chip
+                            icon={<i className='ri-hard-drive-2-line' style={{ fontSize: 14 }} />}
+                            label={totalGb >= 1024 ? `${(totalGb / 1024).toFixed(1)} TB` : `${totalGb} GB`}
+                            size='small'
+                            variant='outlined'
+                            color='info'
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        )}
+                      </Box>
+                    )
+                  })()}
                 </>
               )}
 
