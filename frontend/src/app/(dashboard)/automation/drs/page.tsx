@@ -1680,10 +1680,10 @@ return next
     }
   }, [mutateRecs])
 
-  const handleEnforceRules = useCallback(async () => {
+  const handleEnforceRule = useCallback(async (ruleId: string) => {
     try {
       setActionLoading('enforce-rules')
-      const result = await apiAction('/api/v1/orchestrator/drs/enforce-rules', 'POST')
+      const result = await apiAction(`/api/v1/orchestrator/drs/rules/${ruleId}/enforce`, 'POST')
       if (result.violations_found === 0) {
         setSnackbar({ open: true, message: t('drsPage.enforceRulesNoViolation'), severity: 'success' })
       } else {
@@ -2293,21 +2293,6 @@ return next
             </FormControl>
           )}
           
-          {affinityRules.length > 0 && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-              <Button
-                variant="outlined"
-                color="warning"
-                size="small"
-                startIcon={actionLoading === 'enforce-rules' ? <CircularProgress size={16} /> : <i className="ri-shield-check-line" style={{ fontSize: 18 }} />}
-                onClick={handleEnforceRules}
-                disabled={!!actionLoading}
-              >
-                {t('drsPage.enforceRules')}
-              </Button>
-            </Box>
-          )}
-
           <AffinityRulesManager
             rules={affinityRules.filter(r => r.connectionId === selectedCluster)}
             vms={allVMs.filter(v => v.connectionId === selectedCluster)}
@@ -2316,6 +2301,7 @@ return next
             onCreateRule={handleCreateRule}
             onUpdateRule={handleUpdateRule}
             onDeleteRule={handleDeleteRule}
+            onEnforceRule={handleEnforceRule}
             loading={!affinityRulesRaw}
           />
         </Box>

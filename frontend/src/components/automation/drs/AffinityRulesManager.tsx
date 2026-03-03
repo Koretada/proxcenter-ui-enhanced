@@ -44,6 +44,9 @@ const GroupWorkIcon = (props: any) => <i className="ri-group-line" style={{ font
 const CallSplitIcon = (props: any) => <i className="ri-git-branch-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 const PushPinIcon = (props: any) => <i className="ri-pushpin-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 const InfoIcon = (props: any) => <i className="ri-information-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
+const ShieldCheckIcon = (props: any) => <i className="ri-shield-check-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
+const CheckDoubleIcon = (props: any) => <i className="ri-check-double-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
+const ArrowRightIcon = (props: any) => <i className="ri-arrow-right-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 
 // ============================================
 // Types
@@ -70,6 +73,79 @@ export interface VMInfo {
   connectionId: string
 }
 
+interface RuleAnalysis {
+  satisfied: boolean
+  currentPlacement: { vmid: number; name: string; node: string }[]
+  violations: string[]
+  requiredMigrations: { vmid: number; name: string; fromNode: string; toNode: string }[]
+}
+
+function analyzeRule(rule: AffinityRule, vms: VMInfo[], allNodes: string[]): RuleAnalysis {
+  const ruleVMs = rule.vmids
+    .map(vmid => vms.find(v => v.vmid === vmid))
+    .filter((v): v is VMInfo => !!v)
+
+  const currentPlacement = ruleVMs.map(vm => ({
+    vmid: vm.vmid,
+    name: vm.name,
+    node: vm.node,
+  }))
+
+  const violations: string[] = []
+  const requiredMigrations: RuleAnalysis['requiredMigrations'] = []
+
+  if (rule.type === 'affinity') {
+    // All VMs must be on the same node
+    const nodeCount: Record<string, number> = {}
+    for (const vm of ruleVMs) {
+      nodeCount[vm.node] = (nodeCount[vm.node] || 0) + 1
+    }
+    const targetNode = Object.entries(nodeCount).sort((a, b) => b[1] - a[1])[0]?.[0]
+    if (targetNode) {
+      for (const vm of ruleVMs) {
+        if (vm.node !== targetNode) {
+          violations.push(`${vm.name} (${vm.vmid}) is on ${vm.node}, should be on ${targetNode}`)
+          requiredMigrations.push({ vmid: vm.vmid, name: vm.name, fromNode: vm.node, toNode: targetNode })
+        }
+      }
+    }
+  } else if (rule.type === 'anti-affinity') {
+    // No two VMs should share a node
+    const nodeGroups: Record<string, VMInfo[]> = {}
+    for (const vm of ruleVMs) {
+      if (!nodeGroups[vm.node]) nodeGroups[vm.node] = []
+      nodeGroups[vm.node].push(vm)
+    }
+    const usedNodes = new Set(ruleVMs.map(v => v.node))
+    const availableNodes = allNodes.filter(n => !usedNodes.has(n))
+    let availIdx = 0
+    for (const [node, group] of Object.entries(nodeGroups)) {
+      if (group.length > 1) {
+        // Keep the first VM on this node, migrate the rest
+        for (let i = 1; i < group.length; i++) {
+          const vm = group[i]
+          const targetNode = availableNodes[availIdx] || allNodes.find(n => n !== node) || node
+          if (availableNodes[availIdx]) availIdx++
+          violations.push(`${vm.name} (${vm.vmid}) shares node ${node} with ${group[0].name}`)
+          requiredMigrations.push({ vmid: vm.vmid, name: vm.name, fromNode: node, toNode: targetNode })
+        }
+      }
+    }
+  } else if (rule.type === 'node-affinity') {
+    // All VMs must be on one of rule.nodes
+    const allowedNodes = rule.nodes || []
+    const targetNode = allowedNodes[0] || ''
+    for (const vm of ruleVMs) {
+      if (!allowedNodes.includes(vm.node)) {
+        violations.push(`${vm.name} (${vm.vmid}) is on ${vm.node}, should be on ${allowedNodes.join(' or ')}`)
+        requiredMigrations.push({ vmid: vm.vmid, name: vm.name, fromNode: vm.node, toNode: targetNode })
+      }
+    }
+  }
+
+  return { satisfied: violations.length === 0, currentPlacement, violations, requiredMigrations }
+}
+
 interface AffinityRulesManagerProps {
   rules: AffinityRule[]
   vms: VMInfo[]
@@ -78,6 +154,7 @@ interface AffinityRulesManagerProps {
   onCreateRule: (rule: Omit<AffinityRule, 'id'>) => Promise<void>
   onUpdateRule: (id: string, rule: Partial<AffinityRule>) => Promise<void>
   onDeleteRule: (id: string) => Promise<void>
+  onEnforceRule?: (ruleId: string) => Promise<any>
   loading?: boolean
 }
 
@@ -93,6 +170,7 @@ export default function AffinityRulesManager({
   onCreateRule,
   onUpdateRule,
   onDeleteRule,
+  onEnforceRule,
   loading = false,
 }: AffinityRulesManagerProps) {
   const t = useTranslations()
@@ -100,6 +178,10 @@ export default function AffinityRulesManager({
   const [editingRule, setEditingRule] = useState<AffinityRule | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [analyzeDialogOpen, setAnalyzeDialogOpen] = useState(false)
+  const [analyzingRule, setAnalyzingRule] = useState<AffinityRule | null>(null)
+  const [analysis, setAnalysis] = useState<RuleAnalysis | null>(null)
+  const [enforcing, setEnforcing] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -177,6 +259,26 @@ export default function AffinityRulesManager({
 
   const handleToggleEnabled = async (rule: AffinityRule) => {
     await onUpdateRule(rule.id, { ...rule, enabled: !rule.enabled })
+  }
+
+  const openAnalyzeDialog = (rule: AffinityRule) => {
+    const result = analyzeRule(rule, vms, nodes)
+    setAnalyzingRule(rule)
+    setAnalysis(result)
+    setAnalyzeDialogOpen(true)
+  }
+
+  const handleEnforce = async () => {
+    if (!analyzingRule || !onEnforceRule) return
+    setEnforcing(true)
+    try {
+      await onEnforceRule(analyzingRule.id)
+      setAnalyzeDialogOpen(false)
+      setAnalyzingRule(null)
+      setAnalysis(null)
+    } finally {
+      setEnforcing(false)
+    }
   }
 
   const getTypeIcon = (type: AffinityRule['type']) => {
@@ -277,7 +379,7 @@ export default function AffinityRulesManager({
                   <TableCell>Guests</TableCell>
                   <TableCell>{t('inventory.nodes')}</TableCell>
                   <TableCell width={80}>{t('replication.source')}</TableCell>
-                  <TableCell width={100} align="right">{t('common.actions')}</TableCell>
+                  <TableCell width={130} align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -384,24 +486,38 @@ export default function AffinityRulesManager({
                         />
                       </TableCell>
                       <TableCell align="right">
-                        {!rule.fromTag && !rule.fromPool && (
-                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                            <Tooltip title={t('common.edit')}>
-                              <IconButton size="small" onClick={() => openEditDialog(rule)}>
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title={t('common.delete')}>
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          <Tooltip title={t('drsPage.enforceThisRule')}>
+                            <span>
                               <IconButton
                                 size="small"
-                                color="error"
-                                onClick={() => setDeleteConfirmId(rule.id)}
+                                color="warning"
+                                onClick={() => openAnalyzeDialog(rule)}
+                                disabled={!rule.enabled}
                               >
-                                <DeleteIcon fontSize="small" />
+                                <ShieldCheckIcon fontSize="small" />
                               </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        )}
+                            </span>
+                          </Tooltip>
+                          {!rule.fromTag && !rule.fromPool && (
+                            <>
+                              <Tooltip title={t('common.edit')}>
+                                <IconButton size="small" onClick={() => openEditDialog(rule)}>
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title={t('common.delete')}>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => setDeleteConfirmId(rule.id)}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))
@@ -591,6 +707,129 @@ export default function AffinityRulesManager({
             {saving ? t('common.deleting') : t('common.delete')}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Rule Analysis Dialog */}
+      <Dialog
+        open={analyzeDialogOpen}
+        onClose={() => { setAnalyzeDialogOpen(false); setAnalyzingRule(null); setAnalysis(null) }}
+        maxWidth="sm"
+        fullWidth
+      >
+        {analyzingRule && analysis && (
+          <>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+                {analyzingRule.name}
+              </Typography>
+              <Chip
+                icon={getTypeIcon(analyzingRule.type)}
+                label={getTypeLabel(analyzingRule.type)}
+                size="small"
+                color={getTypeColor(analyzingRule.type)}
+                variant="outlined"
+              />
+            </DialogTitle>
+            <DialogContent>
+              <Stack spacing={2.5}>
+                {/* Current Placement */}
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                    {t('drsPage.currentPlacement')}
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Guest</TableCell>
+                          <TableCell>{t('inventory.nodes')}</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {analysis.currentPlacement.map(vm => (
+                          <TableRow key={vm.vmid}>
+                            <TableCell>
+                              <Typography variant="body2">{vm.name} ({vm.vmid})</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip label={vm.node} size="small" variant="outlined" sx={{ height: 22, fontSize: '0.7rem' }} />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+
+                {/* Status */}
+                {analysis.satisfied ? (
+                  <Alert severity="success" icon={<CheckDoubleIcon />}>
+                    {t('drsPage.ruleSatisfied')}
+                  </Alert>
+                ) : (
+                  <>
+                    <Alert severity="warning">
+                      {t('drsPage.ruleViolated')}
+                    </Alert>
+
+                    {/* Required Migrations */}
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                        {t('drsPage.requiredMigrations')}
+                      </Typography>
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Guest</TableCell>
+                              <TableCell>{t('drsPage.fromNode')}</TableCell>
+                              <TableCell width={30}></TableCell>
+                              <TableCell>{t('drsPage.toNode')}</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {analysis.requiredMigrations.map(m => (
+                              <TableRow key={m.vmid}>
+                                <TableCell>
+                                  <Typography variant="body2">{m.name} ({m.vmid})</Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip label={m.fromNode} size="small" variant="outlined" color="error" sx={{ height: 22, fontSize: '0.7rem' }} />
+                                </TableCell>
+                                <TableCell>
+                                  <ArrowRightIcon fontSize="small" />
+                                </TableCell>
+                                <TableCell>
+                                  <Chip label={m.toNode} size="small" variant="outlined" color="success" sx={{ height: 22, fontSize: '0.7rem' }} />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  </>
+                )}
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => { setAnalyzeDialogOpen(false); setAnalyzingRule(null); setAnalysis(null) }}>
+                {analysis.satisfied ? t('common.close') : t('common.cancel')}
+              </Button>
+              {!analysis.satisfied && onEnforceRule && (
+                <Button
+                  variant="contained"
+                  color="warning"
+                  onClick={handleEnforce}
+                  disabled={enforcing}
+                  startIcon={enforcing ? <CircularProgress size={16} /> : <ShieldCheckIcon fontSize="small" />}
+                >
+                  {t('drsPage.enforceThisRule')}
+                </Button>
+              )}
+            </DialogActions>
+          </>
+        )}
       </Dialog>
     </>
   )

@@ -298,6 +298,13 @@ return this.get<DRSRecommendation[]>(`/drs/recommendations${query}`)
     return this.post<{ violations_found: number; migrations_started: number; errors?: string[] }>('/drs/enforce-rules')
   }
 
+  // Force enforce a single affinity rule
+  enforceRule(ruleId: string) {
+    return this.post<{ violations_found: number; migrations_started: number; errors?: string[] }>(
+      '/drs/enforce-rules', { rule_id: ruleId }
+    )
+  }
+
   // Affinity Rules
   getRules() {
     return this.get<AffinityRule[]>('/rules')
