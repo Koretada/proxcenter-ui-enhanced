@@ -2443,7 +2443,9 @@
       "engineCeph": "Ceph RBD",
       "engineZfs": "ZFS",
       "engineComingSoon": "Bientôt disponible",
-      "pvNote": "Installez le paquet <pv>pv</pv> sur les nœuds source et cible pour afficher la progression des réplications."
+      "pvNote": "Installez le paquet <pv>pv</pv> sur les nœuds source et cible pour afficher la progression des réplications.",
+      "pvInstallLabel": "Installer <pv>pv</pv> automatiquement sur les nœuds source",
+      "pvInstallDesc": "Nécessaire pour suivre la progression des réplications. Exécutera apt-get install pv via SSH."
     },
     "createPlan": {
       "title": "Créer un plan de reprise",

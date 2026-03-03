@@ -39,6 +39,7 @@ export interface CreateReplicationJobRequest {
   rpo_target: number
   rate_limit_mbps: number
   vmid_prefix?: number
+  install_pv?: boolean
   network_mapping: Record<string, string>
 }
 

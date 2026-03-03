@@ -61,6 +61,7 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
   const [selectionMode, setSelectionMode] = useState<'vms' | 'tags'>('vms')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [vmidPrefix, setVmidPrefix] = useState<number>(0)
+  const [installPv, setInstallPv] = useState(true)
 
   // Ceph VM IDs for the source cluster (only VMs with disks on RBD storage)
   const { data: cephVMsData } = useSWR(
@@ -176,10 +177,10 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
     fetcher
   )
 
-  // Filter out internal Ceph pools (.mgr, .rgw.root, device_health_metrics, etc.)
+  // Filter to only RBD pools (exclude internal pools and CephFS pools)
   const cephPools = useMemo(() =>
     (cephData?.data?.pools?.list || []).filter((p: any) =>
-      !p.name.startsWith('.') && p.name !== 'device_health_metrics'
+      !p.name.startsWith('.') && p.name !== 'device_health_metrics' && p.application !== 'cephfs'
     )
   , [cephData])
 
@@ -240,6 +241,7 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
       rpo_target: rpoTarget,
       rate_limit_mbps: 0,
       vmid_prefix: vmidPrefix || undefined,
+      install_pv: installPv || undefined,
       network_mapping: {}
     })
     handleClose()
@@ -254,6 +256,7 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
     setTargetPool('')
     setRpoTarget(900)
     setVmidPrefix(0)
+    setInstallPv(true)
     setVmSearch('')
     setSshCheck('idle')
     setSshError('')
@@ -541,12 +544,33 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
             />
           </Box>
 
-          {/* pv package note */}
-          <Alert severity='info' variant='outlined' sx={{ '& .MuiAlert-message': { fontSize: '0.8rem' } }}>
-            {t.rich('siteRecovery.createJob.pvNote', {
-              pv: () => <code style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>pv</code>
-            })}
-          </Alert>
+          {/* pv package — auto-install checkbox when SSH is connected, info note otherwise */}
+          {sshCheck === 'success' ? (
+            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+              <FormControlLabel
+                control={<Checkbox size='small' checked={installPv} onChange={e => setInstallPv(e.target.checked)} />}
+                label={
+                  <Box>
+                    <Typography variant='body2' sx={{ fontWeight: 500 }}>
+                      {t.rich('siteRecovery.createJob.pvInstallLabel', {
+                        pv: () => <code style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>pv</code>
+                      })}
+                    </Typography>
+                    <Typography variant='caption' sx={{ color: 'text.secondary' }}>
+                      {t('siteRecovery.createJob.pvInstallDesc')}
+                    </Typography>
+                  </Box>
+                }
+                sx={{ m: 0, alignItems: 'flex-start' }}
+              />
+            </Box>
+          ) : (
+            <Alert severity='info' variant='outlined' sx={{ '& .MuiAlert-message': { fontSize: '0.8rem' } }}>
+              {t.rich('siteRecovery.createJob.pvNote', {
+                pv: () => <code style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>pv</code>
+              })}
+            </Alert>
+          )}
 
         </Stack>
       </DialogContent>

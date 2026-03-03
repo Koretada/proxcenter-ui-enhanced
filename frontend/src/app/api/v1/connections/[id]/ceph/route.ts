@@ -37,13 +37,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const nodeName = onlineNode.node
 
     // Récupérer les données Ceph en parallèle
-    const [statusResult, osdResult, monResult, poolsResult, mdsResult, rulesResult] = await Promise.allSettled([
+    const [statusResult, osdResult, monResult, poolsResult, mdsResult, rulesResult, fsResult] = await Promise.allSettled([
       pveFetch<any>(conn, `/nodes/${encodeURIComponent(nodeName)}/ceph/status`),
       pveFetch<any[]>(conn, `/nodes/${encodeURIComponent(nodeName)}/ceph/osd`),
       pveFetch<any[]>(conn, `/nodes/${encodeURIComponent(nodeName)}/ceph/mon`),
       pveFetch<any[]>(conn, `/nodes/${encodeURIComponent(nodeName)}/ceph/pool`),
       pveFetch<any[]>(conn, `/nodes/${encodeURIComponent(nodeName)}/ceph/mds`),
       pveFetch<any[]>(conn, `/nodes/${encodeURIComponent(nodeName)}/ceph/rules`),
+      pveFetch<any[]>(conn, `/nodes/${encodeURIComponent(nodeName)}/ceph/fs`),
     ])
 
     const status = statusResult.status === 'fulfilled' ? statusResult.value : null
@@ -52,6 +53,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const poolList = poolsResult.status === 'fulfilled' ? poolsResult.value : []
     const mdsList = mdsResult.status === 'fulfilled' ? mdsResult.value : []
     const rulesList = rulesResult.status === 'fulfilled' ? rulesResult.value : []
+    const fsList = fsResult.status === 'fulfilled' ? fsResult.value : []
+
+    // Build set of CephFS pool names (data + metadata pools) to distinguish from RBD pools
+    const cephFSPoolNames = new Set<string>()
+    for (const fs of (fsList || [])) {
+      if (fs.data_pool) cephFSPoolNames.add(fs.data_pool)
+      if (fs.metadata_pool) cephFSPoolNames.add(fs.metadata_pool)
+    }
 
     // Si pas de status Ceph, le cluster n'a probablement pas Ceph
     if (!status) {
@@ -249,11 +258,12 @@ return {
     // Mapper les pools
     const pools = (Array.isArray(poolList) ? poolList : []).map((pool: any) => {
       const stats = pool.statistics || pool.stats || {}
+      const poolName = pool.pool_name || pool.name || `pool-${pool.pool}`
 
-      
+
 return {
         id: pool.pool,
-        name: pool.pool_name || pool.name || `pool-${pool.pool}`,
+        name: poolName,
         size: pool.size || 3,
         minSize: pool.min_size || 2,
         pgNum: pool.pg_num || 0,
@@ -261,6 +271,9 @@ return {
 
         // Type
         type: pool.type || 'replicated',
+
+        // Application (rbd vs cephfs)
+        application: cephFSPoolNames.has(poolName) ? 'cephfs' : 'rbd',
 
         // Crush rule
         crushRule: pool.crush_rule || 0,

@@ -2438,7 +2438,9 @@
       "engineCeph": "Ceph RBD",
       "engineZfs": "ZFS",
       "engineComingSoon": "Coming soon",
-      "pvNote": "Install the <pv>pv</pv> package on source and target nodes to display replication progress."
+      "pvNote": "Install the <pv>pv</pv> package on source and target nodes to display replication progress.",
+      "pvInstallLabel": "Install <pv>pv</pv> automatically on source nodes",
+      "pvInstallDesc": "Required to track replication progress. Will run apt-get install pv via SSH."
     },
     "createPlan": {
       "title": "Create Recovery Plan",
