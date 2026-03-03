@@ -422,8 +422,7 @@ export default function TasksFooter({
           right: 0,
           zIndex: 1200, // Above sidebar (1100)
           borderRadius: 0,
-          borderTop: '1px solid',
-          borderColor: 'rgba(231,227,252,0.12)',
+          borderTop: '1px solid #2a2a3c',
           bgcolor: '#1e1e2d',
           backgroundImage: 'none',
           color: 'rgba(231,227,252,0.9)',
