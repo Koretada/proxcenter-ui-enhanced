@@ -595,8 +595,8 @@ export default function JobsPage() {
 
   return (
     <EnterpriseGuard requiredFeature={Features.TASK_CENTER} featureName="Task Center">
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minHeight: 0 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, flexShrink: 0 }}>
           <Button
             variant='outlined'
             size='small'
@@ -609,7 +609,7 @@ export default function JobsPage() {
         </Box>
 
       {/* Stats */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, flexShrink: 0 }}>
         {/* Total — full distribution donut */}
         <Card variant='outlined'>
           <CardContent sx={{ py: 1.5, px: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -736,8 +736,8 @@ export default function JobsPage() {
       </Box>
 
       {/* Filtres + Table */}
-      <Card variant='outlined'>
-        <CardContent sx={{ pb: 0 }}>
+      <Card variant='outlined' sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <CardContent sx={{ pb: 0, flexShrink: 0 }}>
           <Stack direction='row' spacing={1.5} sx={{ flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
             <TextField
               size='small'
@@ -795,56 +795,58 @@ export default function JobsPage() {
           </Stack>
         </CardContent>
 
-        <Box sx={{ height: 'calc(100vh - 380px)', minHeight: 300 }}>
-          {loading && jobs.length === 0 ? (
-            <Box sx={{ p: 2 }}>
-              <TableSkeleton rows={5} columns={6} />
-            </Box>
-          ) : error ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: 2 }}>
-              <Typography color="error">{error.message}</Typography>
-              <Button onClick={() => mutate()} variant="outlined" size="small">
-                {t('common.retry')}
-              </Button>
-            </Box>
-          ) : !loading && filtered.length === 0 ? (
-            <EmptyState
-              icon="ri-play-list-2-line"
-              title={t('emptyState.noJobs')}
-              description={t('emptyState.noJobsDesc')}
-              size="large"
-            />
-          ) : (
-            <DataGrid
-              rows={filtered}
-              columns={columns}
-              getRowId={(row) => row.id || `${row.type}-${row.name}-${row.startedAt}`}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              pageSizeOptions={[20, 50, 100]}
-              disableRowSelectionOnClick
-              density='compact'
-              loading={isValidating}
-              onRowDoubleClick={handleRowDoubleClick}
-              sx={{
-                border: 'none',
-                '& .MuiDataGrid-row': {
-                  minHeight: '36px !important',
-                  maxHeight: '36px !important',
-                  cursor: 'pointer'
-                },
-                '& .MuiDataGrid-cell': {
-                  display: 'flex',
-                  alignItems: 'center',
-                  py: 0.5,
-                },
-                '& .MuiDataGrid-columnHeaders': {
-                  borderBottom: '1px solid',
-                  borderColor: 'divider'
-                },
-              }}
-            />
-          )}
+        <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+            {loading && jobs.length === 0 ? (
+              <Box sx={{ p: 2 }}>
+                <TableSkeleton rows={5} columns={6} />
+              </Box>
+            ) : error ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: 2 }}>
+                <Typography color="error">{error.message}</Typography>
+                <Button onClick={() => mutate()} variant="outlined" size="small">
+                  {t('common.retry')}
+                </Button>
+              </Box>
+            ) : !loading && filtered.length === 0 ? (
+              <EmptyState
+                icon="ri-play-list-2-line"
+                title={t('emptyState.noJobs')}
+                description={t('emptyState.noJobsDesc')}
+                size="large"
+              />
+            ) : (
+              <DataGrid
+                rows={filtered}
+                columns={columns}
+                getRowId={(row) => row.id || `${row.type}-${row.name}-${row.startedAt}`}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                pageSizeOptions={[20, 50, 100]}
+                disableRowSelectionOnClick
+                density='compact'
+                loading={isValidating}
+                onRowDoubleClick={handleRowDoubleClick}
+                sx={{
+                  border: 'none',
+                  '& .MuiDataGrid-row': {
+                    minHeight: '36px !important',
+                    maxHeight: '36px !important',
+                    cursor: 'pointer'
+                  },
+                  '& .MuiDataGrid-cell': {
+                    display: 'flex',
+                    alignItems: 'center',
+                    py: 0.5,
+                  },
+                  '& .MuiDataGrid-columnHeaders': {
+                    borderBottom: '1px solid',
+                    borderColor: 'divider'
+                  },
+                }}
+              />
+            )}
+          </Box>
         </Box>
       </Card>
 

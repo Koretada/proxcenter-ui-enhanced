@@ -292,7 +292,7 @@ return
                   />
                   <Box>
                     <Typography variant='body2'>{t ? t(`rbac.roles.${option.id}`, { defaultValue: option.name }) : option.name}</Typography>
-                    <Typography variant='caption' sx={{ opacity: 0.6 }}>{option.description}</Typography>
+                    <Typography variant='caption' sx={{ opacity: 0.6 }}>{option.is_system ? t(`rbac.roleDesc.${option.id}`, { defaultValue: option.description }) : option.description}</Typography>
                   </Box>
                 </Box>
               </li>
