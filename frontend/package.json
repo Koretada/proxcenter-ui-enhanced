@@ -13,6 +13,9 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "build:icons": "tsx src/assets/iconify-icons/bundle-icons-css.mjs",
     "postinstall": "npm run build:icons",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "clean": "rm -rf .next",
     "clear": "rm -rf node_modules .next"
   },
@@ -89,7 +92,8 @@
     "stylis-plugin-rtl": "2.1.1",
     "tailwindcss": "4.1.17",
     "tailwindcss-logical": "4.2.0",
-    "tsx": "4.20.6"
+    "tsx": "4.20.6",
+    "vitest": "^4.0.18"
   },
   "resolutions": {
     "rimraf": "5.0.7",

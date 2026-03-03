@@ -23,9 +23,35 @@ env:
 
 jobs:
   # ========================================
+  # Run Frontend Tests
+  # ========================================
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps --ignore-scripts
+
+      - name: Run tests
+        run: npx vitest run
+
+  # ========================================
   # Build Frontend Image
   # ========================================
   build-frontend:
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -96,9 +122,37 @@ jobs:
             -d '{"visibility":"public"}'
 
   # ========================================
+  # Run Backend Tests
+  # ========================================
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Checkout backend repo
+        uses: actions/checkout@v6
+        with:
+          repository: adminsyspro/proxcenter-backend
+          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'main' }}
+          path: backend
+          token: ${{ secrets.ORCHESTRATOR_PAT }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: backend/go.sum
+
+      - name: Run backend tests
+        working-directory: ./backend
+        run: go test ./internal/...
+
+  # ========================================
   # Build Orchestrator Image
   # ========================================
   build-orchestrator:
+    needs: [test-backend]
     runs-on: ubuntu-latest
     permissions:
       contents: read
