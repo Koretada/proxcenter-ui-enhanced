@@ -22,6 +22,7 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Slider,
   Stack,
   Switch,
   Tab,
@@ -175,7 +176,9 @@ function CreateVmDialog({
       if (res.ok) {
         const json = await res.json()
         const allInterfaces = json.data || []
-        const bridgeList = allInterfaces.filter((iface: any) => iface.type === 'bridge')
+        const bridgeList = allInterfaces.filter((iface: any) =>
+          iface.type === 'bridge' || iface.type === 'OVSBridge'
+        )
         setBridges(bridgeList)
         if (bridgeList.length > 0 && !bridgeList.some((b: any) => b.iface === networkBridge)) {
           setNetworkBridge(bridgeList[0].iface)
@@ -1158,38 +1161,72 @@ return
         )
 
       case 5: // Memory
-        return (
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            <TextField 
-              label={t('inventory.createVm.memoryMib')} 
-              value={memorySize} 
-              onChange={(e) => setMemorySize(parseInt(e.target.value) || 512)} 
-              size="small" 
-              type="number"
-              inputProps={{ min: 16, step: 128 }}
-            />
-            <Box />
-            
-            <TextField 
-              label={t('inventory.createVm.minMemoryMib')} 
-              value={minMemory} 
-              onChange={(e) => setMinMemory(parseInt(e.target.value) || 512)} 
-              size="small" 
-              type="number"
-              inputProps={{ min: 16, step: 128 }}
-              disabled={!ballooning}
-            />
-            <Box />
-            
-            <Typography variant="body2" sx={{ opacity: 0.7 }}>{t('inventory.createVm.sharesDefault')}</Typography>
-            <Box />
-            
-            <FormControlLabel 
-              control={<Switch checked={ballooning} onChange={(e) => setBallooning(e.target.checked)} size="small" />} 
-              label={t('inventory.createVm.ballooningDevice')} 
-            />
-          </Box>
-        )
+        {
+          const memoryMarks = [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536]
+          const memoryToSlider = (mib: number) => {
+            for (let i = memoryMarks.length - 1; i >= 0; i--) {
+              if (mib >= memoryMarks[i]) return i + (mib - memoryMarks[i]) / (memoryMarks[Math.min(i + 1, memoryMarks.length - 1)] - memoryMarks[i])
+            }
+            return 0
+          }
+          const sliderToMemory = (val: number) => {
+            const idx = Math.floor(val)
+            const frac = val - idx
+            if (idx >= memoryMarks.length - 1) return memoryMarks[memoryMarks.length - 1]
+            const raw = memoryMarks[idx] + frac * (memoryMarks[idx + 1] - memoryMarks[idx])
+            return Math.round(raw / 128) * 128 || 128
+          }
+          const formatGib = (mib: number) => mib >= 1024 ? `${(mib / 1024).toFixed(mib % 1024 === 0 ? 0 : 1)} GiB` : `${mib} MiB`
+
+          return (
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              <Box sx={{ gridColumn: '1 / -1', px: 1 }}>
+                <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 600 }}>
+                  {t('inventory.createVm.memoryMib')}: {formatGib(memorySize)}
+                </Typography>
+                <Slider
+                  value={memoryToSlider(memorySize)}
+                  min={0}
+                  max={memoryMarks.length - 1}
+                  step={0.01}
+                  onChange={(_, val) => setMemorySize(sliderToMemory(val as number))}
+                  marks={memoryMarks.map((m, i) => ({ value: i, label: formatGib(m) }))}
+                  valueLabelDisplay="auto"
+                  valueLabelFormat={() => formatGib(memorySize)}
+                  sx={{ '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
+                />
+              </Box>
+              <TextField
+                label={t('inventory.createVm.memoryMib')}
+                value={memorySize}
+                onChange={(e) => setMemorySize(parseInt(e.target.value) || 512)}
+                size="small"
+                type="number"
+                inputProps={{ min: 128, step: 128 }}
+              />
+              <Box />
+
+              <TextField
+                label={t('inventory.createVm.minMemoryMib')}
+                value={minMemory}
+                onChange={(e) => setMinMemory(parseInt(e.target.value) || 512)}
+                size="small"
+                type="number"
+                inputProps={{ min: 128, step: 128 }}
+                disabled={!ballooning}
+              />
+              <Box />
+
+              <Typography variant="body2" sx={{ opacity: 0.7 }}>{t('inventory.createVm.sharesDefault')}</Typography>
+              <Box />
+
+              <FormControlLabel
+                control={<Switch checked={ballooning} onChange={(e) => setBallooning(e.target.checked)} size="small" />}
+                label={t('inventory.createVm.ballooningDevice')}
+              />
+            </Box>
+          )
+        }
 
       case 6: // Network
         return (
@@ -1208,7 +1245,7 @@ return
                     {bridges.length > 0 ? (
                       bridges.map((b: any) => (
                         <MenuItem key={b.iface} value={b.iface}>
-                          {b.iface}{b.comments ? ` — ${b.comments}` : ''}{b.cidr ? ` (${b.cidr})` : ''}
+                          {b.iface}{b.type === 'OVSBridge' ? ' (OVS)' : ''}{b.comments ? ` — ${b.comments}` : ''}{b.cidr ? ` (${b.cidr})` : ''}
                         </MenuItem>
                       ))
                     ) : (

@@ -278,11 +278,12 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
   const lastUpdated = new Date().toLocaleString()
 
   if (sel.type === 'cluster') {
-    const [connR, nodesR, resourcesR, cephR] = await Promise.all([
+    const [connR, nodesR, resourcesR, cephR, storageR] = await Promise.all([
       fetch(`/api/v1/connections/${encodeURIComponent(sel.id)}`, { cache: 'no-store' }),
       fetch(`/api/v1/connections/${encodeURIComponent(sel.id)}/nodes`, { cache: 'no-store' }),
       fetch(`/api/v1/connections/${encodeURIComponent(sel.id)}/resources`, { cache: 'no-store' }),
       fetch(`/api/v1/connections/${encodeURIComponent(sel.id)}/ceph/status`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/connections/${encodeURIComponent(sel.id)}/storage`, { cache: 'no-store' }).catch(() => null),
     ])
 
     let connName = sel.id
@@ -325,8 +326,26 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
       totalCpu += Number(n.cpu ?? 0)
       totalMem += Number(n.mem ?? 0)
       totalMaxMem += Number(n.maxmem ?? 0)
-      totalDisk += Number(n.disk ?? 0)
-      totalMaxDisk += Number(n.maxdisk ?? 0)
+    }
+
+    // Aggregate real storage from /storage API (already deduplicated)
+    if (storageR?.ok) {
+      try {
+        const storageJson = await storageR.json()
+        const storageList = storageJson.data || []
+        for (const s of storageList) {
+          totalDisk += Number(s.used ?? 0)
+          totalMaxDisk += Number(s.total ?? 0)
+        }
+      } catch {}
+    }
+
+    // Fallback to node rootfs if storage API failed
+    if (totalMaxDisk === 0) {
+      for (const n of nodes) {
+        totalDisk += Number(n.disk ?? 0)
+        totalMaxDisk += Number(n.maxdisk ?? 0)
+      }
     }
 
     const avgCpuPct = nodes.length > 0 ? cpuPct(totalCpu / nodes.length) : 0

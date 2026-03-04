@@ -135,11 +135,12 @@ export async function GET() {
 
           const pveTimeout = { signal: AbortSignal.timeout(15000) }
 
-          const [nodesResult, resourcesResult, statusResult, cephResult] = await Promise.allSettled([
+          const [nodesResult, resourcesResult, statusResult, cephResult, storageConfigResult] = await Promise.allSettled([
             pveFetch<any[]>(connData, "/nodes", pveTimeout),
             pveFetch<any[]>(connData, "/cluster/resources", pveTimeout),
             pveFetch<any[]>(connData, "/cluster/status", pveTimeout),
             conn.hasCeph ? pveFetch<any>(connData, "/cluster/ceph/status", pveTimeout) : Promise.resolve(null),
+            pveFetch<any[]>(connData, "/storage", pveTimeout),
           ])
 
           const nodes = nodesResult.status === 'fulfilled' ? nodesResult.value || [] : []
@@ -151,8 +152,30 @@ export async function GET() {
           const clusterName = clusterRow?.name || conn.name || conn.id
           const quorumRow = status.find((x: any) => x?.type === "quorum" || x?.quorate !== undefined)
 
+          const storageConfigs = storageConfigResult.status === 'fulfilled' ? storageConfigResult.value || [] : []
+
           const vms = resources.filter((r: any) => r.type === 'qemu')
           const lxcs = resources.filter((r: any) => r.type === 'lxc')
+
+          // Aggregate real storage from /cluster/resources (not rootfs)
+          const storageResources = resources.filter((r: any) => r.type === 'storage')
+          const sharedTypes = new Set(['cephfs', 'rbd', 'nfs', 'cifs', 'glusterfs', 'iscsi', 'iscsidirect', 'pbs'])
+          const storageConfigMap = new Map<string, any>()
+          for (const cfg of storageConfigs) { if (cfg?.storage) storageConfigMap.set(cfg.storage, cfg) }
+
+          const seenShared = new Set<string>()
+          let connStorageUsed = 0, connStorageMax = 0
+          for (const s of storageResources) {
+            const cfg = storageConfigMap.get(s.storage)
+            const sType = cfg?.type || ''
+            const isShared = cfg?.shared === 1 || sharedTypes.has(sType)
+            if (isShared) {
+              if (seenShared.has(s.storage)) continue
+              seenShared.add(s.storage)
+            }
+            connStorageUsed += Number(s.disk || 0)
+            connStorageMax += Number(s.maxdisk || 0)
+          }
 
           // Node status en parallèle
           const nodeStatuses = await Promise.all(nodes.map(async (node: any) => {
@@ -179,7 +202,7 @@ return {
             }
           }))
 
-          return { conn, clusterName, isCluster: nodes.length > 1, quorum: quorumRow, nodes: nodeStatuses, vms, lxcs, cephStatus }
+          return { conn, clusterName, isCluster: nodes.length > 1, quorum: quorumRow, nodes: nodeStatuses, vms, lxcs, cephStatus, connStorageUsed, connStorageMax }
         } catch (e) {
           console.error(`[dashboard] PVE error ${conn.id}:`, e)
           
@@ -270,9 +293,14 @@ return null
     let totalClusters = 0
     const allVms: any[] = [], allLxcs: any[] = [], allNodes: any[] = [], clusterInfos: any[] = []
     let cephGlobal: any = null
+    let globalStorageUsed = 0, globalStorageMax = 0
 
     for (const data of validPve) {
       if (data.isCluster) totalClusters++
+
+      // Aggregate real storage per connection
+      globalStorageUsed += data.connStorageUsed || 0
+      globalStorageMax += data.connStorageMax || 0
 
       for (const node of data.nodes) {
         allNodes.push({
@@ -516,19 +544,21 @@ return null
 
     // Recompute node-level aggregates from filtered nodes
     const fOnlineNodes = filteredNodes.filter((n: any) => n.status === 'online').length
-    let fCpuCores = 0, fCpuUsed = 0, fMemUsed = 0, fMemMax = 0, fStorageUsed = 0, fStorageMax = 0
+    let fCpuCores = 0, fCpuUsed = 0, fMemUsed = 0, fMemMax = 0
 
     for (const n of filteredNodes as any[]) {
       fCpuCores += n._cpuCores || 0
       fCpuUsed += (n._cpuUsage || 0) * (n._cpuCores || 0)
       fMemUsed += n._memUsed || 0
       fMemMax += n._memMax || 0
-      fStorageUsed += n._storageUsed || 0
-      fStorageMax += n._storageMax || 0
     }
 
     const fCpuPct = fCpuCores > 0 ? round1((fCpuUsed / fCpuCores) * 100) : 0
     const fRamPct = fMemMax > 0 ? round1((fMemUsed / fMemMax) * 100) : 0
+
+    // Use real storage pool data aggregated from /cluster/resources (not rootfs)
+    const fStorageUsed = globalStorageUsed
+    const fStorageMax = globalStorageMax
     const fStoragePct = fStorageMax > 0 ? round1((fStorageUsed / fStorageMax) * 100) : 0
 
     // Recompute VM/LXC stats from filtered lists
