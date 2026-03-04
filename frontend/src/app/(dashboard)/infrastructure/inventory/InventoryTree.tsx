@@ -1568,37 +1568,27 @@ return favorites.has(vmKey)
             </Tooltip>
           )}
           {viewMode === 'tree' && (
-            <>
-              <Tooltip title={t('inventory.expandAll')}>
-                <IconButton size='small' onClick={expandAll}>
-                  <i className='ri-expand-up-down-line' style={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={t('inventory.collapseAll')}>
-                <IconButton size='small' onClick={collapseAll}>
-                  <i className='ri-collapse-up-down-line' style={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-            </>
+            <Tooltip title={manualExpandedItems.length > 1 ? t('inventory.collapseAll') : t('inventory.expandAll')}>
+              <IconButton size='small' onClick={manualExpandedItems.length > 1 ? collapseAll : expandAll}>
+                <i className={manualExpandedItems.length > 1 ? 'ri-contract-up-down-line' : 'ri-expand-up-down-line'} style={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
           )}
           {(viewMode === 'hosts' || viewMode === 'pools' || viewMode === 'tags') && (
-            <>
-              <Tooltip title={t('inventory.expandAll')}>
-                <IconButton size='small' onClick={expandAllSections}>
-                  <i className='ri-expand-up-down-line' style={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={t('inventory.collapseAll')}>
-                <IconButton size='small' onClick={() => {
+            <Tooltip title={collapsedSections.size === 0 ? t('inventory.collapseAll') : t('inventory.expandAll')}>
+              <IconButton size='small' onClick={() => {
+                if (collapsedSections.size === 0) {
                   const keys = viewMode === 'hosts' ? hostsList.map(h => h.key)
                     : viewMode === 'pools' ? poolsList.map(p => p.pool)
                     : tagsList.map(t => t.tag)
                   collapseAllSections(keys)
-                }}>
-                  <i className='ri-collapse-up-down-line' style={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-            </>
+                } else {
+                  expandAllSections()
+                }
+              }}>
+                <i className={collapsedSections.size === 0 ? 'ri-contract-up-down-line' : 'ri-expand-up-down-line'} style={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
           )}
           <Tooltip title={t('settings.connections')}>
             <IconButton size='small' onClick={() => router.push('/settings?tab=connections')}>
@@ -1702,7 +1692,7 @@ return favorites.has(vmKey)
         </ToggleButtonGroup>
       </Box>
     ),
-    [loading, search, viewMode, displayVms.length, hostsList.length, poolsList.length, tagsList.length, templatesCount, favoritesList.length, onRefresh, refreshLoading, onCollapse, isCollapsed, allowedViewModes, theme.palette.mode, expandAll, collapseAll, expandAllSections, collapseAllSections]
+    [loading, search, viewMode, displayVms.length, hostsList.length, poolsList.length, tagsList.length, templatesCount, favoritesList.length, onRefresh, refreshLoading, onCollapse, isCollapsed, allowedViewModes, theme.palette.mode, expandAll, collapseAll, expandAllSections, collapseAllSections, manualExpandedItems, collapsedSections]
   )
 
   return (
