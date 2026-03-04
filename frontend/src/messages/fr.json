@@ -411,6 +411,8 @@
     "nodes": "Nœuds",
     "nodesCount": "Nœuds ({count}/{total})",
     "clusters": "Clusters",
+    "expandAll": "Tout déplier",
+    "collapseAll": "Tout replier",
     "addTag": "Ajouter un tag",
     "deleteVm": "Supprimer la VM",
     "deleteVmDisks": "Supprimer également les disques associés",

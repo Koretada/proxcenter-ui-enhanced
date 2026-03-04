@@ -515,6 +515,10 @@ return migratingVmIds.has(`${connId}:${vmid}`)
     }
   }, [controlledViewMode])
 
+  // Controlled tree expansion state
+  const [manualExpandedItems, setManualExpandedItems] = useState<string[]>(['root:root'])
+  const [isHydrated, setIsHydrated] = useState(false)
+
   // Sections collapsed (pour les modes hosts, pools, tags)
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
 
@@ -532,6 +536,36 @@ return migratingVmIds.has(`${connId}:${vmid}`)
 return next
     })
   }
+
+  // Hydrate from localStorage
+  useEffect(() => {
+    try {
+      const savedView = localStorage.getItem('inventoryViewMode')
+      if (savedView) setInternalViewMode(savedView as ViewMode)
+
+      const savedExpanded = localStorage.getItem('inventoryExpandedItems')
+      if (savedExpanded) setManualExpandedItems(JSON.parse(savedExpanded))
+
+      const savedCollapsed = localStorage.getItem('inventoryCollapsedSections')
+      if (savedCollapsed) setCollapsedSections(new Set(JSON.parse(savedCollapsed)))
+    } catch {}
+    setIsHydrated(true)
+  }, [])
+
+  // Persist viewMode
+  useEffect(() => {
+    if (isHydrated) localStorage.setItem('inventoryViewMode', viewMode)
+  }, [viewMode, isHydrated])
+
+  // Persist expandedItems
+  useEffect(() => {
+    if (isHydrated) localStorage.setItem('inventoryExpandedItems', JSON.stringify(manualExpandedItems))
+  }, [manualExpandedItems, isHydrated])
+
+  // Persist collapsedSections
+  useEffect(() => {
+    if (isHydrated) localStorage.setItem('inventoryCollapsedSections', JSON.stringify([...collapsedSections]))
+  }, [collapsedSections, isHydrated])
 
   // Exposer la fonction refresh au parent
   useEffect(() => {
@@ -1209,6 +1243,29 @@ return null
 return items
   }, [filteredClusters, search])
 
+  // Expand/Collapse all for tree mode
+  const expandAll = useCallback(() => {
+    const items: string[] = ['root:root']
+    clusters.forEach(clu => {
+      items.push(`cluster:${clu.connId}`)
+      clu.nodes.forEach(n => items.push(`node:${clu.connId}:${n.node}`))
+    })
+    setManualExpandedItems(items)
+  }, [clusters])
+
+  const collapseAll = useCallback(() => {
+    setManualExpandedItems(['root:root'])
+  }, [])
+
+  // Expand/Collapse all for grouped modes (hosts, pools, tags)
+  const expandAllSections = useCallback(() => {
+    setCollapsedSections(new Set())
+  }, [])
+
+  const collapseAllSections = useCallback((keys: string[]) => {
+    setCollapsedSections(new Set(keys))
+  }, [])
+
   // Liste plate de toutes les VMs (pour le mode 'vms')
   const allVms = useMemo(() => {
     const vms: { 
@@ -1505,6 +1562,39 @@ return favorites.has(vmKey)
               </IconButton>
             </Tooltip>
           )}
+          {viewMode === 'tree' && (
+            <>
+              <Tooltip title={t('inventory.expandAll')}>
+                <IconButton size='small' onClick={expandAll}>
+                  <i className='ri-expand-up-down-line' style={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={t('inventory.collapseAll')}>
+                <IconButton size='small' onClick={collapseAll}>
+                  <i className='ri-collapse-up-down-line' style={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+          {(viewMode === 'hosts' || viewMode === 'pools' || viewMode === 'tags') && (
+            <>
+              <Tooltip title={t('inventory.expandAll')}>
+                <IconButton size='small' onClick={expandAllSections}>
+                  <i className='ri-expand-up-down-line' style={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={t('inventory.collapseAll')}>
+                <IconButton size='small' onClick={() => {
+                  const keys = viewMode === 'hosts' ? hostsList.map(h => h.key)
+                    : viewMode === 'pools' ? poolsList.map(p => p.pool)
+                    : tagsList.map(t => t.tag)
+                  collapseAllSections(keys)
+                }}>
+                  <i className='ri-collapse-up-down-line' style={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
           <Tooltip title={t('settings.connections')}>
             <IconButton size='small' onClick={() => router.push('/settings?tab=connections')}>
               <i className='ri-add-circle-line' style={{ fontSize: 18 }} />
@@ -1607,7 +1697,7 @@ return favorites.has(vmKey)
         </ToggleButtonGroup>
       </Box>
     ),
-    [loading, search, viewMode, displayVms.length, hostsList.length, poolsList.length, tagsList.length, templatesCount, favoritesList.length, onRefresh, refreshLoading, onCollapse, isCollapsed, allowedViewModes, theme.palette.mode]
+    [loading, search, viewMode, displayVms.length, hostsList.length, poolsList.length, tagsList.length, templatesCount, favoritesList.length, onRefresh, refreshLoading, onCollapse, isCollapsed, allowedViewModes, theme.palette.mode, expandAll, collapseAll, expandAllSections, collapseAllSections]
   )
 
   return (
@@ -2225,8 +2315,10 @@ return (
       /* Mode Arbre : vue hiérarchique */
       <SimpleTreeView
           selectedItems={selectedItemId || 'root:root'}
-          defaultExpandedItems={['root:root']}
-          expandedItems={search.trim() ? ['root:root', ...expandedItems] : undefined}
+          expandedItems={search.trim() ? ['root:root', ...expandedItems] : manualExpandedItems}
+          onExpandedItemsChange={(_event, itemIds) => {
+            if (!search.trim()) setManualExpandedItems(itemIds)
+          }}
           onSelectedItemsChange={(_event, ids) => {
             const picked = Array.isArray(ids) ? ids[0] : ids
 

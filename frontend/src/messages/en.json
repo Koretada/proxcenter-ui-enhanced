@@ -411,6 +411,8 @@
     "nodes": "Nodes",
     "nodesCount": "Nodes ({count}/{total})",
     "clusters": "Clusters",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
     "addTag": "Add tag",
     "deleteVm": "Delete VM",
     "deleteVmDisks": "Also delete associated disks",
