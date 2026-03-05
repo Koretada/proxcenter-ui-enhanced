@@ -22,6 +22,12 @@ Thumbs.db
 # IDE
 *.iml
 
+# Next.js build
+.next/
+
+# Lock files
+package-lock.json
+
 # Docker
 config/orchestrator.yaml
 !config/orchestrator.yaml.example
