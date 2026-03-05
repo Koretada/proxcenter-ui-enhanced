@@ -275,6 +275,7 @@ function ConnectionsTab() {
       sshPort: formData.sshPort,
       sshUser: formData.sshUser,
       sshAuthMethod: formData.sshAuthMethod || null,
+      sshUseSudo: !!formData.sshUseSudo,
       ...(formData.sshKey.trim() && { sshKey: formData.sshKey.trim() }),
       ...(formData.sshPassphrase.trim() && { sshPassphrase: formData.sshPassphrase.trim() }),
       ...(formData.sshPassword.trim() && { sshPassword: formData.sshPassword.trim() }),
