@@ -94,21 +94,21 @@ function getDayLabel(date, t) {
 -------------------------------- */
 
 const resourceTypeConfig = {
-  vm: { icon: 'ri-computer-line', color: '#4fc3f7', label: 'VM' },
-  ct: { icon: 'ri-instance-line', color: '#81c784', label: 'Container' },
-  node: { icon: 'ri-server-line', color: '#ffb74d', label: 'Node' },
-  storage: { icon: 'ri-database-2-line', color: '#ce93d8', label: 'Storage' },
-  pool: { icon: 'ri-stack-line', color: '#90a4ae', label: 'Pool' }
+  vm: { icon: 'ri-computer-line', color: 'var(--mui-palette-primary-main)', label: 'VM' },
+  ct: { icon: 'ri-instance-line', color: 'var(--mui-palette-success-main)', label: 'Container' },
+  node: { icon: 'ri-server-line', color: 'var(--mui-palette-warning-main)', label: 'Node' },
+  storage: { icon: 'ri-database-2-line', color: 'var(--mui-palette-secondary-main)', label: 'Storage' },
+  pool: { icon: 'ri-stack-line', color: 'var(--mui-palette-text-secondary)', label: 'Pool' }
 }
 
 const actionConfig = {
-  config_changed: { icon: 'ri-settings-3-line', color: 'info', chartColor: '#42a5f5', label: 'changes.actionConfigChanged' },
-  hardware_changed: { icon: 'ri-cpu-line', color: 'warning', chartColor: '#ffa726', label: 'changes.actionHardwareChanged' },
-  network_changed: { icon: 'ri-wifi-line', color: 'info', chartColor: '#29b6f6', label: 'changes.actionNetworkChanged' },
-  snapshot_created: { icon: 'ri-camera-line', color: 'success', chartColor: '#66bb6a', label: 'changes.actionSnapshotCreated' },
-  snapshot_deleted: { icon: 'ri-camera-off-line', color: 'error', chartColor: '#ef5350', label: 'changes.actionSnapshotDeleted' },
-  snapshot_modified: { icon: 'ri-camera-switch-line', color: 'info', chartColor: '#7e57c2', label: 'changes.actionSnapshotModified' },
-  migrated: { icon: 'ri-swap-box-line', color: 'warning', chartColor: '#ff7043', label: 'changes.actionMigrated' },
+  config_changed: { icon: 'ri-settings-3-line', color: 'info', chartColor: 'var(--mui-palette-info-main)', label: 'changes.actionConfigChanged' },
+  hardware_changed: { icon: 'ri-cpu-line', color: 'warning', chartColor: 'var(--mui-palette-warning-main)', label: 'changes.actionHardwareChanged' },
+  network_changed: { icon: 'ri-wifi-line', color: 'info', chartColor: 'var(--mui-palette-info-light)', label: 'changes.actionNetworkChanged' },
+  snapshot_created: { icon: 'ri-camera-line', color: 'success', chartColor: 'var(--mui-palette-success-main)', label: 'changes.actionSnapshotCreated' },
+  snapshot_deleted: { icon: 'ri-camera-off-line', color: 'error', chartColor: 'var(--mui-palette-error-main)', label: 'changes.actionSnapshotDeleted' },
+  snapshot_modified: { icon: 'ri-camera-switch-line', color: 'info', chartColor: 'var(--mui-palette-secondary-main)', label: 'changes.actionSnapshotModified' },
+  migrated: { icon: 'ri-swap-box-line', color: 'warning', chartColor: 'var(--mui-palette-warning-dark)', label: 'changes.actionMigrated' },
 }
 
 /* --------------------------------
@@ -133,7 +133,7 @@ function DonutStatCard({ title, value, total, color }) {
                 startAngle={90} endAngle={-270}
               >
                 <Cell fill={color} />
-                <Cell fill='rgba(255,255,255,0.08)' />
+                <Cell fill='var(--mui-palette-action-hover)' />
               </Pie>
             </PieChart>
           </ResponsiveContainer>
@@ -150,7 +150,7 @@ function DonutStatCard({ title, value, total, color }) {
 function DonutTotalCard({ title, value, segments }) {
   const data = segments.filter(s => s.value > 0)
 
-  if (data.length === 0) data.push({ value: 1, color: 'rgba(255,255,255,0.08)' })
+  if (data.length === 0) data.push({ value: 1, color: 'var(--mui-palette-action-hover)' })
 
   return (
     <Card variant='outlined'>
@@ -508,12 +508,12 @@ export default function ChangesPage() {
           value={stats.total}
           segments={Object.entries(stats.byType).map(([key]) => ({
             value: stats.byType[key],
-            color: resourceTypeConfig[key]?.color || '#90a4ae'
+            color: resourceTypeConfig[key]?.color || 'var(--mui-palette-text-secondary)'
           }))}
         />
-        <DonutStatCard title='VM' value={stats.byType.vm || 0} total={stats.total} color='#4fc3f7' />
-        <DonutStatCard title='Container' value={stats.byType.ct || 0} total={stats.total} color='#81c784' />
-        <DonutStatCard title={t('changes.actionConfigChanged')} value={stats.byAction.config_changed || 0} total={stats.total} color='#42a5f5' />
+        <DonutStatCard title='VM' value={stats.byType.vm || 0} total={stats.total} color='var(--mui-palette-primary-main)' />
+        <DonutStatCard title='Container' value={stats.byType.ct || 0} total={stats.total} color='var(--mui-palette-success-main)' />
+        <DonutStatCard title={t('changes.actionConfigChanged')} value={stats.byAction.config_changed || 0} total={stats.total} color='var(--mui-palette-info-main)' />
       </Box>
 
       {/* Filters */}

@@ -64,11 +64,11 @@ function getDayLabel(date: string, t: any) {
 -------------------------------- */
 
 const resourceTypeConfig: Record<string, { icon: string; color: string; label: string }> = {
-  vm: { icon: 'ri-computer-line', color: '#4fc3f7', label: 'VM' },
-  ct: { icon: 'ri-instance-line', color: '#81c784', label: 'Container' },
-  node: { icon: 'ri-server-line', color: '#ffb74d', label: 'Node' },
-  storage: { icon: 'ri-database-2-line', color: '#ce93d8', label: 'Storage' },
-  pool: { icon: 'ri-stack-line', color: '#90a4ae', label: 'Pool' }
+  vm: { icon: 'ri-computer-line', color: 'var(--mui-palette-primary-main)', label: 'VM' },
+  ct: { icon: 'ri-instance-line', color: 'var(--mui-palette-success-main)', label: 'Container' },
+  node: { icon: 'ri-server-line', color: 'var(--mui-palette-warning-main)', label: 'Node' },
+  storage: { icon: 'ri-database-2-line', color: 'var(--mui-palette-secondary-main)', label: 'Storage' },
+  pool: { icon: 'ri-stack-line', color: 'var(--mui-palette-text-secondary)', label: 'Pool' }
 }
 
 const actionConfig: Record<string, { icon: string; color: 'info' | 'success' | 'error' | 'warning'; label: string }> = {
