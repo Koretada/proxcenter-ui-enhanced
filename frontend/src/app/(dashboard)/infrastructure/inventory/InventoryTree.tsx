@@ -869,6 +869,8 @@ return next
   // Menu contextuel VM
   const [contextMenu, setContextMenu] = useState<VmContextMenu>(null)
   const [actionBusy, setActionBusy] = useState(false)
+  const [vmActionConfirm, setVmActionConfirm] = useState<{ action: string; name: string } | null>(null)
+  const [vmActionError, setVmActionError] = useState<string | null>(null)
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false)
   const [cloneTarget, setCloneTarget] = useState<VmContextMenu>(null)
 
@@ -1221,25 +1223,29 @@ return next
   const handleVmAction = async (action: string) => {
     if (!contextMenu) return
 
-    const { connId, node, type, vmid, name } = contextMenu
+    const { name } = contextMenu
 
-    // Confirmation pour les actions destructives
+    // Confirmation pour les actions destructives via MUI Dialog
     if (['shutdown', 'stop', 'suspend'].includes(action)) {
-      const ok = window.confirm(`${t('common.confirm')}: ${action.toUpperCase()} - ${name} ?`)
-
-      if (!ok) {
-        handleCloseContextMenu()
-        
-return
-      }
+      setVmActionConfirm({ action, name })
+      return
     }
 
+    await executeVmAction(action)
+  }
+
+  const executeVmAction = async (action: string) => {
+    if (!contextMenu) return
+
+    const { connId, node, type, vmid } = contextMenu
+
     setActionBusy(true)
+    setVmActionConfirm(null)
 
     try {
       const url = `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/${action}`
       const res = await fetch(url, { method: 'POST' })
-      
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
 
@@ -1249,7 +1255,7 @@ return
       // Rafraîchir l'arbre après l'action
       setReloadTick(x => x + 1)
     } catch (e: any) {
-      alert(`${t('common.error')} (${action}): ${e?.message || e}`)
+      setVmActionError(`${t('common.error')} (${action}): ${e?.message || e}`)
     } finally {
       setActionBusy(false)
       handleCloseContextMenu()
@@ -2811,18 +2817,18 @@ return (
             <ListItemIcon>
               <PlayArrowIcon fontSize="small" sx={{ color: 'success.main' }} />
             </ListItemIcon>
-            <ListItemText>{t('audit.actions.start')}</ListItemText>
+            <ListItemText sx={{ '& .MuiTypography-root': { color: 'success.main', fontWeight: 600 } }}>{t('audit.actions.start')}</ListItemText>
           </MenuItem>,
 
-          <MenuItem 
+          <MenuItem
             key="shutdown"
-            onClick={() => handleVmAction('shutdown')} 
+            onClick={() => handleVmAction('shutdown')}
             disabled={actionBusy || contextMenu?.status !== 'running'}
           >
             <ListItemIcon>
               <PowerSettingsNewIcon fontSize="small" sx={{ color: 'warning.main' }} />
             </ListItemIcon>
-            <ListItemText>{t('inventoryPage.shutdownClean')}</ListItemText>
+            <ListItemText sx={{ '& .MuiTypography-root': { color: 'warning.main', fontWeight: 600 } }}>{t('inventoryPage.shutdownClean')}</ListItemText>
           </MenuItem>,
 
           <MenuItem
@@ -2833,7 +2839,7 @@ return (
             <ListItemIcon>
               <StopIcon fontSize="small" sx={{ color: 'error.main' }} />
             </ListItemIcon>
-            <ListItemText>{t('audit.actions.stop')}</ListItemText>
+            <ListItemText sx={{ '& .MuiTypography-root': { color: 'error.main', fontWeight: 600 } }}>{t('audit.actions.stop')}</ListItemText>
           </MenuItem>,
 
           <MenuItem
@@ -2844,7 +2850,7 @@ return (
             <ListItemIcon>
               <PauseIcon fontSize="small" sx={{ color: 'info.main' }} />
             </ListItemIcon>
-            <ListItemText>{t('audit.actions.suspend')}</ListItemText>
+            <ListItemText sx={{ '& .MuiTypography-root': { color: 'info.main', fontWeight: 600 } }}>{t('audit.actions.suspend')}</ListItemText>
           </MenuItem>,
 
           <Divider key="divider1" />,
@@ -3207,6 +3213,62 @@ return (
           }}
         />
       )}
+
+      {/* Dialog de confirmation action VM */}
+      <Dialog
+        open={vmActionConfirm !== null}
+        onClose={() => setVmActionConfirm(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {vmActionConfirm?.action === 'stop' && <StopIcon sx={{ fontSize: 24, color: 'error.main' }} />}
+          {vmActionConfirm?.action === 'shutdown' && <PowerSettingsNewIcon sx={{ fontSize: 24, color: 'warning.main' }} />}
+          {vmActionConfirm?.action === 'suspend' && <PauseIcon sx={{ fontSize: 24, color: 'info.main' }} />}
+          {t('common.confirm')}
+        </DialogTitle>
+        <DialogContent>
+          <Alert
+            severity={vmActionConfirm?.action === 'stop' ? 'error' : vmActionConfirm?.action === 'shutdown' ? 'warning' : 'info'}
+            sx={{ mb: 2 }}
+          >
+            {vmActionConfirm?.action?.toUpperCase()} — <strong>{vmActionConfirm?.name}</strong>
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => { setVmActionConfirm(null); handleCloseContextMenu() }}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="contained"
+            color={vmActionConfirm?.action === 'stop' ? 'error' : vmActionConfirm?.action === 'shutdown' ? 'warning' : 'info'}
+            onClick={() => vmActionConfirm && executeVmAction(vmActionConfirm.action)}
+            disabled={actionBusy}
+            startIcon={actionBusy ? <CircularProgress size={16} /> : null}
+          >
+            {vmActionConfirm?.action?.toUpperCase()}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog d'erreur action VM */}
+      <Dialog
+        open={vmActionError !== null}
+        onClose={() => setVmActionError(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <i className="ri-error-warning-line" style={{ fontSize: 24, color: '#ef4444' }} />
+          {t('common.error')}
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error">{vmActionError}</Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setVmActionError(null)}>{t('common.close')}</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Dialog d'erreur Unlock */}
       {unlockErrorDialog.open && (
