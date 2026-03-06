@@ -33,6 +33,7 @@ export async function GET(
     const storage = url.searchParams.get('storage')
     const volume = url.searchParams.get('volume')
     const filepath = url.searchParams.get('filepath')
+    const isDirectory = url.searchParams.get('directory') === '1'
 
     if (!storage || !volume || !filepath) {
       return NextResponse.json({ error: "Missing required parameters: storage, volume, filepath" }, { status: 400 })
@@ -113,15 +114,13 @@ export async function GET(
 
     // Déterminer le nom du fichier pour le Content-Disposition
     const filename = filepath.split('/').pop() || 'download'
-
-    // Vérifier si c'est un dossier (sera téléchargé comme .tar.zst)
     const rawContentType = pveRes.headers['content-type']
     const contentType: string = Array.isArray(rawContentType) ? rawContentType[0] : (rawContentType || 'application/octet-stream')
-    const isArchive = contentType.includes('zstd') || contentType.includes('tar') || contentType.includes('application/octet-stream')
 
-    // Nom du fichier téléchargé
+    // Pour les dossiers, PVE retourne une archive .tar.zst
+    // Pour les fichiers, on garde le nom original
     let downloadFilename = filename
-    if (isArchive && !filename.includes('.')) {
+    if (isDirectory) {
       downloadFilename = `${filename}.tar.zst`
     }
 
