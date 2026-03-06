@@ -44,6 +44,8 @@ import {
   Tabs,
   TextField,
   Typography,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip as MuiTooltip,
   useTheme,
 } from '@mui/material'
@@ -92,6 +94,7 @@ export default function VmDetailTabs(props: any) {
     cephReplicationSchedule,
     compatibleStorages,
     cpuCores,
+    cpuFlags,
     cpuLimit,
     cpuLimitEnabled,
     cpuModified,
@@ -184,6 +187,7 @@ export default function VmDetailTabs(props: any) {
     setCephClusters,
     setCephReplicationSchedule,
     setCpuCores,
+    setCpuFlags,
     setCpuLimit,
     setCpuLimitEnabled,
     setCpuSockets,
@@ -678,6 +682,61 @@ export default function VmDetailTabs(props: any) {
                                 </Typography>
                               </Box>
                             )}
+                          </Box>
+
+                          {/* Extra CPU Flags */}
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="body2" fontWeight={600} sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <i className="ri-flag-line" style={{ fontSize: 16 }} />
+                              {t('inventory.cpuFlags')}
+                            </Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                              {([
+                                { flag: 'nested-virt', desc: t('inventory.cpuFlagDesc.nestedVirt') },
+                                { flag: 'md-clear', desc: t('inventory.cpuFlagDesc.mdClear') },
+                                { flag: 'pcid', desc: t('inventory.cpuFlagDesc.pcid') },
+                                { flag: 'spec-ctrl', desc: t('inventory.cpuFlagDesc.specCtrl') },
+                                { flag: 'ssbd', desc: t('inventory.cpuFlagDesc.ssbd') },
+                                { flag: 'ibpb', desc: t('inventory.cpuFlagDesc.ibpb') },
+                                { flag: 'virt-ssbd', desc: t('inventory.cpuFlagDesc.virtSsbd') },
+                                { flag: 'amd-ssbd', desc: t('inventory.cpuFlagDesc.amdSsbd') },
+                                { flag: 'amd-no-ssb', desc: t('inventory.cpuFlagDesc.amdNoSsb') },
+                                { flag: 'pdpe1gb', desc: t('inventory.cpuFlagDesc.pdpe1gb') },
+                                { flag: 'hv-tlbflush', desc: t('inventory.cpuFlagDesc.hvTlbflush') },
+                                { flag: 'hv-evmcs', desc: t('inventory.cpuFlagDesc.hvEvmcs') },
+                                { flag: 'aes', desc: t('inventory.cpuFlagDesc.aes') },
+                              ] as const).map(({ flag, desc }) => (
+                                <MuiTooltip key={flag} title={desc} placement="top" arrow>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <ToggleButtonGroup
+                                      size="small"
+                                      exclusive
+                                      value={cpuFlags[flag] || 'default'}
+                                      onChange={(_, val) => {
+                                        if (!val) return
+                                        setCpuFlags((prev: Record<string, '+' | '-'>) => {
+                                          const next = { ...prev }
+                                          if (val === 'default') {
+                                            delete next[flag]
+                                          } else {
+                                            next[flag] = val
+                                          }
+                                          return next
+                                        })
+                                      }}
+                                      sx={{ height: 28 }}
+                                    >
+                                      <ToggleButton value="-" sx={{ px: 0.8, fontSize: '0.75rem', fontWeight: 700 }}>−</ToggleButton>
+                                      <ToggleButton value="default" sx={{ px: 0.8, fontSize: '0.65rem' }}>off</ToggleButton>
+                                      <ToggleButton value="+" sx={{ px: 0.8, fontSize: '0.75rem', fontWeight: 700 }}>+</ToggleButton>
+                                    </ToggleButtonGroup>
+                                    <Typography variant="caption" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem' }}>
+                                      {flag}
+                                    </Typography>
+                                  </Box>
+                                </MuiTooltip>
+                              ))}
+                            </Box>
                           </Box>
 
                           {/* Résumé */}

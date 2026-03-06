@@ -190,6 +190,7 @@ export default function InventoryDetails({
   const [cpuSockets, setCpuSockets] = useState(1)
   const [cpuCores, setCpuCores] = useState(1)
   const [cpuType, setCpuType] = useState('kvm64')
+  const [cpuFlags, setCpuFlags] = useState<Record<string, '+' | '-'>>({})
   const [cpuLimit, setCpuLimit] = useState(0)
   const [cpuLimitEnabled, setCpuLimitEnabled] = useState(false)
   const [memory, setMemory] = useState(2048) // en MB
@@ -2905,6 +2906,7 @@ return () => {
       setCpuSockets(data.cpuInfo.sockets || 1)
       setCpuCores(data.cpuInfo.cores || 1)
       setCpuType(data.cpuInfo.type || 'kvm64')
+      setCpuFlags(data.cpuInfo.flags || {})
       setCpuLimit(data.cpuInfo.cpulimit || 0)
       setCpuLimitEnabled(!!data.cpuInfo.cpulimit)
     }
@@ -3364,15 +3366,18 @@ return
   // Détecter si les valeurs CPU ont été modifiées
   const cpuModified = useMemo(() => {
     if (!data?.cpuInfo) return false
-    
+    const origFlags = data.cpuInfo.flags || {}
+    const flagsChanged = JSON.stringify(cpuFlags) !== JSON.stringify(origFlags)
+
 return (
       cpuSockets !== (data.cpuInfo.sockets || 1) ||
       cpuCores !== (data.cpuInfo.cores || 1) ||
       cpuType !== (data.cpuInfo.type || 'kvm64') ||
+      flagsChanged ||
       cpuLimit !== (data.cpuInfo.cpulimit || 0) ||
       cpuLimitEnabled !== !!data.cpuInfo.cpulimit
     )
-  }, [data?.cpuInfo, cpuSockets, cpuCores, cpuType, cpuLimit, cpuLimitEnabled])
+  }, [data?.cpuInfo, cpuSockets, cpuCores, cpuType, cpuFlags, cpuLimit, cpuLimitEnabled])
 
   // Détecter si les valeurs RAM ont été modifiées
   const memoryModified = useMemo(() => {
@@ -3398,10 +3403,17 @@ return (
     setSavingCpu(true)
 
     try {
+      // Build cpu field with flags: "host,flags=+aes;-pcid"
+      const activeFlags = Object.entries(cpuFlags).filter(([, v]) => v === '+' || v === '-')
+      let cpuField = cpuType
+      if (activeFlags.length > 0) {
+        cpuField += ',flags=' + activeFlags.map(([k, v]) => `${v}${k}`).join(';')
+      }
+
       const configUpdate: any = {
         sockets: cpuSockets,
         cores: cpuCores,
-        cpu: cpuType,
+        cpu: cpuField,
       }
       
       if (cpuLimitEnabled && cpuLimit > 0) {
@@ -4661,7 +4673,7 @@ return vm?.isCluster ?? false
                 backups, backupsError, backupsLoading, backupsStats, backupsWarnings, balloon,
                 balloonEnabled, browseArchive, canPreview, canShowRrd, cephClusters, cephClustersLoading,
                 cephReplicationJobs, cephReplicationSchedule, compatibleStorages, cpuCores, cpuLimit,
-                cpuLimitEnabled, cpuModified, cpuSockets, cpuType, createSnapshot,
+                cpuFlags, cpuLimitEnabled, cpuModified, cpuSockets, cpuType, createSnapshot,
                 data, deleteReplicationId, deleteSnapshot, detailTab, downloadFile,
                 error, exploreWithPveStorage, explorerArchive, explorerArchives, explorerError,
                 explorerFiles, explorerLoading, explorerMode, explorerPath, explorerSearch,
@@ -4679,7 +4691,7 @@ return vm?.isCluster ?? false
                 selection, series, setAddCephReplicationDialogOpen, setAddDiskDialogOpen, setAddNetworkDialogOpen,
                 setAddReplicationDialogOpen, setBackupCompress, setBackupMode, setBackupNote, setBackupStorage,
                 setBackupStorages, setBalloon, setBalloonEnabled, setCephClusters, setCephReplicationSchedule,
-                setCpuCores, setCpuLimit, setCpuLimitEnabled, setCpuSockets, setCpuType,
+                setCpuCores, setCpuFlags, setCpuLimit, setCpuLimitEnabled, setCpuSockets, setCpuType,
                 setCreateBackupDialogOpen, setDeleteReplicationId, setDetailTab, setEditDiskDialogOpen, setEditNetworkDialogOpen,
                 setEditOptionDialog, setEditScsiControllerDialogOpen, setExplorerArchive, setExplorerArchives, setExplorerFiles,
                 setExplorerSearch, setHaComment, setHaEditing, setHaGroup, setHaMaxRelocate,

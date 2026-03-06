@@ -47,6 +47,7 @@ export type DetailsPayload = {
     sockets: number
     cores: number
     type: string
+    flags?: Record<string, '+' | '-'>
     cpulimit?: number
     cpuunits?: number
     numa?: boolean
