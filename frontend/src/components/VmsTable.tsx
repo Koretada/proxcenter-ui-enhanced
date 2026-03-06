@@ -563,52 +563,61 @@ return { id: vm.id, data }
 
   // Fonction d'export Excel
   const handleExportExcel = useCallback(async () => {
-    const XLSX = await import('xlsx')
-    const exportData = vms.map(vm => ({
-      'ID': vm.vmid,
-      'Nom': vm.name,
-      'Type': vm.template ? 'Template' : (vm.type === 'lxc' ? 'LXC' : 'VM'),
-      'Status': vm.status,
-      'Node': vm.node,
-      'HA': vm.hastate || '',
-      'HA Group': vm.hagroup || '',
-      'CPU (%)': vm.cpu !== undefined ? Math.round(vm.cpu) : '',
-      'RAM (%)': vm.ram !== undefined ? Math.round(vm.ram) : '',
-      'RAM Max (GB)': vm.maxmem ? Math.round(vm.maxmem / 1024 / 1024 / 1024 * 10) / 10 : '',
-      'Uptime': typeof vm.uptime === 'number' ? secondsToUptime(vm.uptime) : (vm.uptime || ''),
-      'IP': vm.ip || '',
-      'Snapshots': vm.snapshots ?? '',
-      'Tags': vm.tags?.join(', ') || '',
-      'Template': vm.template ? 'Oui' : 'Non',
-    }))
+    const ExcelJS = await import('exceljs')
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('VMs')
 
-    const ws = XLSX.utils.json_to_sheet(exportData)
-    const wb = XLSX.utils.book_new()
-
-    XLSX.utils.book_append_sheet(wb, ws, 'VMs')
-    
-    // Ajuster la largeur des colonnes
-    const colWidths = [
-      { wch: 8 },   // ID
-      { wch: 25 },  // Nom
-      { wch: 10 },  // Type
-      { wch: 10 },  // Statut
-      { wch: 20 },  // Node
-      { wch: 10 },  // HA
-      { wch: 15 },  // HA Group
-      { wch: 10 },  // CPU
-      { wch: 10 },  // RAM
-      { wch: 12 },  // RAM Max
-      { wch: 12 },  // Uptime
-      { wch: 15 },  // IP
-      { wch: 10 },  // Snapshots
-      { wch: 20 },  // Tags
-      { wch: 10 },  // Template
+    const columns = [
+      { header: 'ID', key: 'id', width: 8 },
+      { header: 'Nom', key: 'name', width: 25 },
+      { header: 'Type', key: 'type', width: 10 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Node', key: 'node', width: 20 },
+      { header: 'HA', key: 'ha', width: 10 },
+      { header: 'HA Group', key: 'hagroup', width: 15 },
+      { header: 'CPU (%)', key: 'cpu', width: 10 },
+      { header: 'RAM (%)', key: 'ram', width: 10 },
+      { header: 'RAM Max (GB)', key: 'rammax', width: 12 },
+      { header: 'Uptime', key: 'uptime', width: 12 },
+      { header: 'IP', key: 'ip', width: 15 },
+      { header: 'Snapshots', key: 'snapshots', width: 10 },
+      { header: 'Tags', key: 'tags', width: 20 },
+      { header: 'Template', key: 'template', width: 10 },
     ]
 
-    ws['!cols'] = colWidths
+    ws.columns = columns
 
-    XLSX.writeFile(wb, `vms-export-${new Date().toISOString().split('T')[0]}.xlsx`)
+    for (const vm of vms) {
+      ws.addRow({
+        id: vm.vmid,
+        name: vm.name,
+        type: vm.template ? 'Template' : (vm.type === 'lxc' ? 'LXC' : 'VM'),
+        status: vm.status,
+        node: vm.node,
+        ha: vm.hastate || '',
+        hagroup: vm.hagroup || '',
+        cpu: vm.cpu !== undefined ? Math.round(vm.cpu) : '',
+        ram: vm.ram !== undefined ? Math.round(vm.ram) : '',
+        rammax: vm.maxmem ? Math.round(vm.maxmem / 1024 / 1024 / 1024 * 10) / 10 : '',
+        uptime: typeof vm.uptime === 'number' ? secondsToUptime(vm.uptime) : (vm.uptime || ''),
+        ip: vm.ip || '',
+        snapshots: vm.snapshots ?? '',
+        tags: vm.tags?.join(', ') || '',
+        template: vm.template ? 'Oui' : 'Non',
+      })
+    }
+
+    // Bold headers
+    ws.getRow(1).font = { bold: true }
+
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `vms-export-${new Date().toISOString().split('T')[0]}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
   }, [vms])
 
   const columns: GridColDef[] = useMemo(() => {
