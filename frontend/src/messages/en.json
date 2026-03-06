@@ -949,6 +949,7 @@
     "tags": "Tags",
     "other": "Other",
     "bootOrder": "Boot Order",
+    "bootOrderHint": "Drag and drop to reorder. Check the devices to include in the boot sequence.",
     "usbTablet": "USB Tablet",
     "protection": "Protection",
     "spiceEnhancements": "SPICE Enhancements",

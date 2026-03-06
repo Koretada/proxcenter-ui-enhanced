@@ -954,6 +954,7 @@
     "tags": "Tags",
     "other": "Autre",
     "bootOrder": "Ordre de démarrage",
+    "bootOrderHint": "Glissez-déposez pour réordonner. Cochez les périphériques à inclure dans la séquence de démarrage.",
     "usbTablet": "Tablette USB",
     "protection": "Protection",
     "spiceEnhancements": "Améliorations SPICE",

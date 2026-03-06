@@ -4736,7 +4736,7 @@ return vm?.isCluster ?? false
                 setSelectedDisk, setSelectedNetwork, setSelectedPveStorage, setShowCreateSnapshot, setTasksLoaded,
                 setTf, setVmNotes, showCreateSnapshot, snapshotActionBusy, snapshots,
                 snapshotsError, snapshotsLoading, sourceCephAvailable, tags,
-                tasks, tasksError, tasksLoading, tf, vmNotes}}
+                refreshData, tasks, tasksError, tasksLoading, tf, vmNotes}}
             />
           )}
 

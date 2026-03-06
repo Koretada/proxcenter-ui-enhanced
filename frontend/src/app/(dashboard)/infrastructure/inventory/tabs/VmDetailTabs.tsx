@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   CircularProgress,
   Dialog,
@@ -73,6 +74,10 @@ export default function VmDetailTabs(props: any) {
   const t = useTranslations()
   const locale = useLocale()
   const [cpuFlagsOpen, setCpuFlagsOpen] = useState(false)
+  const [bootOrderOpen, setBootOrderOpen] = useState(false)
+  const [bootDevices, setBootDevices] = useState<Array<{ id: string; enabled: boolean }>>([])
+  const [bootSaving, setBootSaving] = useState(false)
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
 
   const {
     addCephReplicationDialogOpen,
@@ -237,6 +242,7 @@ export default function VmDetailTabs(props: any) {
     snapshotsError,
     snapshotsLoading,
     sourceCephAvailable,
+    refreshData,
     tags,
     tasks,
     tasksError,
@@ -1280,11 +1286,39 @@ return (
                                   </Box>
                                 </td>
                                 <td style={{ padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.15)', fontFamily: 'monospace', fontSize: '0.9rem' }}>
-                                  {data.optionsInfo?.bootOrder || t('common.noData')}
+                                  {(() => {
+                                    const boot = data.optionsInfo?.bootOrder || ''
+                                    const match = boot.match(/order=(.+)/)
+                                    if (!match) return boot || t('common.noData')
+                                    return match[1].split(';').map((d: string, i: number) => (
+                                      <Chip key={d} label={d} size="small" sx={{ mr: 0.5, height: 22, fontSize: '0.75rem', fontFamily: 'monospace' }}
+                                        icon={<Typography variant="caption" sx={{ fontWeight: 700, ml: 0.5, minWidth: 14, textAlign: 'center' }}>{i + 1}</Typography>}
+                                      />
+                                    ))
+                                  })()}
                                 </td>
                                 <td style={{ padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.15)', textAlign: 'center' }}>
                                   <MuiTooltip title={t('common.edit')}>
-                                    <IconButton size="small" onClick={() => setEditOptionDialog({ key: 'boot', label: t('inventory.bootOrder'), value: data.optionsInfo?.bootOrder || '', type: 'text' })}>
+                                    <IconButton size="small" onClick={() => {
+                                      // Build device list from all disks + networks
+                                      const boot = data.optionsInfo?.bootOrder || ''
+                                      const match = boot.match(/order=(.+)/)
+                                      const enabledDevices = match ? match[1].split(';') : []
+                                      const allDeviceIds = [
+                                        ...(data.disksInfo || []).filter((d: any) => !d.isUnused).map((d: any) => d.id),
+                                        ...(data.networkInfo || []).map((n: any) => n.id),
+                                      ]
+                                      // Enabled devices first (in order), then remaining devices (disabled)
+                                      const ordered: Array<{ id: string; enabled: boolean }> = []
+                                      enabledDevices.forEach(id => {
+                                        if (allDeviceIds.includes(id)) ordered.push({ id, enabled: true })
+                                      })
+                                      allDeviceIds.forEach(id => {
+                                        if (!enabledDevices.includes(id)) ordered.push({ id, enabled: false })
+                                      })
+                                      setBootDevices(ordered)
+                                      setBootOrderOpen(true)
+                                    }}>
                                       <i className="ri-pencil-line" style={{ fontSize: 16 }} />
                                     </IconButton>
                                   </MuiTooltip>
@@ -3323,6 +3357,108 @@ return (
 
             </>
           )}
+      {/* Boot Order Dialog */}
+      <Dialog open={bootOrderOpen} onClose={() => setBootOrderOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <i className="ri-restart-line" style={{ fontSize: 22 }} />
+          {t('inventory.bootOrder')}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {t('inventory.bootOrderHint')}
+          </Typography>
+          <List dense sx={{ '& .MuiListItem-root': { px: 1, py: 0.5, mb: 0.5, bgcolor: 'action.hover', borderRadius: 1 } }}>
+            {bootDevices.map((dev, idx) => (
+              <ListItem
+                key={dev.id}
+                draggable
+                onDragStart={() => setDragIdx(idx)}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.currentTarget.style.borderTop = '2px solid var(--mui-palette-primary-main)'
+                }}
+                onDragLeave={(e) => { e.currentTarget.style.borderTop = '' }}
+                onDrop={(e) => {
+                  e.currentTarget.style.borderTop = ''
+                  if (dragIdx === null || dragIdx === idx) return
+                  setBootDevices(prev => {
+                    const next = [...prev]
+                    const [moved] = next.splice(dragIdx, 1)
+                    next.splice(idx, 0, moved)
+                    return next
+                  })
+                  setDragIdx(null)
+                }}
+                onDragEnd={() => setDragIdx(null)}
+                sx={{
+                  cursor: 'grab',
+                  opacity: dev.enabled ? 1 : 0.5,
+                  '&:active': { cursor: 'grabbing' },
+                }}
+                secondaryAction={
+                  <Typography variant="caption" sx={{ fontFamily: 'monospace', opacity: 0.5 }}>
+                    {dev.id.match(/^(scsi|virtio|ide|sata)/) ? (dev.id.match(/^ide/) && data.disksInfo?.find((d: any) => d.id === dev.id)?.isCdrom ? 'CD-ROM' : t('inventory.disks').toLowerCase()) : t('inventory.tabs.network').toLowerCase()}
+                  </Typography>
+                }
+              >
+                <ListItemIcon sx={{ minWidth: 36 }}>
+                  <i className="ri-draggable" style={{ fontSize: 18, opacity: 0.4, cursor: 'grab' }} />
+                </ListItemIcon>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={dev.enabled}
+                      onChange={(e) => {
+                        setBootDevices(prev => prev.map((d, i) => i === idx ? { ...d, enabled: e.target.checked } : d))
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography variant="body2" fontWeight={600} sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      {dev.id}
+                    </Typography>
+                  }
+                  sx={{ mr: 0 }}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setBootOrderOpen(false)} disabled={bootSaving}>{t('common.cancel')}</Button>
+          <Button
+            variant="contained"
+            disabled={bootSaving}
+            startIcon={bootSaving ? <CircularProgress size={16} /> : <i className="ri-save-line" />}
+            onClick={async () => {
+              if (!selection) return
+              setBootSaving(true)
+              try {
+                const { connId, node, type, vmid } = parseVmId(selection.id)
+                const enabledIds = bootDevices.filter(d => d.enabled).map(d => d.id)
+                const bootValue = enabledIds.length > 0 ? `order=${enabledIds.join(';')}` : ''
+                const res = await fetch(
+                  `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/config`,
+                  { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boot: bootValue }) }
+                )
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}))
+                  throw new Error(err?.error || `HTTP ${res.status}`)
+                }
+                setBootOrderOpen(false)
+                if (refreshData) await refreshData()
+              } catch (e: any) {
+                alert(`${t('common.error')}: ${e.message}`)
+              } finally {
+                setBootSaving(false)
+              }
+            }}
+          >
+            {bootSaving ? t('common.saving') : t('common.save')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }
