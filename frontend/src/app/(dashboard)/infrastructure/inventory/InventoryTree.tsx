@@ -27,7 +27,9 @@ import {
   Menu,
   MenuItem,
   Select,
-  TextField, 
+  FormControlLabel,
+  Switch,
+  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip, 
@@ -303,6 +305,7 @@ type TreeCluster = {
   name: string
   isCluster: boolean  // true si cluster multi-nodes, false si standalone
   cephHealth?: string // HEALTH_OK, HEALTH_WARN, HEALTH_ERR ou undefined
+  sshEnabled?: boolean
   nodes: {
     node: string
     status?: string
@@ -352,6 +355,7 @@ type VmContextMenu = {
   status?: string
   isCluster: boolean  // pour savoir si on peut migrer
   template?: boolean  // pour savoir si c'est un template
+  sshEnabled?: boolean  // pour afficher unlock
 } | null
 
 type NodeContextMenu = {
@@ -871,6 +875,12 @@ return next
   const [actionBusy, setActionBusy] = useState(false)
   const [vmActionConfirm, setVmActionConfirm] = useState<{ action: string; name: string } | null>(null)
   const [vmActionError, setVmActionError] = useState<string | null>(null)
+  const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false)
+  const [snapshotName, setSnapshotName] = useState('')
+  const [snapshotDesc, setSnapshotDesc] = useState('')
+  const [snapshotVmstate, setSnapshotVmstate] = useState(false)
+  const [creatingSnapshot, setCreatingSnapshot] = useState(false)
+  const [snapshotTarget, setSnapshotTarget] = useState<{ connId: string; type: string; node: string; vmid: string } | null>(null)
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false)
   const [cloneTarget, setCloneTarget] = useState<VmContextMenu>(null)
 
@@ -1053,7 +1063,8 @@ return next
     name: string,
     status?: string,
     isCluster?: boolean,
-    template?: boolean
+    template?: boolean,
+    sshEnabled?: boolean
   ) => {
     event.preventDefault()
     event.stopPropagation()
@@ -1067,7 +1078,8 @@ return next
       name,
       status,
       isCluster: !!isCluster,
-      template: !!template
+      template: !!template,
+      sshEnabled: !!sshEnabled
     })
   }
 
@@ -1226,7 +1238,7 @@ return next
     const { name } = contextMenu
 
     // Confirmation pour les actions destructives via MUI Dialog
-    if (['shutdown', 'stop', 'suspend'].includes(action)) {
+    if (['shutdown', 'stop', 'suspend', 'hibernate', 'reboot', 'reset'].includes(action)) {
       setVmActionConfirm({ action, name })
       return
     }
@@ -1242,8 +1254,16 @@ return next
     setActionBusy(true)
     setVmActionConfirm(null)
 
+    // backup est géré séparément
+    if (action === 'backup') {
+      await executeBackupNow()
+      return
+    }
+
     try {
-      const url = `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/${action}`
+      // hibernate = suspend to disk via PVE
+      const pveAction = action === 'hibernate' ? 'suspend' : action
+      const url = `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/${pveAction}`
       const res = await fetch(url, { method: 'POST' })
 
       if (!res.ok) {
@@ -1256,6 +1276,81 @@ return next
       setReloadTick(x => x + 1)
     } catch (e: any) {
       setVmActionError(`${t('common.error')} (${action}): ${e?.message || e}`)
+    } finally {
+      setActionBusy(false)
+      handleCloseContextMenu()
+    }
+  }
+
+  // Prendre un snapshot
+  const handleTakeSnapshot = () => {
+    if (!contextMenu) return
+    setSnapshotTarget({ connId: contextMenu.connId, type: contextMenu.type, node: contextMenu.node, vmid: contextMenu.vmid })
+    setSnapshotName('')
+    setSnapshotDesc('')
+    setSnapshotVmstate(false)
+    setSnapshotDialogOpen(true)
+    handleCloseContextMenu()
+  }
+
+  const executeSnapshot = async () => {
+    if (!snapshotTarget) return
+
+    setCreatingSnapshot(true)
+
+    try {
+      const vmKey = `${snapshotTarget.connId}:${snapshotTarget.type}:${snapshotTarget.node}:${snapshotTarget.vmid}`
+      const res = await fetch(`/api/v1/guests/${encodeURIComponent(vmKey)}/snapshots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: snapshotName, description: snapshotDesc, vmstate: snapshotVmstate })
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || `HTTP ${res.status}`)
+      }
+
+      setSnapshotDialogOpen(false)
+      setSnapshotTarget(null)
+      setReloadTick(x => x + 1)
+    } catch (e: any) {
+      setVmActionError(`${t('common.error')} (snapshot): ${e?.message || e}`)
+    } finally {
+      setCreatingSnapshot(false)
+    }
+  }
+
+  // Lancer un backup maintenant
+  const handleBackupNow = async () => {
+    if (!contextMenu) return
+    const { connId, node, type, vmid, name } = contextMenu
+
+    setVmActionConfirm({ action: 'backup', name })
+  }
+
+  const executeBackupNow = async () => {
+    if (!contextMenu) return
+    const { connId, node, type, vmid } = contextMenu
+
+    setActionBusy(true)
+    setVmActionConfirm(null)
+
+    try {
+      const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/vzdump`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vmid: Number(vmid), mode: 'snapshot', compress: 'zstd' })
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || `HTTP ${res.status}`)
+      }
+
+      setReloadTick(x => x + 1)
+    } catch (e: any) {
+      setVmActionError(`${t('common.error')} (backup): ${e?.message || e}`)
     } finally {
       setActionBusy(false)
       handleCloseContextMenu()
@@ -1383,6 +1478,7 @@ return next
           name: cluster.name || cluster.id,
           isCluster: cluster.isCluster,
           cephHealth: cluster.cephHealth,
+          sshEnabled: cluster.sshEnabled,
           nodes: (cluster.nodes || []).map((node: any) => ({
             node: node.node,
             status: node.status,
@@ -1596,8 +1692,9 @@ return items
       template?: boolean
       hastate?: string
       hagroup?: string
+      sshEnabled?: boolean
     }[] = []
-    
+
     clusters.forEach(clu => {
       clu.nodes.forEach(n => {
         n.vms.forEach(vm => {
@@ -1620,7 +1717,8 @@ return items
             isCluster: clu.isCluster,
             template: vm.template,
             hastate: vm.hastate,
-            hagroup: vm.hagroup
+            hagroup: vm.hagroup,
+            sshEnabled: clu.sshEnabled
           })
         })
       })
@@ -2078,7 +2176,7 @@ return favorites.has(vmKey)
                       isFavorite={favorites.has(vmKey)}
                       onFavoriteToggle={() => toggleFavorite(vm.connId, vm.node, vm.type, vm.vmid, vm.name)}
                       onClick={() => onSelect({ type: 'vm', id: vmKey })}
-                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template)}
+                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template, vm.sshEnabled)}
                       variant="flat"
                       t={t}
                     />
@@ -2140,7 +2238,7 @@ return favorites.has(vmKey)
                       isFavorite={true}
                       onFavoriteToggle={() => toggleFavorite(vm.connId, vm.node, vm.type, vm.vmid, vm.name)}
                       onClick={() => onSelect({ type: 'vm', id: vmKey })}
-                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template)}
+                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template, vm.sshEnabled)}
                       variant="favorite"
                       t={t}
                     />
@@ -2218,7 +2316,7 @@ return (
                       isFavorite={favorites.has(vmKey)}
                       onFavoriteToggle={() => toggleFavorite(vm.connId, vm.node, vm.type, vm.vmid, vm.name)}
                       onClick={() => onSelect({ type: 'vm', id: vmKey })}
-                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template)}
+                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template, vm.sshEnabled)}
                       variant="grouped"
                       t={t}
                     />
@@ -2295,7 +2393,7 @@ return (
                       isFavorite={favorites.has(vmKey)}
                       onFavoriteToggle={() => toggleFavorite(vm.connId, vm.node, vm.type, vm.vmid, vm.name)}
                       onClick={() => onSelect({ type: 'vm', id: vmKey })}
-                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template)}
+                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template, vm.sshEnabled)}
                       variant="grouped"
                       t={t}
                     />
@@ -2374,7 +2472,7 @@ return (
                       isFavorite={favorites.has(vmKey)}
                       onFavoriteToggle={() => toggleFavorite(vm.connId, vm.node, vm.type, vm.vmid, vm.name)}
                       onClick={() => onSelect({ type: 'vm', id: vmKey })}
-                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template)}
+                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template, vm.sshEnabled)}
                       variant="grouped"
                       t={t}
                     />
@@ -2430,7 +2528,7 @@ return (
                       isFavorite={favorites.has(vmKey)}
                       onFavoriteToggle={() => toggleFavorite(vm.connId, vm.node, vm.type, vm.vmid, vm.name)}
                       onClick={() => onSelect({ type: 'vm', id: vmKey })}
-                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template)}
+                      onContextMenu={(e) => handleContextMenu(e, vm.connId, vm.node, vm.type, vm.vmid, vm.name, vm.status, vm.isCluster, vm.template, vm.sshEnabled)}
                       variant="template"
                       t={t}
                     />
@@ -2554,7 +2652,7 @@ return (
                     key={vmKey}
                     itemId={`vm:${clu.connId}:${n.node}:${vm.type}:${vm.vmid}`}
                     disabled={isMigrating}
-                    onContextMenu={(e) => !isMigrating && handleContextMenu(e, clu.connId, n.node, vm.type, vm.vmid, vm.name, vm.status, clu.isCluster, vm.template)}
+                    onContextMenu={(e) => !isMigrating && handleContextMenu(e, clu.connId, n.node, vm.type, vm.vmid, vm.name, vm.status, clu.isCluster, vm.template, clu.sshEnabled)}
                     sx={{
                       opacity: isMigrating ? 0.5 : 1,
                       cursor: isMigrating ? 'not-allowed' : 'pointer',
@@ -2644,7 +2742,7 @@ return (
                       key={vmKey}
                       itemId={`vm:${clu.connId}:${n.node}:${vm.type}:${vm.vmid}`}
                       disabled={isMigrating}
-                      onContextMenu={(e) => !isMigrating && handleContextMenu(e, clu.connId, n.node, vm.type, vm.vmid, vm.name, vm.status, clu.isCluster, vm.template)}
+                      onContextMenu={(e) => !isMigrating && handleContextMenu(e, clu.connId, n.node, vm.type, vm.vmid, vm.name, vm.status, clu.isCluster, vm.template, clu.sshEnabled)}
                       sx={{
                         opacity: isMigrating ? 0.5 : 1,
                         '& > .MuiTreeItem-content': {
@@ -2809,6 +2907,7 @@ return (
         
         {/* Actions de contrôle pour VM normale */}
         {!contextMenu?.template && [
+          /* --- Power actions --- */
           <MenuItem
             key="start"
             onClick={() => handleVmAction('start')}
@@ -2818,6 +2917,28 @@ return (
               <PlayArrowIcon fontSize="small" sx={{ color: 'success.main' }} />
             </ListItemIcon>
             <ListItemText sx={{ '& .MuiTypography-root': { color: 'success.main', fontWeight: 600 } }}>{t('audit.actions.start')}</ListItemText>
+          </MenuItem>,
+
+          <MenuItem
+            key="pause"
+            onClick={() => handleVmAction('suspend')}
+            disabled={actionBusy || contextMenu?.status !== 'running'}
+          >
+            <ListItemIcon>
+              <PauseIcon fontSize="small" sx={{ color: 'info.main' }} />
+            </ListItemIcon>
+            <ListItemText sx={{ '& .MuiTypography-root': { color: 'info.main', fontWeight: 600 } }}>{t('inventory.pause')}</ListItemText>
+          </MenuItem>,
+
+          <MenuItem
+            key="hibernate"
+            onClick={() => handleVmAction('hibernate')}
+            disabled={actionBusy || contextMenu?.status !== 'running'}
+          >
+            <ListItemIcon>
+              <i className="ri-zzz-line" style={{ fontSize: 20, color: 'var(--mui-palette-info-main)' }} />
+            </ListItemIcon>
+            <ListItemText sx={{ '& .MuiTypography-root': { color: 'info.main', fontWeight: 600 } }}>{t('inventory.hibernate')}</ListItemText>
           </MenuItem>,
 
           <MenuItem
@@ -2843,51 +2964,30 @@ return (
           </MenuItem>,
 
           <MenuItem
-            key="suspend"
-            onClick={() => handleVmAction('suspend')}
+            key="reboot"
+            onClick={() => handleVmAction('reboot')}
             disabled={actionBusy || contextMenu?.status !== 'running'}
           >
             <ListItemIcon>
-              <PauseIcon fontSize="small" sx={{ color: 'info.main' }} />
+              <i className="ri-restart-line" style={{ fontSize: 20, color: 'var(--mui-palette-warning-main)' }} />
             </ListItemIcon>
-            <ListItemText sx={{ '& .MuiTypography-root': { color: 'info.main', fontWeight: 600 } }}>{t('audit.actions.suspend')}</ListItemText>
+            <ListItemText sx={{ '& .MuiTypography-root': { color: 'warning.main', fontWeight: 600 } }}>{t('inventory.reboot')}</ListItemText>
+          </MenuItem>,
+
+          <MenuItem
+            key="reset"
+            onClick={() => handleVmAction('reset')}
+            disabled={actionBusy || contextMenu?.status !== 'running'}
+          >
+            <ListItemIcon>
+              <i className="ri-loop-left-line" style={{ fontSize: 20, color: 'var(--mui-palette-error-main)' }} />
+            </ListItemIcon>
+            <ListItemText sx={{ '& .MuiTypography-root': { color: 'error.main', fontWeight: 600 } }}>{t('inventory.reset')}</ListItemText>
           </MenuItem>,
 
           <Divider key="divider1" />,
 
-          <MenuItem key="console" onClick={handleOpenConsole} disabled={actionBusy}>
-            <ListItemIcon>
-              <TerminalIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>{t('inventory.console')}</ListItemText>
-          </MenuItem>,
-
-          <MenuItem key="unlock" onClick={handleUnlock} disabled={actionBusy || unlocking}>
-            <ListItemIcon>
-              <i className="ri-lock-unlock-line" style={{ fontSize: 20, color: '#f59e0b' }} />
-            </ListItemIcon>
-            <ListItemText>{t('inventory.unlock')}</ListItemText>
-          </MenuItem>,
-
-          <Divider key="divider2" />,
-
-          contextMenu?.isCluster && (
-            <MenuItem 
-              key="migrate" 
-              onClick={() => {
-                setMigrateTarget(contextMenu)
-                setMigrateDialogOpen(true)
-                handleCloseContextMenu()
-              }} 
-              disabled={actionBusy}
-            >
-              <ListItemIcon>
-                <MoveUpIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>{t('audit.actions.migrate')}</ListItemText>
-            </MenuItem>
-          ),
-
+          /* --- Clone / Template --- */
           <MenuItem
             key="clone"
             onClick={() => {
@@ -2912,7 +3012,60 @@ return (
               <DescriptionIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>{t('templates.convertToTemplate')}</ListItemText>
-          </MenuItem>
+          </MenuItem>,
+
+          <Divider key="divider2" />,
+
+          /* --- Snapshot / Backup --- */
+          <MenuItem key="snapshot" onClick={handleTakeSnapshot} disabled={actionBusy}>
+            <ListItemIcon>
+              <i className="ri-camera-line" style={{ fontSize: 20 }} />
+            </ListItemIcon>
+            <ListItemText>{t('inventory.takeSnapshot')}</ListItemText>
+          </MenuItem>,
+
+          <MenuItem key="backup" onClick={handleBackupNow} disabled={actionBusy}>
+            <ListItemIcon>
+              <i className="ri-save-line" style={{ fontSize: 20 }} />
+            </ListItemIcon>
+            <ListItemText>{t('inventory.backupNow')}</ListItemText>
+          </MenuItem>,
+
+          <Divider key="divider3" />,
+
+          /* --- Console / Migrate / Unlock --- */
+          contextMenu?.isCluster && (
+            <MenuItem
+              key="migrate"
+              onClick={() => {
+                setMigrateTarget(contextMenu)
+                setMigrateDialogOpen(true)
+                handleCloseContextMenu()
+              }}
+              disabled={actionBusy}
+            >
+              <ListItemIcon>
+                <MoveUpIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>{t('audit.actions.migrate')}</ListItemText>
+            </MenuItem>
+          ),
+
+          <MenuItem key="console" onClick={handleOpenConsole} disabled={actionBusy}>
+            <ListItemIcon>
+              <TerminalIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>{t('inventory.console')}</ListItemText>
+          </MenuItem>,
+
+          contextMenu?.sshEnabled && (
+            <MenuItem key="unlock" onClick={handleUnlock} disabled={actionBusy || unlocking}>
+              <ListItemIcon>
+                <i className="ri-lock-unlock-line" style={{ fontSize: 20, color: '#f59e0b' }} />
+              </ListItemIcon>
+              <ListItemText>{t('inventory.unlock')}</ListItemText>
+            </MenuItem>
+          )
         ]}
       </Menu>
 
@@ -3223,13 +3376,17 @@ return (
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {vmActionConfirm?.action === 'stop' && <StopIcon sx={{ fontSize: 24, color: 'error.main' }} />}
+          {vmActionConfirm?.action === 'reset' && <i className="ri-loop-left-line" style={{ fontSize: 24, color: 'var(--mui-palette-error-main)' }} />}
           {vmActionConfirm?.action === 'shutdown' && <PowerSettingsNewIcon sx={{ fontSize: 24, color: 'warning.main' }} />}
+          {vmActionConfirm?.action === 'reboot' && <i className="ri-restart-line" style={{ fontSize: 24, color: 'var(--mui-palette-warning-main)' }} />}
           {vmActionConfirm?.action === 'suspend' && <PauseIcon sx={{ fontSize: 24, color: 'info.main' }} />}
+          {vmActionConfirm?.action === 'hibernate' && <i className="ri-zzz-line" style={{ fontSize: 24, color: 'var(--mui-palette-info-main)' }} />}
+          {vmActionConfirm?.action === 'backup' && <i className="ri-save-line" style={{ fontSize: 24 }} />}
           {t('common.confirm')}
         </DialogTitle>
         <DialogContent>
           <Alert
-            severity={vmActionConfirm?.action === 'stop' ? 'error' : vmActionConfirm?.action === 'shutdown' ? 'warning' : 'info'}
+            severity={['stop', 'reset'].includes(vmActionConfirm?.action || '') ? 'error' : ['shutdown', 'reboot'].includes(vmActionConfirm?.action || '') ? 'warning' : 'info'}
             sx={{ mb: 2 }}
           >
             {vmActionConfirm?.action?.toUpperCase()} — <strong>{vmActionConfirm?.name}</strong>
@@ -3241,7 +3398,7 @@ return (
           </Button>
           <Button
             variant="contained"
-            color={vmActionConfirm?.action === 'stop' ? 'error' : vmActionConfirm?.action === 'shutdown' ? 'warning' : 'info'}
+            color={['stop', 'reset'].includes(vmActionConfirm?.action || '') ? 'error' : ['shutdown', 'reboot'].includes(vmActionConfirm?.action || '') ? 'warning' : 'info'}
             onClick={() => vmActionConfirm && executeVmAction(vmActionConfirm.action)}
             disabled={actionBusy}
             startIcon={actionBusy ? <CircularProgress size={16} /> : null}
@@ -3267,6 +3424,54 @@ return (
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setVmActionError(null)}>{t('common.close')}</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog snapshot */}
+      <Dialog
+        open={snapshotDialogOpen}
+        onClose={() => { setSnapshotDialogOpen(false); setSnapshotTarget(null) }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <i className="ri-camera-line" style={{ fontSize: 24 }} />
+          {t('inventory.takeSnapshot')}
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+          <TextField
+            label={t('common.name')}
+            value={snapshotName}
+            onChange={e => setSnapshotName(e.target.value)}
+            size="small"
+            required
+            autoFocus
+          />
+          <TextField
+            label={t('common.description')}
+            value={snapshotDesc}
+            onChange={e => setSnapshotDesc(e.target.value)}
+            size="small"
+            multiline
+            rows={2}
+          />
+          <FormControlLabel
+            control={<Switch checked={snapshotVmstate} onChange={e => setSnapshotVmstate(e.target.checked)} size="small" />}
+            label={t('inventory.includeRamState')}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => { setSnapshotDialogOpen(false); setSnapshotTarget(null) }}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="contained"
+            onClick={executeSnapshot}
+            disabled={creatingSnapshot || !snapshotName.trim()}
+            startIcon={creatingSnapshot ? <CircularProgress size={16} /> : null}
+          >
+            {t('inventory.takeSnapshot')}
+          </Button>
         </DialogActions>
       </Dialog>
 
