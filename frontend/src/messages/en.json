@@ -476,6 +476,7 @@
       "aes": "Activate AES instruction set for HW acceleration."
     },
     "noDiskInserted": "No disk inserted",
+    "unused": "Unused",
     "saveMemoryChanges": "Save memory changes",
     "deleteSnapshot": "Delete snapshot",
     "deleteSnapshotDesc": "Deletes the snapshot (does not delete current data)",

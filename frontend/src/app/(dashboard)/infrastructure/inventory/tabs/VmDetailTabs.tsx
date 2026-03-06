@@ -930,18 +930,16 @@ export default function VmDetailTabs(props: any) {
                                 {t('inventory.disks')} ({data.disksInfo?.length || 0})
                               </Typography>
                               <Stack direction="row" spacing={1}>
-                                {data.optionsInfo?.scsihw && (
-                                  <MuiTooltip title={t('inventory.editScsiController')}>
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
+                                <MuiTooltip title={t('inventory.editScsiController')}>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
                                     onClick={() => setEditScsiControllerDialogOpen(true)}
                                     startIcon={<i className="ri-settings-3-line" />}
                                   >
-                                    {data.optionsInfo.scsihw}
+                                    {data.optionsInfo?.scsihw || 'virtio-scsi-single'}
                                   </Button>
                                 </MuiTooltip>
-                              )}
                               <Button
                                 size="small"
                                 variant="contained"
@@ -969,15 +967,17 @@ export default function VmDetailTabs(props: any) {
                                   }}
                                 >
                                   <ListItemIcon sx={{ minWidth: 40 }}>
-                                    <i className={disk.isCdrom ? "ri-disc-fill" : "ri-hard-drive-2-fill"} style={{ fontSize: 24, opacity: disk.isCdrom ? 1 : 0.7, color: disk.isCdrom ? 'var(--mui-palette-secondary-main)' : undefined }} />
+                                    <i className={disk.isUnused ? "ri-delete-bin-line" : disk.isCdrom ? "ri-disc-fill" : "ri-hard-drive-2-fill"} style={{ fontSize: 24, opacity: disk.isUnused ? 0.5 : disk.isCdrom ? 1 : 0.7, color: disk.isUnused ? 'var(--mui-palette-warning-main)' : disk.isCdrom ? 'var(--mui-palette-secondary-main)' : undefined }} />
                                   </ListItemIcon>
                                   <ListItemText
                                     primary={
                                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Typography variant="body2" fontWeight={600}>
+                                        <Typography variant="body2" fontWeight={600} sx={disk.isUnused ? { opacity: 0.7 } : undefined}>
                                           {disk.id}
                                         </Typography>
-                                        {disk.isCdrom ? (
+                                        {disk.isUnused ? (
+                                          <Chip label={t('inventory.unused')} size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: 11 }} />
+                                        ) : disk.isCdrom ? (
                                           <Chip label="CD-ROM" size="small" color="secondary" variant="outlined" sx={{ height: 20, fontSize: 11 }} />
                                         ) : (
                                           <Chip label={disk.size} size="small" sx={{ height: 20, fontSize: 11 }} />
@@ -986,13 +986,15 @@ export default function VmDetailTabs(props: any) {
                                     }
                                     secondary={
                                       <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                                        {disk.isCdrom
-                                          ? (disk.storage === 'none' ? t('inventory.noDiskInserted') : disk.storage)
-                                          : <>
-                                              {disk.storage} • {disk.format || 'raw'}
-                                              {disk.cache && ` • Cache: ${disk.cache}`}
-                                              {disk.iothread && ' • IOThread'}
-                                            </>
+                                        {disk.isUnused
+                                          ? disk.rawValue
+                                          : disk.isCdrom
+                                            ? (disk.storage === 'none' ? t('inventory.noDiskInserted') : disk.storage)
+                                            : <>
+                                                {disk.storage} • {disk.format || 'raw'}
+                                                {disk.cache && ` • Cache: ${disk.cache}`}
+                                                {disk.iothread && ' • IOThread'}
+                                              </>
                                         }
                                       </Typography>
                                     }

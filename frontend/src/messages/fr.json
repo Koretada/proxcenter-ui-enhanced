@@ -476,6 +476,7 @@
       "aes": "Active le jeu d'instructions AES pour l'accélération matérielle."
     },
     "noDiskInserted": "Aucun disque inséré",
+    "unused": "Inutilisé",
     "saveMemoryChanges": "Sauvegarder les modifications RAM",
     "deleteSnapshot": "Supprimer le snapshot",
     "deleteSnapshotDesc": "Supprime le snapshot (ne supprime pas les données actuelles)",

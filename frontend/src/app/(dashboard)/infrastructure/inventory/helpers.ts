@@ -751,7 +751,22 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
           }
         })
 
+        // Parse unused disks (unused0, unused1, ...)
+        Object.keys(config).forEach(key => {
+          if (key.match(/^unused\d+$/)) {
+            disksInfo.push({
+              id: key,
+              storage: String(config[key]).split(':')[0] || 'unknown',
+              size: '-',
+              format: '-',
+              isUnused: true,
+              rawValue: String(config[key]),
+            })
+          }
+        })
+
         optionsInfo = {
+          scsihw: config.scsihw || 'virtio-scsi-single',
           onboot: config.onboot === 1 || config.onboot === true,
           protection: config.protection === 1 || config.protection === true,
           startAtBoot: config.onboot === 1 || config.onboot === true,
