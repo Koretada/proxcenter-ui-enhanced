@@ -227,7 +227,9 @@
       "ceph": "Ceph Status",
       "pbs": "PBS Overview",
       "topConsumers": "Top Consumers",
-      "uptimeNodes": "Nodes Uptime"
+      "uptimeNodes": "Nodes Uptime",
+      "used": "Used",
+      "provisioned": "Provisioned"
     },
     "noPveCluster": "No PVE cluster",
     "noGroup": "No group",

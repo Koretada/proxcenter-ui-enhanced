@@ -561,6 +561,18 @@ return null
     const fStorageMax = globalStorageMax
     const fStoragePct = fStorageMax > 0 ? round1((fStorageUsed / fStorageMax) * 100) : 0
 
+    // Compute provisioned resources (allocated to all VMs + LXCs, excluding templates)
+    const allGuests = [...filteredVms, ...filteredLxcs].filter((g: any) => g.template !== 1)
+    let provCpu = 0, provMem = 0, provDisk = 0
+    for (const g of allGuests) {
+      provCpu += Number(g.maxcpu || 0)
+      provMem += Number(g.maxmem || 0)
+      provDisk += Number(g.maxdisk || 0)
+    }
+    const provCpuPct = fCpuCores > 0 ? round1((provCpu / fCpuCores) * 100) : 0
+    const provMemPct = fMemMax > 0 ? round1((provMem / fMemMax) * 100) : 0
+    const provStoragePct = fStorageMax > 0 ? round1((provDisk / fStorageMax) * 100) : 0
+
     // Recompute VM/LXC stats from filtered lists
     const fVmsTemplates = filteredVms.filter((v: any) => v.template === 1).length
     const fVmsRunning = filteredVms.filter((v: any) => v.status === 'running' && v.template !== 1).length
@@ -626,6 +638,7 @@ return null
           cpuCores: fCpuCores, cpuPct: fCpuPct,
           memUsed: fMemUsed, memMax: fMemMax, memUsedFormatted: formatBytes(fMemUsed), memMaxFormatted: formatBytes(fMemMax), ramPct: fRamPct,
           storageUsed: fStorageUsed, storageMax: fStorageMax, storageUsedFormatted: formatBytes(fStorageUsed), storageMaxFormatted: formatBytes(fStorageMax), storagePct: fStoragePct,
+          provCpu, provCpuPct, provMem, provMemPct, provMemFormatted: formatBytes(provMem), provDisk, provStoragePct, provDiskFormatted: formatBytes(provDisk),
         },
         ceph: cephGlobal,
         pbs: {
