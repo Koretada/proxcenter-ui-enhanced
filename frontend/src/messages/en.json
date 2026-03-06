@@ -2946,6 +2946,8 @@
   "hardware": {
     "bandwidthLimits": "Bandwidth limits (leave empty for unlimited)",
     "addNetworkInterface": "Add: Network interface",
+    "reassignTo": "Reassign to bus slot",
+    "reassign": "Reassign",
     "confirmDeleteDisk": "Are you sure you want to delete disk {id}?",
     "confirmDeleteNetwork": "Are you sure you want to delete interface {id}?",
     "newSize": "New size",

@@ -2951,6 +2951,8 @@
   "hardware": {
     "bandwidthLimits": "Limites de bande passante (laisser vide pour illimité)",
     "addNetworkInterface": "Ajouter: Interface réseau",
+    "reassignTo": "Réassigner au bus",
+    "reassign": "Réassigner",
     "confirmDeleteDisk": "Êtes-vous sûr de vouloir supprimer le disque {id} ?",
     "confirmDeleteNetwork": "Êtes-vous sûr de vouloir supprimer l'interface {id} ?",
     "newSize": "Nouvelle taille",

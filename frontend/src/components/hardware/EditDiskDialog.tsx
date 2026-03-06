@@ -54,12 +54,14 @@ type EditDiskDialogProps = {
     aio?: string
     ro?: boolean
     isCdrom?: boolean
+    isUnused?: boolean
     rawValue?: string
   } | null
+  existingDisks?: string[]
   availableStorages?: Array<{ storage: string; type: string; avail?: number; total?: number }>
 }
 
-export function EditDiskDialog({ open, onClose, onSave, onDelete, onResize, onMoveStorage, connId, node, disk, availableStorages }: EditDiskDialogProps) {
+export function EditDiskDialog({ open, onClose, onSave, onDelete, onResize, onMoveStorage, connId, node, disk, existingDisks, availableStorages }: EditDiskDialogProps) {
   const t = useTranslations()
   const [tab, setTab] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -103,6 +105,11 @@ export function EditDiskDialog({ open, onClose, onSave, onDelete, onResize, onMo
   const [isoImages, setIsoImages] = useState<string[]>([])
   const [isoLoading, setIsoLoading] = useState(false)
   const [cdromSaving, setCdromSaving] = useState(false)
+
+  // Unused disk reassign state
+  const [reassignBus, setReassignBus] = useState<'scsi' | 'virtio' | 'sata' | 'ide'>('scsi')
+  const [reassignIndex, setReassignIndex] = useState(0)
+  const [reassigning, setReassigning] = useState(false)
 
   // Charger les valeurs du disque
   useEffect(() => {
@@ -355,6 +362,35 @@ return
     }
   }
 
+  // Auto-calculate next free index for reassign bus
+  useEffect(() => {
+    if (!open || !disk?.isUnused || !existingDisks) return
+    const prefix = reassignBus === 'virtio' ? 'virtio' : reassignBus
+    const usedIndexes = existingDisks
+      .filter(d => d.startsWith(prefix))
+      .map(d => { const m = d.match(/(\d+)$/); return m ? parseInt(m[1]) : -1 })
+      .filter(i => i >= 0)
+    let next = 0
+    while (usedIndexes.includes(next)) next++
+    setReassignIndex(next)
+  }, [open, disk?.isUnused, existingDisks, reassignBus])
+
+  const handleReassign = async () => {
+    if (!disk) return
+    setReassigning(true)
+    setError(null)
+    try {
+      const targetId = reassignBus === 'virtio' ? `virtio${reassignIndex}` : `${reassignBus}${reassignIndex}`
+      // Send the volume ID as the value for the target bus slot
+      await onSave({ [targetId]: disk.rawValue, delete: disk.id })
+      onClose()
+    } catch (e: any) {
+      setError(e.message || 'Error')
+    } finally {
+      setReassigning(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!disk) return
     if (!confirm(t('hardware.confirmDeleteDisk', { id: disk.id }))) return
@@ -374,7 +410,7 @@ return
 
   if (!disk) return null
 
-  const isWorking = saving || deleting || resizing || moving || cdromSaving
+  const isWorking = saving || deleting || resizing || moving || cdromSaving || reassigning
 
   // ── CDROM Dialog ──────────────────────────────────────────
   if (disk.isCdrom) {
@@ -460,6 +496,77 @@ return
               disabled={isWorking || (cdromMode === 'iso' && (!isoStorage || !isoImage))}
             >
               {cdromSaving ? <CircularProgress size={20} /> : t('common.save')}
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
+    )
+  }
+
+  // ── Unused disk Dialog ───────────────────────────────────
+  if (disk.isUnused) {
+    return (
+      <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <i className="ri-hard-drive-2-line" style={{ fontSize: 24, color: 'var(--mui-palette-warning-main)' }} />
+          {disk.id} — {t('inventory.unused')}
+        </DialogTitle>
+
+        <DialogContent>
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+          <Alert severity="info" sx={{ mb: 2 }} icon={<i className="ri-information-line" />}>
+            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+              {disk.rawValue}
+            </Typography>
+          </Alert>
+
+          <Typography variant="body2" fontWeight={600} sx={{ mb: 1.5 }}>
+            {t('hardware.reassignTo')}
+          </Typography>
+
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Bus/Device</InputLabel>
+              <Select value={reassignBus} onChange={(e) => setReassignBus(e.target.value as any)} label="Bus/Device">
+                <MenuItem value="scsi">SCSI</MenuItem>
+                <MenuItem value="virtio">VirtIO Block</MenuItem>
+                <MenuItem value="sata">SATA</MenuItem>
+                <MenuItem value="ide">IDE</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              type="number"
+              value={reassignIndex}
+              onChange={(e) => setReassignIndex(parseInt(e.target.value) || 0)}
+              sx={{ width: 80 }}
+              inputProps={{ min: 0, max: 30 }}
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            → {reassignBus === 'virtio' ? 'virtio' : reassignBus}{reassignIndex}
+          </Typography>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+          <Button
+            color="error"
+            onClick={handleDelete}
+            disabled={isWorking}
+            startIcon={deleting ? <CircularProgress size={16} /> : <i className="ri-delete-bin-line" />}
+          >
+            {t('common.delete')}
+          </Button>
+          <Box>
+            <Button onClick={onClose} disabled={isWorking} sx={{ mr: 1 }}>{t('common.cancel')}</Button>
+            <Button
+              variant="contained"
+              onClick={handleReassign}
+              disabled={isWorking}
+              startIcon={reassigning ? <CircularProgress size={16} /> : <i className="ri-link" />}
+            >
+              {t('hardware.reassign')}
             </Button>
           </Box>
         </DialogActions>

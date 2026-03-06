@@ -599,19 +599,27 @@ return next
   // Modifier un disque existant
   const handleEditDisk = useCallback(async (diskConfig: any) => {
     if (!selection || selection.type !== 'vm' || !selectedDisk) throw new Error('No disk selected')
-    
+
     const { connId, node, type, vmid } = parseVmId(selection.id)
-    
-    // Pour modifier un disque, on doit reconstruire sa config complète
-    // Pour l'instant, on ne modifie que les options (cache, iothread, etc.)
-    // La vraie modification nécessite de connaître le chemin complet du disque
-    
+
+    // String value (CDROM): wrap as { diskId: value }
+    // Object with 'delete' key (unused disk reassign): send directly
+    // Object with 'options' key (regular disk edit): wrap as { diskId: value }
+    let body: any
+    if (typeof diskConfig === 'string') {
+      body = { [selectedDisk.id]: diskConfig }
+    } else if (diskConfig?.delete) {
+      body = diskConfig
+    } else {
+      body = { [selectedDisk.id]: diskConfig }
+    }
+
     const res = await fetch(
       `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/config`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [selectedDisk.id]: diskConfig })
+        body: JSON.stringify(body)
       }
     )
     
@@ -5636,8 +5644,9 @@ return vm?.isCluster ?? false
               connId={connId}
               node={node}
               disk={selectedDisk}
+              existingDisks={data?.disksInfo?.map((d: any) => d.id) || []}
             />
-            
+
             <EditNetworkDialog
               open={editNetworkDialogOpen}
               onClose={() => {
