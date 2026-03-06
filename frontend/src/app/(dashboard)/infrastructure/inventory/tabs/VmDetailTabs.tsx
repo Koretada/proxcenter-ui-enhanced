@@ -1848,7 +1848,9 @@ return (
                                       sx={{ borderRadius: 1 }}
                                     >
                                       <ListItemIcon sx={{ minWidth: 36 }}>
-                                        {file.type === 'virtual' ? (
+                                        {file.isRawDiskImage ? (
+                                          <i className="ri-hard-drive-2-fill" style={{ color: '#90A4AE', fontSize: 20 }} />
+                                        ) : file.type === 'virtual' ? (
                                           <i className="ri-hard-drive-2-fill" style={{ color: '#42A5F5', fontSize: 20 }} />
                                         ) : file.type === 'directory' ? (
                                           <i className="ri-folder-fill" style={{ color: '#FFB74D', fontSize: 20 }} />
@@ -1859,8 +1861,8 @@ return (
                                       <ListItemText
                                         primary={file.name}
                                         secondary={
-                                          file.type === 'virtual' ? t('inventory.drivePartition') :
                                           file.isRawDiskImage ? t('inventory.diskImageNotBrowsable') :
+                                          file.type === 'virtual' ? t('inventory.drivePartition') :
                                           file.browsable ? t('inventory.clickToExplore') :
                                           file.sizeFormatted || t('inventory.notBrowsable')
                                         }

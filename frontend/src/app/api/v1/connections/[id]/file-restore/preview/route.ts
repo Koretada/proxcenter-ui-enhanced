@@ -72,28 +72,37 @@ export async function GET(
 
     const conn = await getConnectionById(pveId)
 
-    // Récupérer un node disponible
-    const nodesUrl = `${conn.baseUrl.replace(/\/$/, "")}/api2/json/nodes`
-
     const dispatcher = conn.insecureDev
       ? getInsecureAgent()
       : undefined
 
-    const nodesRes = await request(nodesUrl, {
+    // Récupérer un node qui a accès au storage
+    const resourcesUrl = `${conn.baseUrl.replace(/\/$/, "")}/api2/json/cluster/resources`
+
+    const resourcesRes = await request(resourcesUrl, {
       method: 'GET',
       headers: { Authorization: `PVEAPIToken=${conn.apiToken}` },
       dispatcher,
     })
 
-    const nodesJson = JSON.parse(await nodesRes.body.text())
-    const nodes = nodesJson.data || []
-    const onlineNode = nodes.find((n: any) => n.status === 'online') || nodes[0]
+    const resourcesJson = JSON.parse(await resourcesRes.body.text())
+    const allResources = resourcesJson.data || []
 
-    if (!onlineNode) {
-      return NextResponse.json({ error: "No available node found" }, { status: 500 })
+    const storageNodes = allResources
+      .filter((r: any) => r.type === 'storage' && r.storage === storage && r.status === 'available')
+      .map((r: any) => r.node)
+
+    const onlineNodes = allResources
+      .filter((r: any) => r.type === 'node' && r.status === 'online')
+      .map((r: any) => r.node)
+
+    const nodeName = storageNodes.find((n: string) => onlineNodes.includes(n))
+      || storageNodes[0]
+      || onlineNodes[0]
+
+    if (!nodeName) {
+      return NextResponse.json({ error: "No available node found with storage access" }, { status: 500 })
     }
-
-    const nodeName = onlineNode.node
     const filepathBase64 = Buffer.from(filepath, 'utf-8').toString('base64')
     const volumeId = volume.includes(':') ? volume : `${storage}:${volume}`
 

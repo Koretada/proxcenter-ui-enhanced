@@ -45,50 +45,40 @@ export async function GET(
       ? getInsecureAgent()
       : undefined
 
-    // Récupérer un node disponible
-    const nodesUrl = `${conn.baseUrl.replace(/\/$/, "")}/api2/json/nodes`
+    // Récupérer un node qui a accès au storage (important pour PBS avec encryption key)
+    // D'abord, chercher les nodes ayant le storage via /cluster/resources
+    const resourcesUrl = `${conn.baseUrl.replace(/\/$/, "")}/api2/json/cluster/resources`
 
-    const nodesRes = await request(nodesUrl, {
+    const resourcesRes = await request(resourcesUrl, {
       method: 'GET',
       headers: { Authorization: `PVEAPIToken=${conn.apiToken}` },
       dispatcher,
     })
 
-    const nodesJson = JSON.parse(await nodesRes.body.text())
-    const nodes = nodesJson.data || []
-    const onlineNode = nodes.find((n: any) => n.status === 'online') || nodes[0]
+    const resourcesJson = JSON.parse(await resourcesRes.body.text())
+    const allResources = resourcesJson.data || []
 
-    if (!onlineNode) {
-      return NextResponse.json({ error: "No available node found" }, { status: 500 })
+    // Trouver les nodes qui ont ce storage
+    const storageNodes = allResources
+      .filter((r: any) => r.type === 'storage' && r.storage === storage && r.status === 'available')
+      .map((r: any) => r.node)
+
+    // Aussi récupérer tous les nodes online
+    const onlineNodes = allResources
+      .filter((r: any) => r.type === 'node' && r.status === 'online')
+      .map((r: any) => r.node)
+
+    // Préférer un node qui a le storage, sinon n'importe quel node online
+    const nodeName = storageNodes.find((n: string) => onlineNodes.includes(n))
+      || storageNodes[0]
+      || onlineNodes[0]
+
+    if (!nodeName) {
+      return NextResponse.json({ error: "No available node found with storage access" }, { status: 500 })
     }
-
-    const nodeName = onlineNode.node
 
     // Construire le volume ID complet si nécessaire
     const volumeId = volume.includes(':') ? volume : `${storage}:${volume}`
-
-    // Vérifier si le chemin cible une image disque brute (non explorable)
-    // Le premier segment peut être en clair (drive-scsi0.img.fidx) ou en base64
-    const firstSegment = filepath.split('/').filter(Boolean)[0] || ''
-    let decodedSegment = firstSegment
-    // Tenter un décodage base64 si ça ressemble à du base64
-    if (/^[A-Za-z0-9+/]+=*$/.test(firstSegment) && firstSegment.length >= 8) {
-      try {
-        const d = Buffer.from(firstSegment, 'base64').toString('utf-8')
-        if (/^[\x20-\x7E]+$/.test(d)) decodedSegment = d.replace(/^\//, '')
-      } catch {}
-    }
-    const isRawDisk = (s: string) =>
-      s.endsWith('.img.fidx') || s.endsWith('.raw.fidx') ||
-      s.endsWith('.img.didx') || s.endsWith('.raw.didx') ||
-      (/^drive-/i.test(s) && !s.includes('.pxar'))
-
-    if (isRawDisk(firstSegment) || isRawDisk(decodedSegment)) {
-      return NextResponse.json({
-        error: "Raw disk images (.img.fidx) cannot be browsed via file-restore. Only filesystem archives (.pxar) are supported.",
-        code: "RAW_DISK_NOT_BROWSABLE"
-      }, { status: 400 })
-    }
 
     // Encoder le filepath en base64 comme attendu par l'API PVE
     const filepathBase64 = Buffer.from(filepath, 'utf-8').toString('base64')

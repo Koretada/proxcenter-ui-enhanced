@@ -1913,32 +1913,15 @@ return
           // Le nom peut commencer par / (ex: /drive-scsi0.img.fidx)
           const fileName = (f.name || '').replace(/^\//, '') // Enlever le / initial
           // Seuls les .pxar peuvent être explorés (archives de fichiers)
-          const isPxarArchive = fileName && (
-            fileName.endsWith('.pxar.fidx') ||
-            fileName.endsWith('.pxar.didx') ||
-            fileName.includes('.pxar')
-          )
-
-          const isRawDiskImage = !isPxarArchive && fileName && (
-            fileName.endsWith('.img.fidx') ||
-            fileName.endsWith('.img.didx') ||
-            fileName.endsWith('.raw.fidx') ||
-            fileName.endsWith('.raw.didx') ||
-            fileName.endsWith('.img') ||
-            /^drive-.*\.(img|raw)\.?(fidx|didx)$/i.test(fileName) ||
-            (/^drive-/i.test(fileName) && !fileName.includes('.pxar'))
-          )
-
-          const browsable = !isRawDiskImage && (
-            isPxarArchive ||
-            f.type === 'directory' || f.type === 'virtual' ||
-            f.leaf === false || f.leaf === 0 ||
-            (f.leaf === undefined && f.type !== 'file')
+          const isRawDiskImage = fileName && !fileName.includes('.pxar') && (
+            fileName.endsWith('.img.fidx') || fileName.endsWith('.img.didx') ||
+            fileName.endsWith('.raw.fidx') || fileName.endsWith('.raw.didx') ||
+            fileName.endsWith('.img') || /^drive-.*\.(img|raw)/i.test(fileName)
           )
 
           return {
             ...f,
-            browsable,
+            // Garder le browsable de l'API (PVE sait si c'est explorable)
             isRawDiskImage,
           }
         })
@@ -1971,21 +1954,16 @@ return
         const files = (json.data?.files || []).map((f: any) => {
           const fileName = (f.name || f.filename || '').replace(/^\//, '')
           const isPxarArchive = fileName && (
-            fileName.endsWith('.pxar.fidx') ||
-            fileName.endsWith('.pxar.didx') ||
-            fileName.includes('.pxar')
+            fileName.endsWith('.pxar.fidx') || fileName.endsWith('.pxar.didx') || fileName.includes('.pxar')
           )
           const isRawDiskImage = !isPxarArchive && fileName && (
-            fileName.endsWith('.img.fidx') ||
-            fileName.endsWith('.img.didx') ||
-            fileName.endsWith('.raw.fidx') ||
-            fileName.endsWith('.raw.didx') ||
-            fileName.endsWith('.img') ||
-            /^drive-.*\.(img|raw)\.?(fidx|didx)$/i.test(fileName) ||
-            (/^drive-/i.test(fileName) && !fileName.includes('.pxar'))
+            fileName.endsWith('.img.fidx') || fileName.endsWith('.img.didx') ||
+            fileName.endsWith('.raw.fidx') || fileName.endsWith('.raw.didx') ||
+            fileName.endsWith('.img') || /^drive-.*\.(img|raw)/i.test(fileName)
           )
           return {
             ...f,
+            // En mode PBS, seuls les pxar sont browsable (pas de file-restore)
             browsable: !isRawDiskImage && (isPxarArchive || f.browsable !== false),
             isRawDiskImage,
           }
@@ -2023,7 +2001,11 @@ return
 
       setCompatibleStorages(compatible)
 
-      if (compatible.length === 1 && compatible[0].matchType === 'exact') {
+      // Auto-sélection: exact match unique OU un seul storage compatible
+      const exactMatches = compatible.filter((s: any) => s.matchType === 'exact')
+      if (exactMatches.length === 1) {
+        await exploreWithPveStorage(backup, exactMatches[0])
+      } else if (compatible.length === 1) {
         await exploreWithPveStorage(backup, compatible[0])
       } else if (compatible.length > 0) {
         setExplorerMode('pve')
@@ -2040,27 +2022,6 @@ return
   // Naviguer dans une archive/dossier
   const browseArchive = useCallback(async (archiveName: string, path = '/') => {
     if (!selectedBackup || !selection) return
-
-    // Vérifier si c'est une image disque (non explorable)
-    // Le nom peut être en clair ou en base64 (PBS via PVE file-restore)
-    let fileName = (archiveName || '').replace(/^\//, '')
-    try {
-      if (/^[A-Za-z0-9+/]+=*$/.test(fileName) && fileName.length >= 8) {
-        const decoded = atob(fileName)
-        if (/^[\x20-\x7E]+$/.test(decoded)) fileName = decoded.replace(/^\//, '')
-      }
-    } catch {}
-    const isRawDisk = (s: string) => s && (
-      s.endsWith('.img.fidx') || s.endsWith('.img.didx') ||
-      s.endsWith('.raw.fidx') || s.endsWith('.raw.didx') ||
-      s.endsWith('.img') ||
-      /^drive-.*\.(img|raw)\.?(fidx|didx)$/i.test(s) ||
-      (/^drive-/i.test(s) && !s.includes('.pxar'))
-    )
-    if (isRawDisk(fileName)) {
-      setExplorerError(t('inventory.rawDiskNotBrowsable'))
-      return
-    }
 
     setExplorerLoading(true)
     setExplorerError(null)
@@ -2079,9 +2040,7 @@ return
         const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/file-restore?${params}`)
         const json = await res.json()
 
-        if (json.code === 'RAW_DISK_NOT_BROWSABLE') {
-          setExplorerError(t('inventory.rawDiskNotBrowsable'))
-        } else if (json.error && !json.data?.files?.length) {
+        if (json.error && !json.data?.files?.length) {
           setExplorerError(json.error)
         } else {
           setExplorerFiles(json.data?.files || [])
