@@ -274,6 +274,13 @@ return () => setPageInfo('', '', '')
     setPendingActionVmIds(prev => { const next = new Set(prev); next.delete(`${connId}:${vmid}`); return next })
   }, [])
 
+  // Optimistic update: immediately reflect expected VM status in rawVms
+  const onOptimisticVmStatus = useCallback((connId: string, vmid: string, status: string) => {
+    setRawVms(prev => prev.map(vm =>
+      vm.connId === connId && String(vm.vmid) === String(vmid) ? { ...vm, status } : vm
+    ))
+  }, [])
+
   // Charger les favoris
   const loadFavorites = useCallback(async () => {
     try {
@@ -622,6 +629,7 @@ return () => setPageInfo('', '', '')
             pendingActionVmIds={pendingActionVmIds}
             onVmActionStart={onVmActionStart}
             onVmActionEnd={onVmActionEnd}
+            onOptimisticVmStatus={onOptimisticVmStatus}
             onRefresh={async () => {
               if (refreshTree) {
                 refreshTree()

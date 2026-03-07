@@ -137,6 +137,7 @@ export default function InventoryDetails({
   pendingActionVmIds,
   onVmActionStart,
   onVmActionEnd,
+  onOptimisticVmStatus,
 }: {
   selection: InventorySelection | null
   onSelect?: (sel: InventorySelection) => void
@@ -158,6 +159,7 @@ export default function InventoryDetails({
   pendingActionVmIds?: Set<string>  // IDs des VMs avec action en cours
   onVmActionStart?: (connId: string, vmid: string) => void
   onVmActionEnd?: (connId: string, vmid: string) => void
+  onOptimisticVmStatus?: (connId: string, vmid: string, status: string) => void
 }) {
   const t = useTranslations()
   const dateLocale = getDateLocale(useLocale())
@@ -3699,44 +3701,45 @@ return (
               throw new Error(json?.error || `HTTP ${res.status}`)
             }
 
+            // Optimistic update — reflect expected status immediately
+            const optimisticStatus: Record<string, string> = {
+              start: 'running', stop: 'stopped', shutdown: 'stopped',
+              reboot: 'running', reset: 'running', suspend: 'paused',
+              hibernate: 'stopped', resume: 'running',
+            }
+            if (optimisticStatus[action]) {
+              onOptimisticVmStatus?.(connId, vmid, optimisticStatus[action])
+            }
+
+            const refreshAll = () => {
+              fetchDetails(selection).then(payload => {
+                setData(payload)
+                setLocalTags(payload.tags || [])
+              })
+            }
+
             // Track the task if we got an UPID
             const upid = json.data
             if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
-              const refreshAll = () => {
-                onRefresh?.()
-                fetchDetails(selection).then(payload => {
-                  setData(payload)
-                  setLocalTags(payload.tags || [])
-                })
-              }
-
               trackTask({
                 upid,
                 connId,
                 node,
                 description: `${data?.title || `VM ${vmid}`}: ${t(`vmActions.${action}`)}`,
                 onSuccess: () => {
-                  // PVE task completes quickly (e.g. "send ACPI signal") but VM status
-                  // takes seconds to change. Stagger refreshes to catch the actual change.
                   refreshAll()
-                  setTimeout(refreshAll, 3000)
-                  setTimeout(() => {
-                    onVmActionEnd?.(connId, vmid)
-                    refreshAll()
-                  }, 6000)
+                  fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
+                  setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
                 },
                 onError: () => {
                   onVmActionEnd?.(connId, vmid)
                 },
               })
             } else {
-              // Pas d'UPID — refresh avec délai puis retirer le spinner
               toast.success(t(`vmActions.${action}Success`))
-              onRefresh?.()
-              setTimeout(() => {
-                onVmActionEnd?.(connId, vmid)
-                onRefresh?.()
-              }, 3000)
+              refreshAll()
+              fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
+              setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
             }
 
             setConfirmAction(null)
@@ -3766,43 +3769,45 @@ return
         throw new Error(json?.error || `HTTP ${res.status}`)
       }
 
+      // Optimistic update — reflect expected status immediately
+      const optimisticStatus: Record<string, string> = {
+        start: 'running', stop: 'stopped', shutdown: 'stopped',
+        reboot: 'running', reset: 'running', suspend: 'paused',
+        hibernate: 'stopped', resume: 'running',
+      }
+      if (optimisticStatus[action]) {
+        onOptimisticVmStatus?.(connId, vmid, optimisticStatus[action])
+      }
+
+      const refreshAll = () => {
+        fetchDetails(selection).then(payload => {
+          setData(payload)
+          setLocalTags(payload.tags || [])
+        })
+      }
+
       // Track the task if we got an UPID
       const upid = json.data
       if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
-        const refreshAll = () => {
-          onRefresh?.()
-          fetchDetails(selection).then(payload => {
-            setData(payload)
-            setLocalTags(payload.tags || [])
-          })
-        }
-
         trackTask({
           upid,
           connId,
           node,
           description: `${data?.title || `VM ${vmid}`}: ${t(`vmActions.${action}`)}`,
           onSuccess: () => {
-            // PVE task completes quickly but VM status takes seconds to change
             refreshAll()
-            setTimeout(refreshAll, 3000)
-            setTimeout(() => {
-              onVmActionEnd?.(connId, vmid)
-              refreshAll()
-            }, 6000)
+            fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
+            setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
           },
           onError: () => {
             onVmActionEnd?.(connId, vmid)
           },
         })
       } else {
-        // Pas d'UPID — refresh avec délai puis retirer le spinner
         toast.success(t(`vmActions.${action}Success`))
-        onRefresh?.()
-        setTimeout(() => {
-          onVmActionEnd?.(connId, vmid)
-          onRefresh?.()
-        }, 3000)
+        refreshAll()
+        fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
+        setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
       }
     } catch (e: any) {
       onVmActionEnd?.(connId, vmid)

@@ -1276,7 +1276,35 @@ return next
         throw new Error(err?.error || `HTTP ${res.status}`)
       }
 
-      // Trigger immediate SSE poll — the persistent EventSource will push the update
+      // Optimistic update — reflect expected status immediately in the tree
+      const optimisticStatus: Record<string, string> = {
+        start: 'running',
+        stop: 'stopped',
+        shutdown: 'stopped',
+        reboot: 'running',
+        reset: 'running',
+        suspend: 'paused',
+        hibernate: 'stopped',
+        resume: 'running',
+      }
+      const newStatus = optimisticStatus[action]
+      if (newStatus) {
+        setClusters(prev => prev.map(clu => {
+          if (clu.connId !== connId) return clu
+          let changed = false
+          const nodes = clu.nodes.map(n => {
+            const vms = n.vms.map(vm => {
+              if (String(vm.vmid) !== String(vmid) || vm.type !== type) return vm
+              changed = true
+              return { ...vm, status: newStatus }
+            })
+            return changed ? { ...n, vms } : n
+          })
+          return changed ? { ...clu, nodes } : clu
+        }))
+      }
+
+      // Also trigger SSE poll for full data sync
       fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
       setSnackbar({ open: true, message: `${action.charAt(0).toUpperCase() + action.slice(1)} — ${contextMenu.name}`, severity: 'success' })
     } catch (e: any) {
