@@ -20,6 +20,12 @@
   <img src="https://img.shields.io/badge/License-Community%20%7C%20Enterprise-blue" alt="License">
 </p>
 
+<p align="center">
+  <a href="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/docker-publish.yml"><img src="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/docker-publish.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/codeql.yml"><img src="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/security-scan.yml"><img src="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/security-scan.yml/badge.svg" alt="Security Scan"></a>
+</p>
+
 ---
 
 ## Overview
@@ -335,6 +341,19 @@ docker compose pull && docker compose up -d
 # Restart services
 docker compose restart
 ```
+
+## Security
+
+ProxCenter is continuously scanned for vulnerabilities through an automated security pipeline:
+
+- **CodeQL** — Static Application Security Testing (SAST) on every push and weekly
+- **Trivy** — Container image scanning for OS and dependency vulnerabilities
+- **Trivy Filesystem** — Source code scanning for leaked secrets and vulnerable dependencies
+- **Dependabot** — Automated dependency update alerts and pull requests
+
+Security findings are tracked in the [Security tab](https://github.com/adminsyspro/proxcenter-ui/security). To report a vulnerability, please email [security@proxcenter.io](mailto:security@proxcenter.io).
+
+---
 
 ## License
 
