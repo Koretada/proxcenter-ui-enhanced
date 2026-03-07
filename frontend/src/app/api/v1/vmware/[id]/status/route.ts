@@ -8,7 +8,7 @@ export const runtime = "nodejs"
 
 /**
  * GET /api/v1/vmware/[id]/status
- * Test connectivity to a VMware ESXi host
+ * Test connectivity to a VMware ESXi host (standalone or vCenter)
  */
 export async function GET(
   _req: Request,
@@ -28,83 +28,75 @@ export async function GET(
       return NextResponse.json({ error: "VMware connection not found" }, { status: 404 })
     }
 
-    // Decrypt credentials (stored as "user:password")
     const creds = decryptSecret(conn.apiTokenEnc)
     const colonIdx = creds.indexOf(':')
     const username = colonIdx > 0 ? creds.substring(0, colonIdx) : 'root'
     const password = colonIdx > 0 ? creds.substring(colonIdx + 1) : creds
-
     const esxiUrl = conn.baseUrl.replace(/\/$/, '')
 
-    // Try to get a session ticket from ESXi REST API
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15000)
-
-    try {
-      // Try vSphere 7.0+ REST API first
-      const res = await fetch(`${esxiUrl}/api/session`, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        // @ts-ignore — Node 18+ fetch TLS option
-        ...(conn.insecureTLS ? { dispatcher: new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } }) } : {}),
-      })
-
-      clearTimeout(timeout)
-
-      if (res.ok) {
-        // Clean up session
-        const sessionId = await res.text().catch(() => '')
-        if (sessionId) {
-          fetch(`${esxiUrl}/api/session`, {
-            method: 'DELETE',
-            headers: { 'vmware-api-session-id': sessionId.replace(/"/g, '') },
-            // @ts-ignore
-            ...(conn.insecureTLS ? { dispatcher: new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } }) } : {}),
-          }).catch(() => {})
-        }
-        return NextResponse.json({ data: { status: 'online', host: esxiUrl } })
-      }
-
-      // Try older vSphere 6.x API
-      const res2 = await fetch(`${esxiUrl}/rest/com/vmware/cis/session`, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
-        },
-        signal: AbortSignal.timeout(10000),
-        // @ts-ignore
-        ...(conn.insecureTLS ? { dispatcher: new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } }) } : {}),
-      }).catch(() => null)
-
-      if (res2?.ok) {
-        return NextResponse.json({ data: { status: 'online', host: esxiUrl } })
-      }
-
-      // Fallback: just check if the host responds on HTTPS
-      const res3 = await fetch(`${esxiUrl}/`, {
-        signal: AbortSignal.timeout(10000),
-        // @ts-ignore
-        ...(conn.insecureTLS ? { dispatcher: new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } }) } : {}),
-      }).catch(() => null)
-
-      if (res3) {
-        // Host is reachable but auth may have failed
-        return NextResponse.json({ data: { status: 'online', host: esxiUrl, warning: 'Host reachable, authentication not fully verified' } })
-      }
-
-      return NextResponse.json({ error: "ESXi host unreachable" }, { status: 502 })
-    } catch (e: any) {
-      clearTimeout(timeout)
-      if (e.name === 'AbortError') {
-        return NextResponse.json({ error: "Connection timeout" }, { status: 504 })
-      }
-      return NextResponse.json({ error: e?.message || String(e) }, { status: 502 })
+    const fetchOpts: any = {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/xml; charset=utf-8' },
+      signal: AbortSignal.timeout(15000),
     }
+    if (conn.insecureTLS) {
+      fetchOpts.dispatcher = new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } })
+    }
+
+    // Try SOAP login — works on both standalone ESXi and vCenter
+    const escUser = username.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const escPass = password.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+    const loginBody = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:Login>
+      <urn:_this type="SessionManager">ha-sessionmgr</urn:_this>
+      <urn:userName>${escUser}</urn:userName>
+      <urn:password>${escPass}</urn:password>
+    </urn:Login>
+  </soapenv:Body>
+</soapenv:Envelope>`
+
+    const res = await fetch(`${esxiUrl}/sdk`, { ...fetchOpts, body: loginBody }).catch(() => null)
+
+    if (!res) {
+      return NextResponse.json({ error: "ESXi host unreachable" }, { status: 502 })
+    }
+
+    const text = await res.text()
+
+    if (text.includes('InvalidLogin')) {
+      return NextResponse.json({ data: { status: 'auth_error', host: esxiUrl, warning: 'Invalid credentials' } })
+    }
+
+    if (text.includes('returnval') || text.includes('LoginResponse')) {
+      // Logout to clean up
+      const cookie = res.headers.get('set-cookie') || ''
+      const logoutBody = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body><urn:Logout><urn:_this type="SessionManager">ha-sessionmgr</urn:_this></urn:Logout></soapenv:Body>
+</soapenv:Envelope>`
+      const logoutOpts: any = {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/xml; charset=utf-8', ...(cookie ? { Cookie: cookie } : {}) },
+      }
+      if (conn.insecureTLS) {
+        logoutOpts.dispatcher = new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } })
+      }
+      fetch(`${esxiUrl}/sdk`, { ...logoutOpts, body: logoutBody }).catch(() => {})
+
+      // Extract version info
+      const version = text.match(/<fullName>([^<]*)<\/fullName>/)?.[1]
+      return NextResponse.json({ data: { status: 'online', host: esxiUrl, version } })
+    }
+
+    // Host responded but login unclear
+    return NextResponse.json({ data: { status: 'online', host: esxiUrl, warning: 'Host reachable, authentication not fully verified' } })
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
+    if (e.name === 'AbortError') {
+      return NextResponse.json({ error: "Connection timeout" }, { status: 504 })
+    }
+    return NextResponse.json({ error: e?.message || String(e) }, { status: 502 })
   }
 }

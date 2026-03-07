@@ -16,56 +16,193 @@ type EsxiVm = {
   guest_OS?: string
 }
 
-async function esxiFetch(baseUrl: string, path: string, sessionId: string, insecureTLS: boolean): Promise<any> {
+/** Send a SOAP request to the ESXi /sdk endpoint */
+async function soapRequest(baseUrl: string, body: string, cookie: string, insecureTLS: boolean): Promise<{ text: string; cookie?: string }> {
   const opts: any = {
+    method: 'POST',
     headers: {
-      'vmware-api-session-id': sessionId,
-      'Content-Type': 'application/json',
+      'Content-Type': 'text/xml; charset=utf-8',
+      ...(cookie ? { Cookie: cookie } : {}),
     },
+    body,
     signal: AbortSignal.timeout(30000),
   }
   if (insecureTLS) {
     opts.dispatcher = new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } })
   }
-  const res = await fetch(`${baseUrl}${path}`, opts)
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`ESXi API error ${res.status}: ${text}`)
+  const res = await fetch(`${baseUrl}/sdk`, opts)
+  const text = await res.text()
+  if (!res.ok && !text.includes('returnval')) {
+    throw new Error(`SOAP error ${res.status}: ${text.substring(0, 200)}`)
   }
-  return res.json()
+  const setCookie = res.headers.get('set-cookie') || ''
+  return { text, cookie: setCookie }
 }
 
-async function getEsxiSession(baseUrl: string, username: string, password: string, insecureTLS: boolean): Promise<string> {
-  const authHeader = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64')
-  const fetchOpts: any = {
-    method: 'POST',
-    headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(15000),
+/** Login via SOAP and return session cookie */
+async function soapLogin(baseUrl: string, username: string, password: string, insecureTLS: boolean): Promise<string> {
+  const escUser = username.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const escPass = password.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  const loginBody = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:Login>
+      <urn:_this type="SessionManager">ha-sessionmgr</urn:_this>
+      <urn:userName>${escUser}</urn:userName>
+      <urn:password>${escPass}</urn:password>
+    </urn:Login>
+  </soapenv:Body>
+</soapenv:Envelope>`
+
+  const result = await soapRequest(baseUrl, loginBody, '', insecureTLS)
+  if (result.text.includes('InvalidLogin') || result.text.includes('faultstring')) {
+    const fault = result.text.match(/<faultstring>([^<]*)<\/faultstring>/)?.[1] || 'Authentication failed'
+    throw new Error(`ESXi login failed: ${fault}`)
   }
-  if (insecureTLS) {
-    fetchOpts.dispatcher = new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } })
+  return result.cookie || ''
+}
+
+/** Logout the SOAP session */
+async function soapLogout(baseUrl: string, cookie: string, insecureTLS: boolean): Promise<void> {
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:Logout>
+      <urn:_this type="SessionManager">ha-sessionmgr</urn:_this>
+    </urn:Logout>
+  </soapenv:Body>
+</soapenv:Envelope>`
+  await soapRequest(baseUrl, body, cookie, insecureTLS).catch(() => {})
+}
+
+/** List all VMs using SOAP PropertyCollector */
+async function soapListVMs(baseUrl: string, cookie: string, insecureTLS: boolean): Promise<EsxiVm[]> {
+  // Create a ContainerView for all VirtualMachine objects
+  const createViewBody = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:CreateContainerView>
+      <urn:_this type="ViewManager">ViewManager</urn:_this>
+      <urn:container type="Folder">ha-folder-vm</urn:container>
+      <urn:type>VirtualMachine</urn:type>
+      <urn:recursive>true</urn:recursive>
+    </urn:CreateContainerView>
+  </soapenv:Body>
+</soapenv:Envelope>`
+
+  const viewResult = await soapRequest(baseUrl, createViewBody, cookie, insecureTLS)
+  const viewRef = viewResult.text.match(/<returnval type="ContainerView">([^<]+)<\/returnval>/)?.[1]
+  if (!viewRef) {
+    // No ContainerView → probably no VMs
+    return []
   }
 
-  // Try vSphere 7.0+ first
-  const res = await fetch(`${baseUrl}/api/session`, fetchOpts).catch(() => null)
-  if (res?.ok) {
-    const text = await res.text()
-    return text.replace(/"/g, '')
+  // Use PropertyCollector to retrieve VM properties via the ContainerView
+  const retrieveBody = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:RetrievePropertiesEx>
+      <urn:_this type="PropertyCollector">ha-property-collector</urn:_this>
+      <urn:specSet>
+        <urn:propSet>
+          <urn:type>VirtualMachine</urn:type>
+          <urn:pathSet>name</urn:pathSet>
+          <urn:pathSet>runtime.powerState</urn:pathSet>
+          <urn:pathSet>config.hardware.numCPU</urn:pathSet>
+          <urn:pathSet>config.hardware.memoryMB</urn:pathSet>
+          <urn:pathSet>guest.guestFullName</urn:pathSet>
+        </urn:propSet>
+        <urn:objectSet>
+          <urn:obj type="ContainerView">${viewRef}</urn:obj>
+          <urn:skip>true</urn:skip>
+          <urn:selectSet xsi:type="urn:TraversalSpec" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <urn:name>traverseEntities</urn:name>
+            <urn:type>ContainerView</urn:type>
+            <urn:path>view</urn:path>
+            <urn:skip>false</urn:skip>
+          </urn:selectSet>
+        </urn:objectSet>
+      </urn:specSet>
+      <urn:options/>
+    </urn:RetrievePropertiesEx>
+  </soapenv:Body>
+</soapenv:Envelope>`
+
+  const propsResult = await soapRequest(baseUrl, retrieveBody, cookie, insecureTLS)
+
+  // Destroy the ContainerView
+  const destroyBody = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:DestroyView>
+      <urn:_this type="ContainerView">${viewRef}</urn:_this>
+    </urn:DestroyView>
+  </soapenv:Body>
+</soapenv:Envelope>`
+  soapRequest(baseUrl, destroyBody, cookie, insecureTLS).catch(() => {})
+
+  // Parse the response — each <returnval> contains one VM's properties
+  return parseVMProperties(propsResult.text)
+}
+
+/** Parse SOAP PropertyCollector response into VM list */
+function parseVMProperties(xml: string): EsxiVm[] {
+  const vms: EsxiVm[] = []
+
+  // Split by <returnval> blocks — each is one VM
+  // Use regex to find all returnval sections in the objects array
+  const objRegex = /<returnval>([\s\S]*?)<\/returnval>/g
+  let match: RegExpExecArray | null
+
+  while ((match = objRegex.exec(xml)) !== null) {
+    const block = match[1]
+
+    // Extract VM moid from <obj type="VirtualMachine">vm-XX</obj>
+    const vmid = block.match(/<obj type="VirtualMachine">([^<]+)<\/obj>/)?.[1] || ''
+
+    // Extract properties from <propSet> blocks
+    let name = ''
+    let powerState = ''
+    let numCPU = 0
+    let memoryMB = 0
+    let guestOS = ''
+
+    const propRegex = /<propSet>\s*<name>([^<]+)<\/name>\s*<val[^>]*>([^<]*)<\/val>\s*<\/propSet>/g
+    let propMatch: RegExpExecArray | null
+
+    while ((propMatch = propRegex.exec(block)) !== null) {
+      const propName = propMatch[1]
+      const propVal = propMatch[2]
+
+      switch (propName) {
+        case 'name': name = propVal; break
+        case 'runtime.powerState': powerState = propVal; break
+        case 'config.hardware.numCPU': numCPU = parseInt(propVal, 10) || 0; break
+        case 'config.hardware.memoryMB': memoryMB = parseInt(propVal, 10) || 0; break
+        case 'guest.guestFullName': guestOS = propVal; break
+      }
+    }
+
+    if (vmid) {
+      vms.push({
+        vmid,
+        name: name || vmid,
+        status: powerState === 'poweredOn' ? 'running' : powerState === 'suspended' ? 'suspended' : 'stopped',
+        cpu: numCPU || undefined,
+        memory_size_MiB: memoryMB ? memoryMB : undefined,
+        power_state: powerState,
+        guest_OS: guestOS || undefined,
+      })
+    }
   }
 
-  // Try vSphere 6.x
-  const res2 = await fetch(`${baseUrl}/rest/com/vmware/cis/session`, fetchOpts).catch(() => null)
-  if (res2?.ok) {
-    const json = await res2.json()
-    return json?.value || ''
-  }
-
-  throw new Error('Failed to authenticate with ESXi host')
+  return vms
 }
 
 /**
  * GET /api/v1/vmware/[id]/vms
- * List VMs on a VMware ESXi host via REST API
+ * List VMs on a VMware ESXi host via SOAP API (works on standalone ESXi + vCenter)
  */
 export async function GET(
   _req: Request,
@@ -91,55 +228,14 @@ export async function GET(
     const password = colonIdx > 0 ? creds.substring(colonIdx + 1) : creds
     const esxiUrl = conn.baseUrl.replace(/\/$/, '')
 
-    // Get session
-    const sessionId = await getEsxiSession(esxiUrl, username, password, conn.insecureTLS)
+    // Login via SOAP
+    const cookie = await soapLogin(esxiUrl, username, password, conn.insecureTLS)
 
     try {
-      // List VMs via REST API
-      let vms: EsxiVm[] = []
-
-      try {
-        // vSphere 7.0+ API
-        const data = await esxiFetch(esxiUrl, '/api/vcenter/vm', sessionId, conn.insecureTLS)
-        vms = (Array.isArray(data) ? data : []).map((vm: any) => ({
-          vmid: vm.vm || vm.id || '',
-          name: vm.name || '',
-          status: vm.power_state === 'POWERED_ON' ? 'running' : vm.power_state === 'SUSPENDED' ? 'suspended' : 'stopped',
-          cpu: vm.cpu_count,
-          memory_size_MiB: vm.memory_size_MiB,
-          power_state: vm.power_state,
-          guest_OS: vm.guest_OS,
-        }))
-      } catch {
-        // Try vSphere 6.x API
-        try {
-          const data = await esxiFetch(esxiUrl, '/rest/vcenter/vm', sessionId, conn.insecureTLS)
-          const items = data?.value || []
-          vms = items.map((vm: any) => ({
-            vmid: vm.vm || vm.id || '',
-            name: vm.name || '',
-            status: vm.power_state === 'POWERED_ON' ? 'running' : vm.power_state === 'SUSPENDED' ? 'suspended' : 'stopped',
-            cpu: vm.cpu_count,
-            memory_size_MiB: vm.memory_size_MiB,
-            power_state: vm.power_state,
-            guest_OS: vm.guest_OS,
-          }))
-        } catch (e2: any) {
-          throw new Error(`Cannot list VMs: ${e2?.message || 'API not available'}. Standalone ESXi may not support the REST VM listing API.`)
-        }
-      }
-
+      const vms = await soapListVMs(esxiUrl, cookie, conn.insecureTLS)
       return NextResponse.json({ data: { vms, connectionName: conn.name } })
     } finally {
-      // Clean up session
-      const cleanupOpts: any = {
-        method: 'DELETE',
-        headers: { 'vmware-api-session-id': sessionId },
-      }
-      if (conn.insecureTLS) {
-        cleanupOpts.dispatcher = new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } })
-      }
-      fetch(`${esxiUrl}/api/session`, cleanupOpts).catch(() => {})
+      soapLogout(esxiUrl, cookie, conn.insecureTLS)
     }
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
