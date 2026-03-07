@@ -470,7 +470,7 @@ return next
     }).catch(() => {})
     // Also fetch network bridges
     fetch(`/api/v1/connections/${migTargetConn}/nodes/${migTargetNode}/network`).then(r => r.json()).then(d => {
-      const bridges = (d.data || d || []).filter((iface: any) => iface.type === 'bridge')
+      const bridges = (d.data || d || []).filter((iface: any) => iface.type === 'bridge' || iface.type === 'OVSBridge')
       setMigBridges(bridges)
       if (bridges.length > 0) {
         const vmbr0 = bridges.find((b: any) => b.iface === 'vmbr0')
