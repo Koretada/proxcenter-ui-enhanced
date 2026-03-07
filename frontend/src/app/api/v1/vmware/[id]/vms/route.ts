@@ -14,6 +14,8 @@ type EsxiVm = {
   memory_size_MiB?: number
   power_state?: string
   guest_OS?: string
+  committed?: number  // disk usage in bytes
+  uncommitted?: number  // provisioned but unused
 }
 
 /** Send a SOAP request to the ESXi /sdk endpoint */
@@ -113,7 +115,8 @@ async function soapListVMs(baseUrl: string, cookie: string, insecureTLS: boolean
           <urn:pathSet>runtime.powerState</urn:pathSet>
           <urn:pathSet>config.hardware.numCPU</urn:pathSet>
           <urn:pathSet>config.hardware.memoryMB</urn:pathSet>
-          <urn:pathSet>guest.guestFullName</urn:pathSet>
+          <urn:pathSet>config.guestFullName</urn:pathSet>
+          <urn:pathSet>storage.perDatastoreUsage</urn:pathSet>
         </urn:propSet>
         <urn:objectSet>
           <urn:obj type="ContainerView">${viewRef}</urn:obj>
@@ -166,9 +169,11 @@ function parseVMProperties(xml: string): EsxiVm[] {
     let numCPU = 0
     let memoryMB = 0
     let guestOS = ''
+    let committed = 0
+    let uncommitted = 0
 
-    // Extract properties — <val> may have xsi:type attribute
-    const propRegex = /<propSet>\s*<name>([^<]+)<\/name>\s*<val[^>]*>([^<]*)<\/val>\s*<\/propSet>/g
+    // Extract properties — <val> may have xsi:type attribute, some vals contain nested XML
+    const propRegex = /<propSet>\s*<name>([^<]+)<\/name>\s*<val[^>]*>([\s\S]*?)<\/val>\s*<\/propSet>/g
     let propMatch: RegExpExecArray | null
 
     while ((propMatch = propRegex.exec(block)) !== null) {
@@ -180,7 +185,14 @@ function parseVMProperties(xml: string): EsxiVm[] {
         case 'runtime.powerState': powerState = propVal; break
         case 'config.hardware.numCPU': numCPU = parseInt(propVal, 10) || 0; break
         case 'config.hardware.memoryMB': memoryMB = parseInt(propVal, 10) || 0; break
-        case 'guest.guestFullName': guestOS = propVal; break
+        case 'config.guestFullName': guestOS = propVal; break
+        case 'storage.perDatastoreUsage': {
+          const c = propVal.match(/<committed>(\d+)<\/committed>/)
+          const u = propVal.match(/<uncommitted>(\d+)<\/uncommitted>/)
+          if (c) committed += parseInt(c[1], 10) || 0
+          if (u) uncommitted += parseInt(u[1], 10) || 0
+          break
+        }
       }
     }
 
@@ -193,6 +205,8 @@ function parseVMProperties(xml: string): EsxiVm[] {
         memory_size_MiB: memoryMB ? memoryMB : undefined,
         power_state: powerState,
         guest_OS: guestOS || undefined,
+        committed: committed || undefined,
+        uncommitted: uncommitted || undefined,
       })
     }
   }

@@ -755,6 +755,15 @@ function ConnectionsTab() {
               </Box>
             }
           />
+          <Tab
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <img src='/images/nutanix-logo.svg' alt='' width={18} height={18} />
+                <span>Nutanix</span>
+                <Chip size='small' label='Soon' sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#0D47A1', color: '#fff' }} />
+              </Box>
+            }
+          />
         </Tabs>
       </Box>
 
@@ -908,6 +917,18 @@ function ConnectionsTab() {
           <Chip label='Coming Soon' color='info' />
           <Typography variant='body2' sx={{ opacity: 0.5, maxWidth: 400, textAlign: 'center' }}>
             {t('settings.xcpngComingSoonDesc')}
+          </Typography>
+        </Box>
+      </SubTabPanel>
+
+      {/* Nutanix Tab - Coming Soon */}
+      <SubTabPanel value={connTab} index={5}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8, gap: 2 }}>
+          <img src='/images/nutanix-logo.svg' alt='Nutanix' width={64} height={64} style={{ opacity: 0.5 }} />
+          <Typography variant='h6' sx={{ opacity: 0.7 }}>Nutanix</Typography>
+          <Chip label='Coming Soon' color='info' />
+          <Typography variant='body2' sx={{ opacity: 0.5, maxWidth: 400, textAlign: 'center' }}>
+            {t('settings.nutanixComingSoonDesc')}
           </Typography>
         </Box>
       </SubTabPanel>

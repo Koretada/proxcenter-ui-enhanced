@@ -9,6 +9,8 @@ export type InventorySelection =
   | { type: 'pbs'; id: string }
   | { type: 'pbs-datastore'; id: string }
   | { type: 'datastore'; id: string }
+  | { type: 'ext'; id: string }      // external hypervisor host (connectionId)
+  | { type: 'extvm'; id: string }    // external hypervisor VM (connectionId:vmid)
 
 export type Kpi = { label: string; value: string; hint?: string }
 export type KV = { k: string; v: string }
@@ -319,6 +321,63 @@ export type DetailsPayload = {
       readIops: number
       writeIops: number
     }>
+  }
+
+  esxiHostInfo?: {
+    connectionId: string
+    connectionName: string
+    hostType: string  // 'vmware' | 'hyperv' | 'xcpng'
+    baseUrl: string
+    version?: string
+    vms: Array<{
+      vmid: string
+      name: string
+      status: string
+      cpu?: number
+      memory_size_MiB?: number
+      guest_OS?: string
+      committed?: number
+      uncommitted?: number
+    }>
+  }
+
+  esxiVmInfo?: {
+    vmid: string
+    connectionId: string
+    connectionName: string
+    name: string
+    guestOS?: string
+    numCPU: number
+    numCoresPerSocket: number
+    sockets: number
+    memoryMB: number
+    vmxVersion?: string
+    uuid?: string
+    firmware?: string
+    annotation?: string
+    toolsStatus?: string
+    toolsRunningStatus?: string
+    ipAddress?: string
+    hostName?: string
+    powerState: string
+    bootTime?: string
+    maxCpuUsage?: number
+    committed: number
+    uncommitted: number
+    provisioned: number
+    disks: Array<{
+      label: string
+      capacityBytes: number
+      fileName: string
+      thinProvisioned: boolean
+    }>
+    networks: Array<{
+      label: string
+      macAddress: string
+      network: string
+      connected: boolean
+    }>
+    snapshotCount: number
   }
 }
 

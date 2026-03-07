@@ -1,4 +1,4 @@
-import type { InventorySelection, DetailsPayload, SeriesPoint, RrdTimeframe } from './types'
+import type { InventorySelection, DetailsPayload, SeriesPoint, RrdTimeframe, Status } from './types'
 
 /* ------------------------------------------------------------------ */
 /* Tag colors (stable "random")                                       */
@@ -1035,6 +1035,111 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
         pagination: backupsData?.pagination || {},
         rrdData,
       },
+    }
+  }
+
+  // External hypervisor host (VMware ESXi, Hyper-V, XCP-ng)
+  if (sel.type === 'ext') {
+    const connId = sel.id
+    const [connR, statusR, vmsR] = await Promise.all([
+      fetch(`/api/v1/connections/${encodeURIComponent(connId)}`, { cache: 'no-store' }),
+      fetch(`/api/v1/vmware/${encodeURIComponent(connId)}/status`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/vmware/${encodeURIComponent(connId)}/vms`, { cache: 'no-store' }).catch(() => null),
+    ])
+
+    const connData = await connR.json().catch(() => ({}))
+    const conn = connData?.data || connData || {}
+    const statusData = statusR?.ok ? await statusR.json().catch(() => ({})) : {}
+    const vmsData = vmsR?.ok ? await vmsR.json().catch(() => ({})) : {}
+
+    const vms = vmsData?.data?.vms || []
+    const runningVms = vms.filter((v: any) => v.status === 'running').length
+    const version = statusData?.data?.version
+
+    return {
+      kindLabel: conn.type === 'vmware' ? 'VMWARE ESXI' : conn.type?.toUpperCase() || 'HYPERVISOR',
+      title: conn.name || connId,
+      subtitle: version || conn.baseUrl || '',
+      breadcrumb: ['Infrastructure', 'Inventaire', conn.name || connId],
+      status: (statusData?.data?.status === 'online' ? 'ok' : 'crit') as Status,
+      tags: [],
+      kpis: [
+        { label: 'VMs', value: `${vms.length}` },
+        { label: 'Running', value: `${runningVms}` },
+        { label: 'Stopped', value: `${vms.length - runningVms}` },
+      ],
+      properties: [
+        ...(version ? [{ k: 'Version', v: version }] : []),
+        { k: 'URL', v: conn.baseUrl || '' },
+        ...(conn.insecureTLS ? [{ k: 'TLS', v: 'Insecure (self-signed)' }] : []),
+      ],
+      lastUpdated,
+      esxiHostInfo: {
+        connectionId: connId,
+        connectionName: conn.name || connId,
+        hostType: conn.type || 'vmware',
+        baseUrl: conn.baseUrl || '',
+        version,
+        vms,
+      },
+    }
+  }
+
+  // External hypervisor VM detail
+  if (sel.type === 'extvm') {
+    const [connId, ...vmidParts] = sel.id.split(':')
+    const vmid = vmidParts.join(':')
+
+    const vmR = await fetch(`/api/v1/vmware/${encodeURIComponent(connId)}/vms/${encodeURIComponent(vmid)}`, { cache: 'no-store' })
+    const vmJson = await vmR.json().catch(() => ({}))
+    const vm = vmJson?.data || {}
+
+    if (vmR.status === 404) {
+      return {
+        kindLabel: 'VM',
+        title: vmid,
+        subtitle: 'Not found',
+        breadcrumb: ['Infrastructure', 'Inventaire', vmid],
+        status: 'unknown' as Status,
+        tags: [],
+        kpis: [],
+        properties: [],
+        lastUpdated,
+      }
+    }
+
+    const memGB = vm.memoryMB ? (vm.memoryMB / 1024).toFixed(1) : '0'
+    const committedGB = vm.committed ? (vm.committed / 1073741824).toFixed(1) : '0'
+    const provisionedGB = vm.provisioned ? (vm.provisioned / 1073741824).toFixed(1) : '0'
+
+    return {
+      kindLabel: 'VMWARE VM',
+      title: vm.name || vmid,
+      subtitle: vm.guestOS || '',
+      breadcrumb: ['Infrastructure', 'Inventaire', vm.connectionName || '', vm.name || vmid],
+      status: (vm.status === 'running' ? 'ok' : vm.status === 'suspended' ? 'warn' : 'crit') as Status,
+      vmRealStatus: vm.status,
+      tags: [],
+      kpis: [
+        { label: 'CPU', value: `${vm.numCPU || 0} vCPU` },
+        { label: 'RAM', value: `${memGB} GB` },
+        { label: 'Storage', value: `${committedGB} GB used` },
+        { label: 'Provisioned', value: `${provisionedGB} GB` },
+      ],
+      properties: [
+        { k: 'Guest OS', v: vm.guestOS || 'N/A' },
+        { k: 'Power State', v: vm.powerState || 'N/A' },
+        { k: 'VMware Tools', v: vm.toolsStatus || 'N/A' },
+        { k: 'Hardware Version', v: vm.vmxVersion || 'N/A' },
+        { k: 'Firmware', v: (vm.firmware || 'bios').toUpperCase() },
+        { k: 'UUID', v: vm.uuid || 'N/A' },
+        ...(vm.ipAddress ? [{ k: 'IP Address', v: vm.ipAddress }] : []),
+        ...(vm.hostName ? [{ k: 'Hostname', v: vm.hostName }] : []),
+        ...(vm.bootTime ? [{ k: 'Boot Time', v: new Date(vm.bootTime).toLocaleString() }] : []),
+        ...(vm.annotation ? [{ k: 'Notes', v: vm.annotation }] : []),
+      ],
+      lastUpdated,
+      esxiVmInfo: vm,
     }
   }
 

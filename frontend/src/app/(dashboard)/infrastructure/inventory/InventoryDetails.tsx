@@ -5574,6 +5574,229 @@ return vm?.isCluster ?? false
             </Card>
           )}
 
+          {/* ESXi Host — VM Table */}
+          {selection?.type === 'ext' && data.esxiHostInfo && (
+            <Card variant="outlined" sx={{ width: '100%', borderRadius: 2 }}>
+              <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <img src="/images/esxi-logo.svg" alt="" width={18} height={18} />
+                    Virtual Machines ({data.esxiHostInfo.vms.length})
+                  </Typography>
+                </Box>
+                {data.esxiHostInfo.vms.length === 0 ? (
+                  <Box sx={{ p: 4, textAlign: 'center' }}>
+                    <i className="ri-computer-line" style={{ fontSize: 48, opacity: 0.3 }} />
+                    <Typography variant="body2" sx={{ opacity: 0.5, mt: 1 }}>No virtual machines found</Typography>
+                  </Box>
+                ) : (
+                  <TableContainer sx={{ maxHeight: 'calc(100vh - 400px)' }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Name</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>State</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Guest OS</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">Used Space</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">CPU</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">RAM</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {data.esxiHostInfo.vms.map((vm: any) => (
+                          <TableRow
+                            key={vm.vmid}
+                            hover
+                            sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 'none' } }}
+                            onClick={() => onSelect?.({ type: 'extvm', id: `${data.esxiHostInfo!.connectionId}:${vm.vmid}` })}
+                          >
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <img src="/images/esxi-vm.svg" alt="" width={16} height={16} style={{ opacity: 0.7 }} />
+                                <Typography variant="body2" fontWeight={600}>{vm.name || vm.vmid}</Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={vm.status === 'running' ? 'Powered On' : vm.status === 'suspended' ? 'Suspended' : 'Powered Off'}
+                                sx={{
+                                  height: 22,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  bgcolor: vm.status === 'running' ? 'success.main' : vm.status === 'suspended' ? 'warning.main' : 'action.disabledBackground',
+                                  color: vm.status === 'running' || vm.status === 'suspended' ? '#fff' : 'text.secondary',
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ opacity: 0.8, fontSize: 12 }}>{vm.guest_OS || 'N/A'}</Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" sx={{ fontSize: 12 }}>
+                                {vm.committed ? formatBytes(vm.committed) : '--'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" sx={{ fontSize: 12 }}>{vm.cpu || '--'} vCPU</Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" sx={{ fontSize: 12 }}>
+                                {vm.memory_size_MiB ? `${(vm.memory_size_MiB / 1024).toFixed(1)} GB` : '--'}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ESXi VM Detail */}
+          {selection?.type === 'extvm' && data.esxiVmInfo && (() => {
+            const vm = data.esxiVmInfo
+            return (
+              <Stack spacing={2}>
+                {/* Hardware Summary */}
+                <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                  <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                      <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <i className="ri-cpu-line" style={{ fontSize: 18, opacity: 0.7 }} />
+                        Hardware
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 0 }}>
+                      <Box sx={{ p: 2, borderRight: '1px solid', borderBottom: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+                        <Typography variant="h5" fontWeight={700} color="primary.main">{vm.numCPU}</Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.6 }}>vCPU ({vm.sockets}s x {vm.numCoresPerSocket}c)</Typography>
+                      </Box>
+                      <Box sx={{ p: 2, borderRight: { xs: 'none', md: '1px solid' }, borderBottom: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+                        <Typography variant="h5" fontWeight={700} color="secondary.main">{(vm.memoryMB / 1024).toFixed(1)}</Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.6 }}>GB RAM</Typography>
+                      </Box>
+                      <Box sx={{ p: 2, borderRight: '1px solid', borderBottom: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+                        <Typography variant="h5" fontWeight={700}>{(vm.committed / 1073741824).toFixed(1)}</Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.6 }}>GB Used</Typography>
+                      </Box>
+                      <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+                        <Typography variant="h5" fontWeight={700} sx={{ opacity: 0.6 }}>{(vm.provisioned / 1073741824).toFixed(1)}</Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.6 }}>GB Provisioned</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+
+                {/* Disks */}
+                {vm.disks?.length > 0 && (
+                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                    <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                      <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <i className="ri-hard-drive-2-line" style={{ fontSize: 18, opacity: 0.7 }} />
+                          Disks ({vm.disks.length})
+                        </Typography>
+                      </Box>
+                      {vm.disks.map((disk: any, i: number) => (
+                        <Box key={i} sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 'none' } }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <i className="ri-hard-drive-line" style={{ fontSize: 14, opacity: 0.6 }} />
+                              <Typography variant="body2" fontWeight={600}>{disk.label}</Typography>
+                              {disk.thinProvisioned && <Chip size="small" label="Thin" sx={{ height: 18, fontSize: 10 }} />}
+                            </Box>
+                            <Typography variant="body2" sx={{ opacity: 0.7 }}>{formatBytes(disk.capacityBytes)}</Typography>
+                          </Box>
+                          {disk.fileName && (
+                            <Typography variant="caption" sx={{ opacity: 0.4, ml: 3 }}>{disk.fileName}</Typography>
+                          )}
+                        </Box>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Network Adapters */}
+                {vm.networks?.length > 0 && (
+                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                    <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                      <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <i className="ri-router-line" style={{ fontSize: 18, opacity: 0.7 }} />
+                          Network Adapters ({vm.networks.length})
+                        </Typography>
+                      </Box>
+                      {vm.networks.map((nic: any, i: number) => (
+                        <Box key={i} sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 'none' } }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <i className="ri-ethernet-line" style={{ fontSize: 14, opacity: 0.6 }} />
+                              <Typography variant="body2" fontWeight={600}>{nic.label}</Typography>
+                              <Chip
+                                size="small"
+                                label={nic.connected ? 'Connected' : 'Disconnected'}
+                                sx={{ height: 18, fontSize: 10, bgcolor: nic.connected ? 'success.main' : 'action.disabledBackground', color: nic.connected ? '#fff' : 'text.secondary' }}
+                              />
+                            </Box>
+                            <Typography variant="body2" sx={{ opacity: 0.5, fontFamily: 'monospace', fontSize: 11 }}>{nic.macAddress}</Typography>
+                          </Box>
+                          {nic.network && (
+                            <Typography variant="caption" sx={{ opacity: 0.4, ml: 3 }}>{nic.network}</Typography>
+                          )}
+                        </Box>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* VMware Tools & Details */}
+                <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                  <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                    <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                      <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <i className="ri-information-line" style={{ fontSize: 18, opacity: 0.7 }} />
+                        Details
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                      {[
+                        { k: 'Guest OS', v: vm.guestOS || 'N/A' },
+                        { k: 'Hardware Version', v: vm.vmxVersion || 'N/A' },
+                        { k: 'Firmware', v: (vm.firmware || 'bios').toUpperCase() },
+                        { k: 'VMware Tools', v: vm.toolsStatus === 'toolsOk' ? 'Running' : vm.toolsStatus === 'toolsNotInstalled' ? 'Not Installed' : vm.toolsStatus || 'N/A' },
+                        { k: 'UUID', v: vm.uuid || 'N/A' },
+                        ...(vm.ipAddress ? [{ k: 'IP Address', v: vm.ipAddress }] : []),
+                        ...(vm.hostName ? [{ k: 'Hostname', v: vm.hostName }] : []),
+                        { k: 'Snapshots', v: `${vm.snapshotCount || 0}` },
+                      ].map((row, i) => (
+                        <Box key={i} sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                          <Typography variant="caption" sx={{ opacity: 0.5, whiteSpace: 'nowrap' }}>{row.k}</Typography>
+                          <Typography variant="caption" fontWeight={600} sx={{ textAlign: 'right', wordBreak: 'break-all' }}>{row.v}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </CardContent>
+                </Card>
+
+                {/* Notes */}
+                {vm.annotation && (
+                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <i className="ri-sticky-note-line" style={{ fontSize: 18, opacity: 0.7 }} />
+                        Notes
+                      </Typography>
+                      <Typography variant="body2" sx={{ opacity: 0.7, whiteSpace: 'pre-wrap' }}>{vm.annotation}</Typography>
+                    </CardContent>
+                  </Card>
+                )}
+              </Stack>
+            )
+          })()}
+
           <Typography variant="caption" sx={{ color: 'text.secondary', opacity: 0.95 }}>
             {t('inventoryPage.lastUpdated')} {data.lastUpdated}
           </Typography>

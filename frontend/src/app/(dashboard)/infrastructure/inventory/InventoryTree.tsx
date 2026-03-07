@@ -213,6 +213,8 @@ export type InventorySelection =
   | { type: 'pbs'; id: string } // id = pbsConnectionId (serveur PBS)
   | { type: 'datastore'; id: string } // id = pbsConnectionId:datastoreName
   | { type: 'pbs-datastore'; id: string } // alias for datastore
+  | { type: 'ext'; id: string } // id = connectionId (external hypervisor host)
+  | { type: 'extvm'; id: string } // id = connectionId:vmid (external hypervisor VM)
 
 export type ViewMode = 'tree' | 'vms' | 'hosts' | 'pools' | 'tags' | 'templates' | 'favorites'
 
@@ -751,11 +753,11 @@ function selectionFromItemId(itemId: string): InventorySelection | null {
 
   if (!id) return null
 
-  if (type === 'cluster' || type === 'node' || type === 'vm' || type === 'storage' || type === 'pbs' || type === 'datastore') {
+  if (type === 'cluster' || type === 'node' || type === 'vm' || type === 'storage' || type === 'pbs' || type === 'datastore' || type === 'ext' || type === 'extvm') {
     return { type: type as any, id } as InventorySelection
   }
 
-  
+
 return null
 }
 
