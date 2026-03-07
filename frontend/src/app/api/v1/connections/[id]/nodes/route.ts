@@ -37,7 +37,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
-  // Enrichir chaque node avec son IP et hastate
+  // Enrichir chaque node avec son IP, hastate, et mémoire précise
   const enrichedNodes = await Promise.all(
     (nodes || []).map(async (node: any) => {
       const nodeName = node.node || node.name
@@ -45,19 +45,33 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       if (!nodeName) return node
 
       let ip: string | null = null
+      let accurateMem: { used: number; total: number } | null = null
 
       try {
-        const networks = await pveFetch<any[]>(
-          conn,
-          `/nodes/${encodeURIComponent(nodeName)}/network`
-        )
+        // Fetch network and node status in parallel for each node
+        const [networks, nodeStatus] = await Promise.all([
+          pveFetch<any[]>(conn, `/nodes/${encodeURIComponent(nodeName)}/network`).catch(() => null),
+          node.status === 'online'
+            ? pveFetch<any>(conn, `/nodes/${encodeURIComponent(nodeName)}/status`).catch(() => null)
+            : Promise.resolve(null),
+        ])
+
         ip = resolveManagementIp(networks) || null
+
+        // Use memory from /nodes/{node}/status (excludes ZFS ARC / kernel caches)
+        if (nodeStatus?.memory?.total > 0) {
+          accurateMem = {
+            used: Number(nodeStatus.memory.used || 0),
+            total: Number(nodeStatus.memory.total || 0),
+          }
+        }
       } catch {
-        // Pas d'accès aux interfaces réseau
+        // Pas d'accès aux interfaces réseau ou au status
       }
 
       return {
         ...node,
+        ...(accurateMem ? { mem: accurateMem.used, maxmem: accurateMem.total } : {}),
         ip,
         hastate: hastateMap[nodeName] || null,
       }

@@ -5694,13 +5694,13 @@ return vm?.isCluster ?? false
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Name</TableCell>
-                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>State</TableCell>
-                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Guest OS</TableCell>
-                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">Used Space</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>{t('common.name')}</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>{t('common.status')}</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>{t('inventoryPage.esxiMigration.guestOs')}</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">{t('inventoryPage.esxiMigration.usedSpace')}</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">CPU</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="right">RAM</TableCell>
-                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="center">Migration</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="center">{t('inventoryPage.esxiMigration.migration')}</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -5720,7 +5720,7 @@ return vm?.isCluster ?? false
                             <TableCell>
                               <Chip
                                 size="small"
-                                label={vm.status === 'running' ? 'Powered On' : vm.status === 'suspended' ? 'Suspended' : 'Powered Off'}
+                                label={vm.status === 'running' ? t('inventoryPage.esxiMigration.poweredOn') : vm.status === 'suspended' ? t('inventoryPage.esxiMigration.suspended') : t('inventoryPage.esxiMigration.poweredOff')}
                                 sx={{
                                   height: 22, fontSize: 11, fontWeight: 600,
                                   bgcolor: vm.status === 'running' ? 'success.main' : vm.status === 'suspended' ? 'warning.main' : 'action.disabledBackground',
@@ -5753,7 +5753,7 @@ return vm?.isCluster ?? false
                                   committed: vm.committed, guestOS: vm.guest_OS,
                                 })}
                               >
-                                Migrate
+                                {t('inventoryPage.esxiMigration.migrate')}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -5808,7 +5808,7 @@ return vm?.isCluster ?? false
                           committed: vm.committed, guestOS: vm.guestOS,
                         })}
                       >
-                        Start Migration
+                        {t('inventoryPage.esxiMigration.startMigration')}
                       </Button>
                     </Box>
                   </CardContent>
@@ -5820,7 +5820,7 @@ return vm?.isCluster ?? false
                     <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13 }}>
                         <i className="ri-swap-line" style={{ fontSize: 16, color: '#E65100' }} />
-                        Migration to Proxmox VE
+                        {t('inventoryPage.esxiMigration.migrationToProxmox')}
                       </Typography>
                     </Box>
 
@@ -5856,12 +5856,12 @@ return vm?.isCluster ?? false
                     <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13 }}>
                         <i className="ri-line-chart-line" style={{ fontSize: 16, opacity: 0.7 }} />
-                        Transfer Metrics
+                        {t('inventoryPage.esxiMigration.transferMetrics')}
                       </Typography>
                       {vmMigJob && (
                         <Chip
                           size="small"
-                          label={vmMigJob.status === 'completed' ? 'Completed' : vmMigJob.status === 'failed' ? 'Failed' : vmMigJob.status === 'cancelled' ? 'Cancelled' : (vmMigJob.currentStep || vmMigJob.status).replace(/_/g, ' ')}
+                          label={vmMigJob.status === 'completed' ? t('inventoryPage.esxiMigration.completed') : vmMigJob.status === 'failed' ? t('inventoryPage.esxiMigration.failed') : vmMigJob.status === 'cancelled' ? t('inventoryPage.esxiMigration.cancelled') : (vmMigJob.currentStep || vmMigJob.status).replace(/_/g, ' ')}
                           color={vmMigJob.status === 'completed' ? 'success' : vmMigJob.status === 'failed' ? 'error' : 'primary'}
                           sx={{ height: 20, fontSize: 10, fontWeight: 600 }}
                         />
@@ -5873,7 +5873,7 @@ return vm?.isCluster ?? false
                           {/* Progress bar */}
                           <Box sx={{ mb: 2 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                              <Typography variant="caption" color="text.secondary">Overall Progress</Typography>
+                              <Typography variant="caption" color="text.secondary">{t('inventoryPage.esxiMigration.overallProgress')}</Typography>
                               <Typography variant="caption" fontWeight={700}>{vmMigJob.progress || 0}%</Typography>
                             </Box>
                             <LinearProgress
@@ -5887,24 +5887,24 @@ return vm?.isCluster ?? false
                           {/* Metrics grid */}
                           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
                             <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider' }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>Transfer Speed</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>{t('inventoryPage.esxiMigration.transferSpeed')}</Typography>
                               <Typography variant="body2" fontWeight={700}>{vmMigJob.transferSpeed || '—'}</Typography>
                             </Box>
                             <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider' }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>Disk</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>{t('inventoryPage.esxiMigration.disk')}</Typography>
                               <Typography variant="body2" fontWeight={700}>
                                 {vmMigJob.currentDisk != null && vmMigJob.totalDisks ? `${vmMigJob.currentDisk} / ${vmMigJob.totalDisks}` : '—'}
                               </Typography>
                             </Box>
                             <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider' }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>Transferred</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>{t('inventoryPage.esxiMigration.transferred')}</Typography>
                               <Typography variant="body2" fontWeight={700}>
                                 {vmMigJob.bytesTransferred ? `${(vmMigJob.bytesTransferred / 1073741824).toFixed(1)} GB` : '—'}
                                 {vmMigJob.totalBytes ? <Typography component="span" variant="caption" color="text.secondary"> / {(vmMigJob.totalBytes / 1073741824).toFixed(1)} GB</Typography> : ''}
                               </Typography>
                             </Box>
                             <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider' }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>Target VMID</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>{t('inventoryPage.esxiMigration.targetVmid')}</Typography>
                               <Typography variant="body2" fontWeight={700}>{vmMigJob.targetVmid || '—'}</Typography>
                             </Box>
                           </Box>
@@ -5929,7 +5929,7 @@ return vm?.isCluster ?? false
                             const fillD = `${pathD} L${w},${h} L0,${h} Z`
                             return (
                               <Box sx={{ mt: 2 }}>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, mb: 0.5, display: 'block' }}>Migration Progress Over Time</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, mb: 0.5, display: 'block' }}>{t('inventoryPage.esxiMigration.progressOverTime')}</Typography>
                                 <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={50} preserveAspectRatio="none">
                                   <defs>
                                     <linearGradient id="migGrad" x1="0" y1="0" x2="0" y2="1">
@@ -5947,7 +5947,7 @@ return vm?.isCluster ?? false
                       ) : (
                         <Box sx={{ py: 3, textAlign: 'center' }}>
                           <i className="ri-bar-chart-grouped-line" style={{ fontSize: 36, opacity: 0.12 }} />
-                          <Typography variant="body2" sx={{ opacity: 0.35, mt: 0.5, fontSize: 12 }}>No migration started yet</Typography>
+                          <Typography variant="body2" sx={{ opacity: 0.35, mt: 0.5, fontSize: 12 }}>{t('inventoryPage.esxiMigration.noMigrationStarted')}</Typography>
                         </Box>
                       )}
                     </Box>
@@ -5960,7 +5960,7 @@ return vm?.isCluster ?? false
                     <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
                       <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13 }}>
                         <i className="ri-terminal-box-line" style={{ fontSize: 16, opacity: 0.7 }} />
-                        Migration Logs
+                        {t('inventoryPage.esxiMigration.migrationLogs')}
                         {vmMigJob?.logs?.length > 0 && (
                           <Typography component="span" variant="caption" sx={{ opacity: 0.4 }}>({vmMigJob.logs.length})</Typography>
                         )}
@@ -5979,7 +5979,7 @@ return vm?.isCluster ?? false
                         ))
                       ) : (
                         <Typography variant="body2" sx={{ fontFamily: 'inherit', fontSize: 'inherit', opacity: 0.3, fontStyle: 'italic' }}>
-                          Logs will appear here when a migration is started...
+                          {t('inventoryPage.esxiMigration.logsWillAppear')}
                         </Typography>
                       )}
                     </Box>
@@ -6782,14 +6782,14 @@ return
       <Dialog open={!!esxiMigrateVm} onClose={() => { if (!migStarting && !migJobId) setEsxiMigrateVm(null) }} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <img src="/images/esxi-logo.svg" alt="" width={22} height={22} />
-          Migrate to Proxmox VE
+          {t('inventoryPage.esxiMigration.migrateToProxmox')}
         </DialogTitle>
         <DialogContent>
           {esxiMigrateVm && !migJobId && (
             <Stack spacing={2.5} sx={{ mt: 1 }}>
               {/* Source VM info */}
               <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Source VM</Typography>
+                <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('inventoryPage.esxiMigration.sourceVm')}</Typography>
                 <Typography variant="body1" fontWeight={600}>{esxiMigrateVm.name}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {esxiMigrateVm.connName} — {esxiMigrateVm.cpu || '?'} vCPU · {esxiMigrateVm.memoryMB ? (esxiMigrateVm.memoryMB / 1024).toFixed(1) : '?'} GB RAM
@@ -6804,49 +6804,49 @@ return
 
               {/* Target config */}
               <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Target — Proxmox VE</Typography>
+                <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('inventoryPage.esxiMigration.targetProxmox')}</Typography>
                 <Stack spacing={2}>
                   <TextField
-                    select label="Target Cluster" size="small" fullWidth
+                    select label={t('inventoryPage.esxiMigration.targetCluster')} size="small" fullWidth
                     value={migTargetConn}
                     onChange={e => setMigTargetConn(e.target.value)}
                   >
-                    <MenuItem value="" disabled>Select cluster...</MenuItem>
+                    <MenuItem value="" disabled>{t('inventoryPage.esxiMigration.selectCluster')}</MenuItem>
                     {migPveConnections.map((c: any) => (
                       <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
                     ))}
                   </TextField>
                   <TextField
-                    select label="Target Node" size="small" fullWidth
+                    select label={t('inventoryPage.esxiMigration.targetNode')} size="small" fullWidth
                     value={migTargetNode}
                     onChange={e => setMigTargetNode(e.target.value)}
                     disabled={!migTargetConn || migNodes.length === 0}
                   >
-                    <MenuItem value="" disabled>Select node...</MenuItem>
+                    <MenuItem value="" disabled>{t('inventoryPage.esxiMigration.selectNode')}</MenuItem>
                     {migNodes.map((n: any) => (
                       <MenuItem key={n.node || n.name} value={n.node || n.name}>{n.node || n.name}</MenuItem>
                     ))}
                   </TextField>
                   <TextField
-                    select label="Target Storage" size="small" fullWidth
+                    select label={t('inventoryPage.esxiMigration.targetStorage')} size="small" fullWidth
                     value={migTargetStorage}
                     onChange={e => setMigTargetStorage(e.target.value)}
                     disabled={!migTargetNode || migStorages.length === 0}
                   >
-                    <MenuItem value="" disabled>Select storage...</MenuItem>
+                    <MenuItem value="" disabled>{t('inventoryPage.esxiMigration.selectStorage')}</MenuItem>
                     {migStorages.map((s: any) => (
                       <MenuItem key={s.storage} value={s.storage}>
-                        {s.storage} ({s.type}) — {s.avail ? `${(s.avail / 1073741824).toFixed(1)} GB free` : ''}
+                        {s.storage} ({s.type}) — {s.avail ? `${(s.avail / 1073741824).toFixed(1)} GB ${t('inventoryPage.esxiMigration.free')}` : ''}
                       </MenuItem>
                     ))}
                   </TextField>
                   <TextField
-                    select label="Network Bridge" size="small" fullWidth
+                    select label={t('inventoryPage.esxiMigration.networkBridge')} size="small" fullWidth
                     value={migNetworkBridge}
                     onChange={e => setMigNetworkBridge(e.target.value)}
                     disabled={!migTargetNode || migBridges.length === 0}
                   >
-                    <MenuItem value="" disabled>Select bridge...</MenuItem>
+                    <MenuItem value="" disabled>{t('inventoryPage.esxiMigration.selectBridge')}</MenuItem>
                     {migBridges.map((b: any) => (
                       <MenuItem key={b.iface} value={b.iface}>
                         {b.iface}{b.comments ? ` (${b.comments})` : ''}{b.cidr ? ` — ${b.cidr}` : ''}
@@ -6855,7 +6855,7 @@ return
                   </TextField>
                   <FormControlLabel
                     control={<Switch size="small" checked={migStartAfter} onChange={(_, v) => setMigStartAfter(v)} />}
-                    label={<Typography variant="body2">Start VM after migration</Typography>}
+                    label={<Typography variant="body2">{t('inventoryPage.esxiMigration.startAfterMigration')}</Typography>}
                   />
                 </Stack>
               </Box>
@@ -6864,7 +6864,7 @@ return
               <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: theme.palette.mode === 'dark' ? 'rgba(var(--mui-palette-primary-mainChannel) / 0.08)' : 'rgba(var(--mui-palette-primary-mainChannel) / 0.06)', border: '1px solid', borderColor: 'primary.main', borderOpacity: 0.2, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <i className="ri-information-line" style={{ fontSize: 18, color: theme.palette.primary.main }} />
                 <Typography variant="caption" color="primary">
-                  Cold migration: VM will be powered off. VMDK disks are converted to QCOW2/RAW and hardware config is mapped automatically.
+                  {t('inventoryPage.esxiMigration.coldMigrationInfo')}
                 </Typography>
               </Box>
             </Stack>
@@ -6875,20 +6875,20 @@ return
             <Stack spacing={2} sx={{ mt: 1 }}>
               {/* Status chip */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                {migJob.status === 'completed' && <Chip size="small" label="Completed" color="success" sx={{ fontWeight: 600 }} />}
-                {migJob.status === 'failed' && <Chip size="small" label="Failed" color="error" sx={{ fontWeight: 600 }} />}
-                {migJob.status === 'cancelled' && <Chip size="small" label="Cancelled" color="warning" sx={{ fontWeight: 600 }} />}
+                {migJob.status === 'completed' && <Chip size="small" label={t('inventoryPage.esxiMigration.completed')} color="success" sx={{ fontWeight: 600 }} />}
+                {migJob.status === 'failed' && <Chip size="small" label={t('inventoryPage.esxiMigration.failed')} color="error" sx={{ fontWeight: 600 }} />}
+                {migJob.status === 'cancelled' && <Chip size="small" label={t('inventoryPage.esxiMigration.cancelled')} color="warning" sx={{ fontWeight: 600 }} />}
                 {!['completed', 'failed', 'cancelled'].includes(migJob.status) && (
                   <Chip size="small" label={migJob.currentStep?.replace(/_/g, ' ') || migJob.status} color="primary" sx={{ fontWeight: 600 }} />
                 )}
-                {migJob.targetVmid && <Typography variant="caption" color="text.secondary">VMID: {migJob.targetVmid}</Typography>}
+                {migJob.targetVmid && <Typography variant="caption" color="text.secondary">{t('inventoryPage.esxiMigration.targetVmid')}: {migJob.targetVmid}</Typography>}
               </Box>
 
               {/* Progress bar */}
               {!['completed', 'failed', 'cancelled'].includes(migJob.status) && (
                 <Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary">Progress</Typography>
+                    <Typography variant="caption" color="text.secondary">{t('inventoryPage.esxiMigration.progress')}</Typography>
                     <Typography variant="caption" fontWeight={700}>{migJob.progress || 0}%</Typography>
                   </Box>
                   <LinearProgress variant="determinate" value={migJob.progress || 0} sx={{ height: 6, borderRadius: 3 }} />
@@ -6921,14 +6921,14 @@ return
           {esxiMigrateVm && migStarting && !migJobId && (
             <Box sx={{ py: 4, textAlign: 'center' }}>
               <CircularProgress size={32} />
-              <Typography variant="body2" sx={{ mt: 1, opacity: 0.6 }}>Starting migration...</Typography>
+              <Typography variant="body2" sx={{ mt: 1, opacity: 0.6 }}>{t('inventoryPage.esxiMigration.startingMigration')}</Typography>
             </Box>
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           {!migJobId ? (
             <>
-              <Button onClick={() => setEsxiMigrateVm(null)} disabled={migStarting}>Cancel</Button>
+              <Button onClick={() => setEsxiMigrateVm(null)} disabled={migStarting}>{t('common.cancel')}</Button>
               <Button
                 variant="contained"
                 disabled={!migTargetConn || !migTargetNode || !migTargetStorage || migStarting}
@@ -6964,7 +6964,7 @@ return
                   }
                 }}
               >
-                Start Migration
+                {t('inventoryPage.esxiMigration.startMigration')}
               </Button>
             </>
           ) : (
@@ -6976,7 +6976,7 @@ return
                     await fetch(`/api/v1/migrations/${migJobId}/cancel`, { method: 'POST' })
                   }}
                 >
-                  Cancel Migration
+                  {t('inventoryPage.esxiMigration.cancelMigration')}
                 </Button>
               )}
               {migJob && migJob.status === 'failed' && (
@@ -6987,11 +6987,11 @@ return
                     if (d.data?.jobId) setMigJobId(d.data.jobId)
                   }}
                 >
-                  Retry
+                  {t('inventoryPage.esxiMigration.retry')}
                 </Button>
               )}
               <Button onClick={() => { setEsxiMigrateVm(null); setMigJobId(null); setMigJob(null) }}>
-                Close
+                {t('common.close')}
               </Button>
             </>
           )}

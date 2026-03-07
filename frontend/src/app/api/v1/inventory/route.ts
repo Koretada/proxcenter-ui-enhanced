@@ -193,26 +193,35 @@ async function fetchRawInventory(): Promise<{
         }
       }
 
-      const nodeIpPromises = nodes.map(async (node) => {
-        if (!node?.node) return { node: node.node, ip: undefined }
+      const nodeEnrichPromises = nodes.map(async (node) => {
+        if (!node?.node) return { node: node.node, ip: undefined, mem: undefined, maxmem: undefined }
 
         try {
-          const networks = await pveFetch<any[]>(
-            connConfig,
-            `/nodes/${encodeURIComponent(node.node)}/network`
-          ).catch(() => null)
+          // Fetch network and node status in parallel
+          const [networks, nodeStatus] = await Promise.all([
+            pveFetch<any[]>(connConfig, `/nodes/${encodeURIComponent(node.node)}/network`).catch(() => null),
+            node.status === 'online'
+              ? pveFetch<any>(connConfig, `/nodes/${encodeURIComponent(node.node)}/status`).catch(() => null)
+              : Promise.resolve(null),
+          ])
 
-          return { node: node.node, ip: resolveManagementIp(networks) }
+          return {
+            node: node.node,
+            ip: resolveManagementIp(networks),
+            // Use memory from /nodes/{node}/status (excludes ZFS ARC / kernel caches)
+            mem: nodeStatus?.memory?.total > 0 ? Number(nodeStatus.memory.used || 0) : undefined,
+            maxmem: nodeStatus?.memory?.total > 0 ? Number(nodeStatus.memory.total || 0) : undefined,
+          }
         } catch {
-          return { node: node.node, ip: undefined }
+          return { node: node.node, ip: undefined, mem: undefined, maxmem: undefined }
         }
       })
 
-      const nodeIps = await Promise.all(nodeIpPromises)
-      const nodeIpMap = new Map<string, { ip?: string }>()
+      const nodeEnrichData = await Promise.all(nodeEnrichPromises)
+      const nodeIpMap = new Map<string, { ip?: string; mem?: number; maxmem?: number }>()
 
-      for (const { node, ip } of nodeIps) {
-        if (node) nodeIpMap.set(node, { ip })
+      for (const { node, ip, mem, maxmem } of nodeEnrichData) {
+        if (node) nodeIpMap.set(node, { ip, mem, maxmem })
       }
 
       const haMap = new Map<string, HaResource>()
@@ -232,6 +241,9 @@ async function fetchRawInventory(): Promise<{
         const maintenance = hastate === 'maintenance' ? 'maintenance' : undefined
         nodeMap.set(n.node, {
           ...n,
+          // Override mem/maxmem with accurate values from /nodes/{node}/status
+          ...(extra?.mem !== undefined ? { mem: extra.mem } : {}),
+          ...(extra?.maxmem !== undefined ? { maxmem: extra.maxmem } : {}),
           ip: extra?.ip,
           maintenance,
           guests: []
