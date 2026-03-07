@@ -111,6 +111,31 @@ try {
       "updated_at"  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS "custom_images" (
+      "id"                 TEXT NOT NULL PRIMARY KEY,
+      "slug"               TEXT NOT NULL,
+      "name"               TEXT NOT NULL,
+      "vendor"             TEXT NOT NULL DEFAULT 'custom',
+      "version"            TEXT NOT NULL DEFAULT '',
+      "arch"               TEXT NOT NULL DEFAULT 'amd64',
+      "format"             TEXT NOT NULL DEFAULT 'qcow2',
+      "source_type"        TEXT NOT NULL DEFAULT 'url',
+      "download_url"       TEXT,
+      "checksum_url"       TEXT,
+      "volume_id"          TEXT,
+      "default_disk_size"  TEXT NOT NULL DEFAULT '20G',
+      "min_memory"         INTEGER NOT NULL DEFAULT 512,
+      "recommended_memory" INTEGER NOT NULL DEFAULT 2048,
+      "min_cores"          INTEGER NOT NULL DEFAULT 1,
+      "recommended_cores"  INTEGER NOT NULL DEFAULT 2,
+      "ostype"             TEXT NOT NULL DEFAULT 'l26',
+      "tags"               TEXT,
+      "created_by"         TEXT,
+      "created_at"         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at"         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS "custom_images_slug_key" ON "custom_images" ("slug");
+
     CREATE TABLE IF NOT EXISTS "deployments" (
       "id"              TEXT NOT NULL PRIMARY KEY,
       "blueprint_id"    TEXT,
