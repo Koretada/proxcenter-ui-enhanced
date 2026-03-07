@@ -198,13 +198,16 @@ export async function POST(req: Request) {
     if (type === 'vmware') {
       try {
         const esxiUrl = baseUrl.replace(/\/$/, '')
-        const agent = insecureTLS ? (await import('https')).Agent && new (await import('https')).Agent({ rejectUnauthorized: false }) : undefined
-        const res = await fetch(`${esxiUrl}/sdk/vimServiceVersions.xml`, {
+        const fetchOpts: any = {
           signal: AbortSignal.timeout(10000),
-          // @ts-ignore — Node fetch supports agent via dispatcher
-          ...(insecureTLS ? { dispatcher: agent } : {}),
-        }).catch(() => null)
-        // Accept any response (even 4xx) — it means the ESXi host is reachable
+        }
+        // ESXi almost always uses self-signed certs — use undici Agent to bypass TLS
+        if (insecureTLS) {
+          fetchOpts.dispatcher = new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } })
+        }
+        // Try /sdk/vimServiceVersions.xml first, fallback to / — accept any response (even 4xx) as proof of reachability
+        const res = await fetch(`${esxiUrl}/sdk/vimServiceVersions.xml`, fetchOpts).catch(() => null)
+          || await fetch(`${esxiUrl}/`, { ...fetchOpts, signal: AbortSignal.timeout(10000) }).catch(() => null)
         if (!res) {
           throw new Error('Unable to connect to ESXi host')
         }
