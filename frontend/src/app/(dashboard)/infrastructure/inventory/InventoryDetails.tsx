@@ -6693,7 +6693,7 @@ return
       {/* ESXi Migration Dialog */}
       <Dialog open={!!esxiMigrateVm} onClose={() => { if (!migStarting && !migJobId) setEsxiMigrateVm(null) }} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <img src="/images/icons/esxi-logo.svg" alt="" width={22} height={22} />
+          <img src="/images/esxi-logo.svg" alt="" width={22} height={22} />
           Migrate to Proxmox VE
         </DialogTitle>
         <DialogContent>
