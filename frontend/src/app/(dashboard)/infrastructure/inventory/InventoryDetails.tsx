@@ -456,7 +456,7 @@ return next
   // Fetch storages when node is selected
   useEffect(() => {
     if (!migTargetConn || !migTargetNode) { setMigStorages([]); setMigTargetStorage(''); return }
-    fetch(`/api/v1/connections/${migTargetConn}/nodes/${migTargetNode}/storage`).then(r => r.json()).then(d => {
+    fetch(`/api/v1/connections/${migTargetConn}/nodes/${migTargetNode}/storages?content=images`).then(r => r.json()).then(d => {
       const storages = (d.data || d || []).filter((s: any) => {
         const content = s.content || ''
         return content.includes('images')
