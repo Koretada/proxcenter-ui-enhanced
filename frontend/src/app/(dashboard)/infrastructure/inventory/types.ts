@@ -329,6 +329,7 @@ export type DetailsPayload = {
     hostType: string  // 'vmware' | 'hyperv' | 'xcpng'
     baseUrl: string
     version?: string
+    licenseFull?: boolean
     vms: Array<{
       vmid: string
       name: string
