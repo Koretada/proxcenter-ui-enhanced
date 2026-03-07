@@ -113,6 +113,30 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       data.apiTokenEnc = encryptSecret(body.apiToken)
     }
 
+    // VMware credentials
+    if (body.vmwareUser !== undefined || body.vmwarePassword !== undefined) {
+      // Need current credentials to merge
+      const current = await prisma.connection.findUnique({
+        where: { id },
+        select: { apiTokenEnc: true },
+      })
+      let currentUser = 'root'
+      let currentPass = ''
+      if (current?.apiTokenEnc) {
+        try {
+          const creds = decryptSecret(current.apiTokenEnc)
+          const colonIdx = creds.indexOf(':')
+          if (colonIdx > 0) {
+            currentUser = creds.substring(0, colonIdx)
+            currentPass = creds.substring(colonIdx + 1)
+          }
+        } catch { /* ignore */ }
+      }
+      const newUser = body.vmwareUser || currentUser
+      const newPass = body.vmwarePassword || currentPass
+      data.apiTokenEnc = encryptSecret(`${newUser}:${newPass}`)
+    }
+
     // Champs SSH
     if (body.sshEnabled !== undefined) {
       data.sshEnabled = body.sshEnabled

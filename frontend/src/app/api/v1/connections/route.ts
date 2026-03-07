@@ -103,6 +103,7 @@ export async function POST(req: Request) {
 
     const {
       name, type, baseUrl, uiUrl, insecureTLS, hasCeph, apiToken,
+      vmwareUser, vmwarePassword,
       latitude, longitude, locationLabel,
       sshEnabled, sshPort, sshUser, sshAuthMethod,
       sshKey, sshPassphrase, sshPassword, sshUseSudo,
@@ -115,27 +116,33 @@ export async function POST(req: Request) {
       baseUrl,
       uiUrl,
       insecureTLS,
-      hasCeph: false, // Auto-detected below for PVE connections
+      hasCeph: false,
       latitude: latitude ?? null,
       longitude: longitude ?? null,
       locationLabel: locationLabel ?? null,
-      apiTokenEnc: encryptSecret(apiToken),
-      sshEnabled,
-      sshPort,
-      sshUser,
-      sshAuthMethod: sshEnabled ? sshAuthMethod : null,
-      sshUseSudo: sshEnabled ? sshUseSudo : false,
     }
 
-    // Chiffrer les secrets SSH si fournis
-    if (sshEnabled && sshAuthMethod === 'key' && sshKey) {
-      data.sshKeyEnc = encryptSecret(sshKey)
-      // La passphrase est optionnelle pour les clés
-      if (sshPassphrase) {
-        data.sshPassEnc = encryptSecret(sshPassphrase)
+    if (type === 'vmware') {
+      // VMware: store "user:password" in apiTokenEnc
+      data.apiTokenEnc = encryptSecret(`${vmwareUser || 'root'}:${vmwarePassword || ''}`)
+      data.sshEnabled = false
+    } else {
+      data.apiTokenEnc = encryptSecret(apiToken || '')
+      data.sshEnabled = sshEnabled
+      data.sshPort = sshPort
+      data.sshUser = sshUser
+      data.sshAuthMethod = sshEnabled ? sshAuthMethod : null
+      data.sshUseSudo = sshEnabled ? sshUseSudo : false
+
+      // Chiffrer les secrets SSH si fournis
+      if (sshEnabled && sshAuthMethod === 'key' && sshKey) {
+        data.sshKeyEnc = encryptSecret(sshKey)
+        if (sshPassphrase) {
+          data.sshPassEnc = encryptSecret(sshPassphrase)
+        }
+      } else if (sshEnabled && sshAuthMethod === 'password' && sshPassword) {
+        data.sshPassEnc = encryptSecret(sshPassword)
       }
-    } else if (sshEnabled && sshAuthMethod === 'password' && sshPassword) {
-      data.sshPassEnc = encryptSecret(sshPassword)
     }
 
     // Validate PVE credentials before saving + auto-detect Ceph
@@ -182,6 +189,28 @@ export async function POST(req: Request) {
       } catch (e: any) {
         return NextResponse.json(
           { error: `PBS authentication failed: ${e?.message || 'Unable to connect'}` },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate VMware ESXi connectivity
+    if (type === 'vmware') {
+      try {
+        const esxiUrl = baseUrl.replace(/\/$/, '')
+        const agent = insecureTLS ? (await import('https')).Agent && new (await import('https')).Agent({ rejectUnauthorized: false }) : undefined
+        const res = await fetch(`${esxiUrl}/sdk/vimServiceVersions.xml`, {
+          signal: AbortSignal.timeout(10000),
+          // @ts-ignore — Node fetch supports agent via dispatcher
+          ...(insecureTLS ? { dispatcher: agent } : {}),
+        }).catch(() => null)
+        // Accept any response (even 4xx) — it means the ESXi host is reachable
+        if (!res) {
+          throw new Error('Unable to connect to ESXi host')
+        }
+      } catch (e: any) {
+        return NextResponse.json(
+          { error: `ESXi connection failed: ${e?.message || 'Unable to connect'}. Verify the host IP/hostname and network connectivity.` },
           { status: 400 }
         )
       }

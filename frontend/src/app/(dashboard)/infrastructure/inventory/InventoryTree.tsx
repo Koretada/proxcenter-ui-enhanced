@@ -773,7 +773,7 @@ export default function InventoryTree({ selected, onSelect, onRefreshRef, viewMo
   const [error, setError] = useState<string | null>(null)
   const [clusters, setClusters] = useState<TreeCluster[]>([])
   const [pbsServers, setPbsServers] = useState<TreePbsServer[]>([])
-  const [externalHypervisors, setExternalHypervisors] = useState<{ id: string; name: string; type: string }[]>([])
+  const [externalHypervisors, setExternalHypervisors] = useState<{ id: string; name: string; type: string; vms?: { vmid: string; name: string; status: string; cpu?: number; memory_size_MiB?: number; guest_OS?: string }[] }[]>([])
   const [reloadTick, setReloadTick] = useState(0)
   
   // Helper pour vérifier si une VM est en migration
@@ -1563,6 +1563,28 @@ return next
 
         // Trier PBS par nom
         builtPbs.sort((a, b) => a.name.localeCompare(b.name))
+
+        // Fetch VMs for each VMware connection in parallel
+        const vmwareConns = (externalData || []).filter((h: any) => h.type === 'vmware')
+        if (vmwareConns.length > 0) {
+          const vmPromises = vmwareConns.map(async (conn: any) => {
+            try {
+              const vmRes = await fetch(`/api/v1/vmware/${encodeURIComponent(conn.id)}/vms`)
+              if (vmRes.ok) {
+                const vmJson = await vmRes.json()
+                return { id: conn.id, vms: vmJson?.data?.vms || [] }
+              }
+            } catch { /* ignore */ }
+            return { id: conn.id, vms: [] }
+          })
+          const vmResults = await Promise.all(vmPromises)
+          const vmMap = new Map(vmResults.map(r => [r.id, r.vms]))
+          for (const h of externalData) {
+            if (h.type === 'vmware' && vmMap.has(h.id)) {
+              h.vms = vmMap.get(h.id)
+            }
+          }
+        }
 
         if (!alive) return
         setClusters(built)
@@ -2910,7 +2932,7 @@ return (
             xcpng: { label: 'XCP-NG', icon: 'ri-server-line', color: '#00ADB5' },
           }
 
-          const grouped = externalHypervisors.reduce<Record<string, { id: string; name: string }[]>>((acc, h) => {
+          const grouped = externalHypervisors.reduce<Record<string, typeof externalHypervisors>>((acc, h) => {
             if (!acc[h.type]) acc[h.type] = []
             acc[h.type].push(h)
             return acc
@@ -2919,6 +2941,7 @@ return (
           return Object.entries(grouped).map(([type, conns]) => {
             const cfg = hypervisorConfig[type] || { label: type, icon: 'ri-server-line', color: '#999' }
             const sectionKey = `ext-${type}`
+            const totalVms = conns.reduce((acc, c) => acc + (c.vms?.length || 0), 0)
             return (
               <React.Fragment key={sectionKey}>
                 {/* Section header — same style as PVE / PBS */}
@@ -2932,9 +2955,8 @@ return (
                     {cfg.label}
                   </Typography>
                   <Typography variant="caption" sx={{ fontSize: 10, opacity: 0.8 }}>
-                    ({conns.length})
+                    ({conns.length} hosts{totalVms > 0 ? `, ${totalVms} VMs` : ''})
                   </Typography>
-                  <Chip label={t('common.comingSoon')} size="small" sx={{ height: 14, fontSize: '0.55rem', ml: 0.5 }} />
                 </Box>
                 <Collapse in={!collapsedSections.has(sectionKey)}>
                   {conns.map(conn => (
@@ -2942,12 +2964,47 @@ return (
                       key={`ext:${conn.id}`}
                       itemId={`ext:${conn.id}`}
                       label={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, opacity: 0.6 }}>
-                          <i className={cfg.icon} style={{ fontSize: 14, color: cfg.color }} />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <i className={cfg.icon} style={{ fontSize: 14, color: cfg.color, opacity: 0.8 }} />
                           <span style={{ fontSize: 14 }}>{conn.name}</span>
+                          <span style={{ opacity: 0.5, fontSize: 12 }}>({conn.vms?.length || 0})</span>
                         </Box>
                       }
-                    />
+                    >
+                      {(conn.vms || []).map(vm => (
+                        <TreeItem
+                          key={`extvm:${conn.id}:${vm.vmid}`}
+                          itemId={`extvm:${conn.id}:${vm.vmid}`}
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <Box
+                                component="span"
+                                sx={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: 14,
+                                  height: 14,
+                                }}
+                              >
+                                {vm.status === 'running' ? (
+                                  <PlayArrowIcon sx={{ fontSize: 14, color: '#4caf50', filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.5))' }} />
+                                ) : (
+                                  <StopIcon sx={{ fontSize: 14, color: 'text.disabled', opacity: 0.5 }} />
+                                )}
+                              </Box>
+                              <i className="ri-computer-line" style={{ fontSize: 14, opacity: 0.6 }} />
+                              <span style={{ fontSize: 13 }}>{vm.name || vm.vmid}</span>
+                              {vm.memory_size_MiB && (
+                                <span style={{ opacity: 0.4, fontSize: 11 }}>
+                                  {vm.cpu ? `${vm.cpu}c` : ''}{vm.memory_size_MiB ? `${vm.cpu ? '/' : ''}${Math.round(vm.memory_size_MiB / 1024)}G` : ''}
+                                </span>
+                              )}
+                            </Box>
+                          }
+                        />
+                      ))}
+                    </TreeItem>
                   ))}
                 </Collapse>
               </React.Fragment>

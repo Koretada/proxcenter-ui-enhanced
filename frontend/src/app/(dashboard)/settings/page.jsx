@@ -122,6 +122,8 @@ function ConnectionStatus({ connection, autoTest = false, onNodesLoaded }) {
     try {
       const endpoint = connection.type === 'pbs'
         ? `/api/v1/pbs/${connection.id}/status`
+        : connection.type === 'vmware'
+        ? `/api/v1/vmware/${connection.id}/status`
         : `/api/v1/connections/${connection.id}/nodes`
 
       const res = await fetch(endpoint)
@@ -222,12 +224,16 @@ function ConnectionsTab() {
   const {
     pveConnections,
     pbsConnections,
+    vmwareConnections,
     pveLoading,
     pbsLoading,
+    vmwareLoading,
     pveError,
     pbsError,
+    vmwareError,
     loadPveConnections,
     loadPbsConnections,
+    loadVmwareConnections,
   } = useConnectionsManagement()
 
   // Dialog
@@ -258,27 +264,33 @@ function ConnectionsTab() {
   }
 
   const handleSaveConnection = async (formData) => {
+    const isVmware = addConnType === 'vmware'
     const payload = {
       name: formData.name.trim(),
       type: addConnType,
       baseUrl: formData.baseUrl.trim(),
-      uiUrl: (formData.uiUrl || '').trim() || null,
+      uiUrl: isVmware ? null : (formData.uiUrl || '').trim() || null,
       insecureTLS: !!formData.insecureTLS,
       // Location fields
       latitude: formData.latitude !== '' && !isNaN(parseFloat(formData.latitude)) ? parseFloat(formData.latitude) : null,
       longitude: formData.longitude !== '' && !isNaN(parseFloat(formData.longitude)) ? parseFloat(formData.longitude) : null,
       locationLabel: formData.locationLabel?.trim() || null,
-      // Only include apiToken if provided
-      ...(formData.apiToken.trim() && { apiToken: formData.apiToken.trim() }),
-      // SSH fields
-      sshEnabled: formData.sshEnabled,
-      sshPort: formData.sshPort,
-      sshUser: formData.sshUser,
-      sshAuthMethod: formData.sshAuthMethod || null,
-      sshUseSudo: !!formData.sshUseSudo,
-      ...(formData.sshKey.trim() && { sshKey: formData.sshKey.trim() }),
-      ...(formData.sshPassphrase.trim() && { sshPassphrase: formData.sshPassphrase.trim() }),
-      ...(formData.sshPassword.trim() && { sshPassword: formData.sshPassword.trim() }),
+      // PVE/PBS: API token
+      ...(!isVmware && formData.apiToken.trim() && { apiToken: formData.apiToken.trim() }),
+      // VMware: username + password
+      ...(isVmware && { vmwareUser: formData.vmwareUser?.trim() || 'root' }),
+      ...(isVmware && formData.vmwarePassword && { vmwarePassword: formData.vmwarePassword }),
+      // SSH fields (PVE only)
+      ...(!isVmware && {
+        sshEnabled: formData.sshEnabled,
+        sshPort: formData.sshPort,
+        sshUser: formData.sshUser,
+        sshAuthMethod: formData.sshAuthMethod || null,
+        sshUseSudo: !!formData.sshUseSudo,
+        ...(formData.sshKey.trim() && { sshKey: formData.sshKey.trim() }),
+        ...(formData.sshPassphrase.trim() && { sshPassphrase: formData.sshPassphrase.trim() }),
+        ...(formData.sshPassword.trim() && { sshPassword: formData.sshPassword.trim() }),
+      }),
     }
 
     if (editingConn?.id) {
@@ -303,8 +315,10 @@ function ConnectionsTab() {
     // Reload connections
     if (addConnType === 'pve') {
       loadPveConnections()
-    } else {
+    } else if (addConnType === 'pbs') {
       loadPbsConnections()
+    } else if (addConnType === 'vmware') {
+      loadVmwareConnections()
     }
 
     // En mode onboarding, rediriger vers la page d'accueil après création
@@ -342,7 +356,7 @@ function ConnectionsTab() {
   }
 
   const deleteConnection = async (id, type) => {
-    const typeName = type === 'pbs' ? 'PBS' : 'PVE'
+    const typeName = type === 'pbs' ? 'PBS' : type === 'vmware' ? 'VMware ESXi' : 'PVE'
     const ok = window.confirm(t('settings.deleteConnectionConfirm', { type: typeName }))
 
     if (!ok) return
@@ -350,8 +364,10 @@ function ConnectionsTab() {
 
     if (type === 'pve') {
       await loadPveConnections()
-    } else {
+    } else if (type === 'pbs') {
       await loadPbsConnections()
+    } else if (type === 'vmware') {
+      await loadVmwareConnections()
     }
   }
 
@@ -606,9 +622,86 @@ function ConnectionsTab() {
     [t]
   )
 
+  // VMware columns
+  const vmwareColumns = useMemo(
+    () => [
+      {
+        field: 'name',
+        headerName: t('common.name'),
+        flex: 1,
+        minWidth: 180,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
+            <i className='ri-cloud-line' style={{ opacity: 0.6, color: '#638C1C' }} />
+            <Typography variant='body2' sx={{ fontWeight: 600 }}>{params.value}</Typography>
+          </Box>
+        )
+      },
+      {
+        field: 'baseUrl',
+        headerName: t('settings.esxiHost'),
+        flex: 1.2,
+        minWidth: 200,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            <Typography variant='body2' sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.8rem', opacity: 0.8 }}>
+              {params.value}
+            </Typography>
+          </Box>
+        )
+      },
+      {
+        field: 'status',
+        headerName: t('common.status'),
+        width: 160,
+        renderCell: params => (
+          <ConnectionStatus connection={params.row} autoTest={true} />
+        )
+      },
+      {
+        field: 'locationLabel',
+        headerName: t('settings.location'),
+        width: 140,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: '100%' }}>
+            {params.value ? (
+              <>
+                <i className='ri-map-pin-2-line' style={{ fontSize: 14, opacity: 0.6 }} />
+                <Typography variant='body2' noWrap>{params.value}</Typography>
+              </>
+            ) : (
+              <Typography variant='caption' sx={{ opacity: 0.3 }}>—</Typography>
+            )}
+          </Box>
+        )
+      },
+      {
+        field: 'actions',
+        headerName: '',
+        width: 100,
+        sortable: false,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: '100%' }}>
+            <Tooltip title={t('common.edit')}>
+              <IconButton size='small' onClick={() => openEditDialog(params.row)}>
+                <i className='ri-pencil-line' style={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={t('common.delete')}>
+              <IconButton size='small' color='error' onClick={() => deleteConnection(params.row.id, 'vmware')}>
+                <i className='ri-delete-bin-6-line' style={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )
+      }
+    ],
+    [t]
+  )
+
   return (
     <>
-      {/* Sub-tabs PVE / PBS */}
+      {/* Sub-tabs PVE / PBS / VMware */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs
           value={connTab}
@@ -630,6 +723,15 @@ function ConnectionsTab() {
                 <i className='ri-hard-drive-2-line' style={{ fontSize: 18 }} />
                 <span>{t('settings.proxmoxBackupServer')}</span>
                 <Chip size='small' label={pbsConnections.length} color='secondary' sx={{ height: 18, fontSize: 10, ml: 0.5 }} />
+              </Box>
+            }
+          />
+          <Tab
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <i className='ri-cloud-line' style={{ fontSize: 18, color: '#638C1C' }} />
+                <span>VMware ESXi</span>
+                <Chip size='small' label={vmwareConnections.length} sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#638C1C', color: '#fff' }} />
               </Box>
             }
           />
@@ -714,6 +816,48 @@ function ConnectionsTab() {
               rows={pbsConnections}
               columns={pbsColumns}
               loading={pbsLoading}
+              getRowId={r => r.id}
+              pageSizeOptions={[10, 25, 50]}
+              initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
+              disableRowSelectionOnClick
+              sx={{ '& .MuiDataGrid-row:hover': { backgroundColor: 'action.hover' } }}
+            />
+          )}
+        </Box>
+      </SubTabPanel>
+
+      {/* VMware ESXi Tab */}
+      <SubTabPanel value={connTab} index={2}>
+        {vmwareError && <Alert severity='error' sx={{ mb: 2 }}>{t('common.error')}: {vmwareError}</Alert>}
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant='body2' sx={{ opacity: 0.7 }}>
+            {t('settings.vmwareServers')}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button variant='outlined' size='small' onClick={loadVmwareConnections} disabled={vmwareLoading} startIcon={<i className='ri-refresh-line' />}>
+              {t('common.refresh')}
+            </Button>
+            <Button variant='contained' size='small' sx={{ bgcolor: '#638C1C', '&:hover': { bgcolor: '#4a6915' } }} onClick={() => openAddDialog('vmware')} startIcon={<i className='ri-add-line' />}>
+              {t('common.add')} ESXi
+            </Button>
+          </Box>
+        </Box>
+
+        <Box sx={{ height: 'calc(100vh - 380px)', minHeight: 300 }}>
+          {!vmwareLoading && vmwareConnections.length === 0 ? (
+            <EmptyState
+              icon="ri-cloud-line"
+              title={t('settings.noVmwareConnections')}
+              description={t('settings.noVmwareConnectionsDesc')}
+              action={{ label: `${t('common.add')} ESXi`, onClick: () => openAddDialog('vmware'), icon: 'ri-add-line' }}
+              size="large"
+            />
+          ) : (
+            <DataGrid
+              rows={vmwareConnections}
+              columns={vmwareColumns}
+              loading={vmwareLoading}
               getRowId={r => r.id}
               pageSizeOptions={[10, 25, 50]}
               initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}

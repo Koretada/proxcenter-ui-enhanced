@@ -8,7 +8,7 @@ import { z } from 'zod'
 /** POST /api/v1/connections — create a Proxmox connection */
 export const createConnectionSchema = z.object({
   name: z.string().min(1, 'name is required').transform(s => s.trim()),
-  type: z.enum(['pve', 'pbs']).default('pve'),
+  type: z.enum(['pve', 'pbs', 'vmware']).default('pve'),
   baseUrl: z.string().min(1, 'baseUrl is required').transform(s => s.trim()),
   uiUrl: z.nullable(z.string().transform(s => s.trim())).optional(),
   insecureTLS: z.boolean().default(false),
@@ -16,7 +16,11 @@ export const createConnectionSchema = z.object({
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
   locationLabel: z.string().nullable().optional(),
-  apiToken: z.string().min(1, 'apiToken is required').transform(s => s.trim()),
+  apiToken: z.string().transform(s => s.trim()).optional().default(''),
+
+  // VMware ESXi fields
+  vmwareUser: z.string().transform(s => s.trim()).optional().default(''),
+  vmwarePassword: z.string().optional().default(''),
 
   // SSH fields
   sshEnabled: z.boolean().default(false),
@@ -28,6 +32,23 @@ export const createConnectionSchema = z.object({
   sshPassword: z.nullable(z.string().transform(s => s.trim())).optional(),
   sshUseSudo: z.boolean().default(false),
 }).superRefine((data, ctx) => {
+  // PVE/PBS require apiToken
+  if ((data.type === 'pve' || data.type === 'pbs') && !data.apiToken) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'apiToken is required for PVE/PBS connections',
+      path: ['apiToken'],
+    })
+  }
+  // VMware requires username + password
+  if (data.type === 'vmware') {
+    if (!data.vmwareUser) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'vmwareUser is required', path: ['vmwareUser'] })
+    }
+    if (!data.vmwarePassword) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'vmwarePassword is required', path: ['vmwarePassword'] })
+    }
+  }
   if (data.sshEnabled) {
     if (!data.sshAuthMethod) {
       ctx.addIssue({
@@ -56,7 +77,7 @@ export const createConnectionSchema = z.object({
 /** PATCH /api/v1/connections/[id] — update a connection (all fields optional) */
 export const updateConnectionSchema = z.object({
   name: z.string().min(1).transform(s => s.trim()).optional(),
-  type: z.enum(['pve', 'pbs']).optional(),
+  type: z.enum(['pve', 'pbs', 'vmware']).optional(),
   baseUrl: z.string().min(1).transform(s => s.trim()).optional(),
   uiUrl: z.nullable(z.string().transform(s => s.trim())).optional(),
   insecureTLS: z.boolean().optional(),
@@ -65,6 +86,10 @@ export const updateConnectionSchema = z.object({
   longitude: z.number().min(-180).max(180).nullable().optional(),
   locationLabel: z.string().nullable().optional(),
   apiToken: z.string().transform(s => s.trim()).optional(),
+
+  // VMware ESXi fields
+  vmwareUser: z.string().transform(s => s.trim()).optional(),
+  vmwarePassword: z.string().optional(),
 
   // SSH fields
   sshEnabled: z.boolean().optional(),

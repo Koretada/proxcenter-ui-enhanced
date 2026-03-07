@@ -37,6 +37,9 @@ export type ConnectionFormData = {
   insecureTLS: boolean
   hasCeph: boolean
   apiToken: string
+  // VMware fields
+  vmwareUser: string
+  vmwarePassword: string
   // Location fields
   latitude: string
   longitude: string
@@ -56,7 +59,7 @@ type ConnectionDialogProps = {
   open: boolean
   onClose: () => void
   onSave: (data: ConnectionFormData) => Promise<void>
-  type: 'pve' | 'pbs'
+  type: 'pve' | 'pbs' | 'vmware'
   initialData?: Partial<ConnectionFormData> & { 
     id?: string
     sshKeyConfigured?: boolean
@@ -72,6 +75,8 @@ const defaultFormData: ConnectionFormData = {
   insecureTLS: true,
   hasCeph: false,
   apiToken: '',
+  vmwareUser: 'root',
+  vmwarePassword: '',
   latitude: '',
   longitude: '',
   locationLabel: '',
@@ -211,18 +216,26 @@ export default function ConnectionDialog({
       return
     }
     
-    // Assemble API token from split fields if they were used
-    if (tokenId.trim() && tokenSecret.trim()) {
+    // Assemble API token from split fields if they were used (PVE/PBS only)
+    if (type !== 'vmware' && tokenId.trim() && tokenSecret.trim()) {
       const separator = type === 'pbs' ? ':' : '='
       form.apiToken = `${tokenId.trim()}${separator}${tokenSecret.trim()}`
     }
 
-    if (mode === 'create' && !form.apiToken.trim()) {
+    if (type !== 'vmware' && mode === 'create' && !form.apiToken.trim()) {
       setError(t('settings.errorTokenRequired'))
       return
     }
 
-    // SSH Validation
+    // VMware validation
+    if (type === 'vmware') {
+      if (mode === 'create' && !form.vmwarePassword) {
+        setError(t('settings.errorPasswordRequired'))
+        return
+      }
+    }
+
+    // SSH Validation (PVE only)
     if (form.sshEnabled) {
       if (!form.sshAuthMethod) {
         setError(t('settings.errorSshAuthMethodRequired'))
@@ -240,18 +253,21 @@ export default function ConnectionDialog({
       }
     }
 
-    // Auto-append default port if not specified
-    const defaultPort = type === 'pbs' ? '8007' : '8006'
+    // Auto-append default port if not specified (PVE/PBS only, VMware uses 443)
+    const defaultPort = type === 'vmware' ? '443' : type === 'pbs' ? '8007' : '8006'
     let finalForm = { ...form }
+    // For VMware, auto-prefix https:// if no protocol
+    if (type === 'vmware' && finalForm.baseUrl && !finalForm.baseUrl.match(/^https?:\/\//)) {
+      finalForm.baseUrl = `https://${finalForm.baseUrl}`
+    }
     try {
       const url = new URL(finalForm.baseUrl)
-      if (!url.port) {
+      if (!url.port && type !== 'vmware') {
         url.port = defaultPort
         finalForm.baseUrl = url.toString().replace(/\/$/, '')
       }
     } catch {
-      // If URL parsing fails, try simple append
-      if (finalForm.baseUrl && !finalForm.baseUrl.match(/:\d+/)) {
+      if (finalForm.baseUrl && !finalForm.baseUrl.match(/:\d+/) && type !== 'vmware') {
         finalForm.baseUrl = finalForm.baseUrl.replace(/\/$/, '') + ':' + defaultPort
       }
     }
@@ -270,13 +286,16 @@ export default function ConnectionDialog({
   }
 
   const isPbs = type === 'pbs'
-  const port = isPbs ? '8007' : '8006'
+  const isVmware = type === 'vmware'
+  const port = isVmware ? '443' : isPbs ? '8007' : '8006'
   const isEdit = mode === 'edit'
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {isPbs ? (
+        {isVmware ? (
+          <><i className="ri-cloud-line" style={{ color: '#638C1C' }} /> {isEdit ? t('settings.editVmwareServer') : t('settings.addVmwareServer')}</>
+        ) : isPbs ? (
           <><i className="ri-hard-drive-2-line" /> {isEdit ? t('settings.editPbsServer') : t('settings.addPbsServer')}</>
         ) : (
           <><i className="ri-server-line" /> {isEdit ? t('settings.editPveServer') : t('settings.addPveServer')}</>
@@ -297,9 +316,10 @@ export default function ConnectionDialog({
         </Typography>
 
         <Alert severity="info" sx={{ mb: 2 }}>
-          {t.rich(isPbs ? 'settings.pbsPortInfo' : 'settings.pvePortInfo', {
-            b: (chunks) => <b>{chunks}</b>
-          })}
+          {isVmware
+            ? t.rich('settings.vmwarePortInfo', { b: (chunks: any) => <b>{chunks}</b> })
+            : t.rich(isPbs ? 'settings.pbsPortInfo' : 'settings.pvePortInfo', { b: (chunks: any) => <b>{chunks}</b> })
+          }
         </Alert>
 
         <TextField
@@ -313,22 +333,25 @@ export default function ConnectionDialog({
 
         <TextField
           fullWidth
-          label={t('settings.baseUrlLabel', { port })}
+          label={isVmware ? t('settings.esxiHostLabel') : t('settings.baseUrlLabel', { port })}
           value={form.baseUrl}
           onChange={e => handleChange('baseUrl', e.target.value)}
-          placeholder={t('settings.baseUrlPlaceholder', { port })}
+          placeholder={isVmware ? '192.168.1.100' : t('settings.baseUrlPlaceholder', { port })}
+          helperText={isVmware ? t('settings.esxiHostHelper') : undefined}
           sx={{ mt: 2 }}
           required
         />
 
-        <TextField
-          fullWidth
-          label={t('settings.webInterfaceUrl')}
-          value={form.uiUrl}
-          onChange={e => handleChange('uiUrl', e.target.value)}
-          helperText={t('settings.webInterfaceUrlHelper')}
-          sx={{ mt: 2 }}
-        />
+        {!isVmware && (
+          <TextField
+            fullWidth
+            label={t('settings.webInterfaceUrl')}
+            value={form.uiUrl}
+            onChange={e => handleChange('uiUrl', e.target.value)}
+            helperText={t('settings.webInterfaceUrlHelper')}
+            sx={{ mt: 2 }}
+          />
+        )}
 
         <FormControlLabel
           sx={{ mt: 2 }}
@@ -343,69 +366,106 @@ export default function ConnectionDialog({
 
         <Divider sx={{ my: 3 }} />
 
-        {/* Section: Authentification API */}
+        {/* Section: Authentication */}
         <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           <i className="ri-key-2-line" />
-          {t('settings.apiAuthentication')}
+          {isVmware ? t('settings.vmwareAuthentication') : t('settings.apiAuthentication')}
         </Typography>
 
-        <TextField
-          fullWidth
-          label={t('settings.apiTokenId')}
-          value={tokenId}
-          onChange={e => setTokenId(e.target.value)}
-          placeholder="user@realm!tokenid"
-          helperText={isEdit ? t('settings.apiTokenHelperEdit') : t('settings.apiTokenIdHelper')}
-          sx={{ mt: 1 }}
-          required={!isEdit}
-        />
-        <TextField
-          fullWidth
-          label={t('settings.apiTokenSecret')}
-          value={tokenSecret}
-          onChange={e => setTokenSecret(e.target.value)}
-          type={showTokenSecret ? 'text' : 'password'}
-          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-          helperText={isEdit ? t('settings.apiTokenHelperEdit') : t('settings.apiTokenSecretHelper')}
-          sx={{ mt: 1.5 }}
-          required={!isEdit}
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setShowTokenSecret(!showTokenSecret)} edge="end">
-                    <i className={showTokenSecret ? 'ri-eye-off-line' : 'ri-eye-line'} />
-                  </IconButton>
-                </InputAdornment>
-              )
-            }
-          }}
-        />
+        {isVmware ? (
+          <>
+            <TextField
+              fullWidth
+              label={t('settings.vmwareUsername')}
+              value={form.vmwareUser}
+              onChange={e => handleChange('vmwareUser', e.target.value)}
+              placeholder="root"
+              sx={{ mt: 1 }}
+              required
+            />
+            <TextField
+              fullWidth
+              label={t('settings.vmwarePasswordLabel')}
+              value={form.vmwarePassword}
+              onChange={e => handleChange('vmwarePassword', e.target.value)}
+              type={showPassword ? 'text' : 'password'}
+              helperText={isEdit ? t('settings.vmwarePasswordHelperEdit') : t('settings.vmwarePasswordHelper')}
+              sx={{ mt: 1.5 }}
+              required={!isEdit}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowPassword(!showPassword)} edge="end">
+                        <i className={showPassword ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <TextField
+              fullWidth
+              label={t('settings.apiTokenId')}
+              value={tokenId}
+              onChange={e => setTokenId(e.target.value)}
+              placeholder="user@realm!tokenid"
+              helperText={isEdit ? t('settings.apiTokenHelperEdit') : t('settings.apiTokenIdHelper')}
+              sx={{ mt: 1 }}
+              required={!isEdit}
+            />
+            <TextField
+              fullWidth
+              label={t('settings.apiTokenSecret')}
+              value={tokenSecret}
+              onChange={e => setTokenSecret(e.target.value)}
+              type={showTokenSecret ? 'text' : 'password'}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              helperText={isEdit ? t('settings.apiTokenHelperEdit') : t('settings.apiTokenSecretHelper')}
+              sx={{ mt: 1.5 }}
+              required={!isEdit}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowTokenSecret(!showTokenSecret)} edge="end">
+                        <i className={showTokenSecret ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }
+              }}
+            />
 
-        {!isPbs && (
-          <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
-            <Typography variant="body2">
-              {t('settings.pvePrivsepHint')}
-            </Typography>
-          </Alert>
+            {!isPbs && (
+              <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  {t('settings.pvePrivsepHint')}
+                </Typography>
+              </Alert>
+            )}
+
+            {isPbs && (
+              <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  {t('settings.pbsAuthHintTitle')}
+                </Typography>
+                <Typography variant="body2" component="div">
+                  <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
+                    <li>{t('settings.pbsAuthHintRealm')}</li>
+                    <li>{t('settings.pbsAuthHintFormat')}</li>
+                    <li>{t('settings.pbsAuthHintPerms')}</li>
+                  </ul>
+                </Typography>
+              </Alert>
+            )}
+          </>
         )}
 
-        {isPbs && (
-          <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-              {t('settings.pbsAuthHintTitle')}
-            </Typography>
-            <Typography variant="body2" component="div">
-              <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
-                <li>{t('settings.pbsAuthHintRealm')}</li>
-                <li>{t('settings.pbsAuthHintFormat')}</li>
-                <li>{t('settings.pbsAuthHintPerms')}</li>
-              </ul>
-            </Typography>
-          </Alert>
-        )}
-
-        {!isPbs && (
+        {!isPbs && !isVmware && (
           <>
         <Divider sx={{ my: 3 }} />
 
@@ -668,7 +728,7 @@ export default function ConnectionDialog({
           variant="contained"
           color={isPbs ? 'secondary' : 'primary'}
           onClick={handleSave}
-          disabled={saving || !form.name.trim() || !form.baseUrl.trim() || (!isEdit && !tokenId.trim() && !tokenSecret.trim() && !form.apiToken.trim())}
+          disabled={saving || !form.name.trim() || !form.baseUrl.trim() || (!isVmware && !isEdit && !tokenId.trim() && !tokenSecret.trim() && !form.apiToken.trim()) || (isVmware && !isEdit && !form.vmwarePassword)}
           startIcon={saving ? <CircularProgress size={16} /> : <i className="ri-save-line" />}
         >
           {t('common.save')}

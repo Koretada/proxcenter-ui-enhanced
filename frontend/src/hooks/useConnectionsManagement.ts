@@ -36,6 +36,11 @@ export function useConnectionsManagement() {
   const [pbsLoading, setPbsLoading] = useState(true)
   const [pbsError, setPbsError] = useState<string | null>(null)
 
+  // VMware Connections
+  const [vmwareConnections, setVmwareConnections] = useState<any[]>([])
+  const [vmwareLoading, setVmwareLoading] = useState(true)
+  const [vmwareError, setVmwareError] = useState<string | null>(null)
+
   const loadPveConnections = useCallback(async () => {
     setPveLoading(true)
     setPveError(null)
@@ -66,19 +71,39 @@ export function useConnectionsManagement() {
     }
   }, [])
 
+  const loadVmwareConnections = useCallback(async () => {
+    setVmwareLoading(true)
+    setVmwareError(null)
+
+    try {
+      const json = await fetchJson('/api/v1/connections?type=vmware')
+      setVmwareConnections(Array.isArray(json?.data) ? json.data : [])
+    } catch (e: any) {
+      setVmwareError(e?.message || String(e))
+      setVmwareConnections([])
+    } finally {
+      setVmwareLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     loadPveConnections()
     loadPbsConnections()
-  }, [loadPveConnections, loadPbsConnections])
+    loadVmwareConnections()
+  }, [loadPveConnections, loadPbsConnections, loadVmwareConnections])
 
   return {
     pveConnections,
     pbsConnections,
+    vmwareConnections,
     pveLoading,
     pbsLoading,
+    vmwareLoading,
     pveError,
     pbsError,
+    vmwareError,
     loadPveConnections,
     loadPbsConnections,
+    loadVmwareConnections,
   }
 }
