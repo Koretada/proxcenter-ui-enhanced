@@ -9,6 +9,7 @@ import {
   Chip,
   Collapse,
   IconButton,
+  LinearProgress,
   Paper,
   Skeleton,
   Tooltip,
@@ -19,6 +20,7 @@ import {
 import { DataGrid, GridColDef } from '@mui/x-data-grid'
 
 import { useTaskEvents } from '@/hooks/useTaskEvents'
+import { useProxCenterTasks, type PCTask } from '@/contexts/ProxCenterTasksContext'
 import TaskDetailDialog from './TaskDetailDialog'
 
 // ============================================
@@ -150,6 +152,12 @@ export default function TasksFooter({
     if (status === 'stopped') return t('tasks.status.stopped')
     return status
   }
+
+  const [activeTab, setActiveTab] = useState<'proxmox' | 'proxcenter'>('proxmox')
+
+  // ProxCenter tasks
+  const { tasks: pcTasks, clearDone: clearPCDone, restoreTask } = useProxCenterTasks()
+  const pcRunningCount = pcTasks.filter(t => t.status === 'running').length
 
   // SWR hook for task events
   const { data: tasksRaw, mutate: mutateTasks, isLoading: loading } = useTaskEvents(50)
@@ -462,37 +470,88 @@ export default function TasksFooter({
               className={expanded ? 'ri-arrow-down-s-line' : 'ri-arrow-up-s-line'}
               style={{ fontSize: 18, opacity: 0.7 }}
             />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {t('tasks.title')}
-            </Typography>
-            <Chip
-              size="small"
-              label={tasks.length}
-              sx={{
-                height: 18,
-                fontSize: '0.7rem',
-                '& .MuiChip-label': { px: 0.75 }
-              }}
-            />
-            {runningCount > 0 && (
-              <Chip
-                size="small"
-                label={`${runningCount} ${t('tasks.inProgress')}`}
-                color="primary"
-                variant="outlined"
-                icon={<i className="ri-loader-4-line" style={{ fontSize: 12, animation: 'spin 1s linear infinite' }} />}
+            {/* Tab toggle */}
+            <Box sx={{ display: 'flex', gap: 0, borderRadius: 1, overflow: 'hidden', border: '1px solid rgba(231,227,252,0.15)' }}>
+              <Box
+                onClick={(e) => { e.stopPropagation(); setActiveTab('proxmox') }}
                 sx={{
-                  height: 18,
-                  fontSize: '0.7rem',
-                  '& .MuiChip-label': { px: 0.5 }
+                  px: 1.25, py: 0.25, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+                  bgcolor: activeTab === 'proxmox' ? 'rgba(231,227,252,0.12)' : 'transparent',
+                  opacity: activeTab === 'proxmox' ? 1 : 0.5,
+                  '&:hover': { opacity: 1 },
+                  display: 'flex', alignItems: 'center', gap: 0.5,
                 }}
-              />
+              >
+                <img src="/images/proxmox-logo-dark.svg" alt="" style={{ height: 14, width: 'auto' }} />
+                Proxmox
+              </Box>
+              <Box
+                onClick={(e) => { e.stopPropagation(); setActiveTab('proxcenter') }}
+                sx={{
+                  px: 1.25, py: 0.25, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+                  bgcolor: activeTab === 'proxcenter' ? 'rgba(231,227,252,0.12)' : 'transparent',
+                  opacity: activeTab === 'proxcenter' ? 1 : 0.5,
+                  '&:hover': { opacity: 1 },
+                  display: 'flex', alignItems: 'center', gap: 0.5,
+                  borderLeft: '1px solid rgba(231,227,252,0.15)',
+                }}
+              >
+                <img src="/images/proxcenter-logo-dark.svg" alt="" style={{ height: 14, width: 'auto' }} />
+                ProxCenter
+                {pcRunningCount > 0 && (
+                  <Box sx={{
+                    bgcolor: 'primary.main', color: '#fff', borderRadius: '50%',
+                    width: 16, height: 16, fontSize: 10, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', ml: 0.25,
+                  }}>
+                    {pcRunningCount}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+            {activeTab === 'proxmox' && (
+              <>
+                <Chip
+                  size="small"
+                  label={tasks.length}
+                  sx={{
+                    height: 18,
+                    fontSize: '0.7rem',
+                    '& .MuiChip-label': { px: 0.75 }
+                  }}
+                />
+                {runningCount > 0 && (
+                  <Chip
+                    size="small"
+                    label={`${runningCount} ${t('tasks.inProgress')}`}
+                    color="primary"
+                    variant="outlined"
+                    icon={<i className="ri-loader-4-line" style={{ fontSize: 12, animation: 'spin 1s linear infinite' }} />}
+                    sx={{
+                      height: 18,
+                      fontSize: '0.7rem',
+                      '& .MuiChip-label': { px: 0.5 }
+                    }}
+                  />
+                )}
+                {errorCount > 0 && (
+                  <Chip
+                    size="small"
+                    label={`${errorCount} ${errorCount > 1 ? t('tasks.errors') : t('tasks.error')}`}
+                    color="error"
+                    sx={{
+                      height: 18,
+                      fontSize: '0.7rem',
+                      '& .MuiChip-label': { px: 0.75 }
+                    }}
+                  />
+                )}
+              </>
             )}
-            {errorCount > 0 && (
+            {activeTab === 'proxcenter' && pcTasks.length > 0 && (
               <Chip
                 size="small"
-                label={`${errorCount} ${errorCount > 1 ? t('tasks.errors') : t('tasks.error')}`}
-                color="error"
+                label={pcTasks.length}
                 sx={{
                   height: 18,
                   fontSize: '0.7rem',
@@ -526,7 +585,94 @@ export default function TasksFooter({
 
         {/* Content */}
         <Collapse in={expanded}>
-          <Box sx={{ height: maxHeight }}>
+          {/* ProxCenter tasks tab */}
+          {activeTab === 'proxcenter' && (
+            <Box sx={{ height: maxHeight, overflow: 'auto' }}>
+              {pcTasks.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.4 }}>
+                  <Typography variant="body2">No ProxCenter tasks</Typography>
+                </Box>
+              ) : (
+                <>
+                  {pcTasks.map((task) => (
+                    <Box
+                      key={task.id}
+                      onClick={() => restoreTask(task.id)}
+                      sx={{
+                        px: 2, py: 1,
+                        borderBottom: '1px solid rgba(231,227,252,0.08)',
+                        display: 'flex', alignItems: 'center', gap: 2,
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: 'rgba(231,227,252,0.06)' },
+                      }}
+                    >
+                      {/* Icon */}
+                      <i
+                        className={
+                          task.type === 'upload' ? 'ri-upload-2-line' :
+                          task.type === 'download' ? 'ri-download-2-line' :
+                          'ri-settings-3-line'
+                        }
+                        style={{ fontSize: 16, opacity: 0.6, flexShrink: 0 }}
+                      />
+                      {/* Label */}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }} noWrap>
+                          {task.label}
+                        </Typography>
+                        {task.detail && (
+                          <Typography variant="caption" sx={{ opacity: 0.5, fontSize: '0.65rem' }} noWrap>
+                            {task.detail}
+                          </Typography>
+                        )}
+                      </Box>
+                      {/* Progress */}
+                      <Box sx={{ width: 120, flexShrink: 0 }}>
+                        {task.status === 'running' ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            <LinearProgress
+                              variant={task.progress > 0 ? 'determinate' : 'indeterminate'}
+                              value={task.progress > 0 ? task.progress : undefined}
+                              sx={{ flex: 1, height: 4, borderRadius: 1 }}
+                            />
+                            {task.progress > 0 && (
+                              <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, minWidth: 28, textAlign: 'right' }}>
+                                {task.progress}%
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : null}
+                      </Box>
+                      {/* Status */}
+                      <Chip
+                        size="small"
+                        label={task.status === 'running' ? t('tasks.status.running') : task.status === 'done' ? 'Done' : 'Error'}
+                        color={task.status === 'running' ? 'primary' : task.status === 'done' ? 'success' : 'error'}
+                        variant={task.status === 'running' ? 'outlined' : 'filled'}
+                        icon={task.status === 'running' ? (
+                          <i className="ri-loader-4-line" style={{ fontSize: 12, marginLeft: 4, animation: 'spin 1s linear infinite' }} />
+                        ) : undefined}
+                        sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-label': { px: 1 } }}
+                      />
+                    </Box>
+                  ))}
+                  {pcTasks.some(t => t.status !== 'running') && (
+                    <Box sx={{ px: 2, py: 0.75, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Typography
+                        variant="caption"
+                        onClick={(e) => { e.stopPropagation(); clearPCDone() }}
+                        sx={{ opacity: 0.4, cursor: 'pointer', '&:hover': { opacity: 0.8 }, fontSize: '0.65rem' }}
+                      >
+                        Clear completed
+                      </Typography>
+                    </Box>
+                  )}
+                </>
+              )}
+            </Box>
+          )}
+          {/* Proxmox tasks tab */}
+          <Box sx={{ height: maxHeight, display: activeTab === 'proxmox' ? 'block' : 'none' }}>
             {loading ? (
               <Box sx={{ p: 2 }}>
                 {[...Array(5)].map((_, i) => (

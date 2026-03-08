@@ -14,6 +14,7 @@ import Navbar from '@components/layout/vertical/Navbar'
 import ScrollToTop from '@core/components/scroll-to-top'
 import TasksFooter from '@components/TasksFooter'
 import OnboardingGuard from '@components/OnboardingGuard'
+import { ProxCenterTasksProvider } from '@/contexts/ProxCenterTasksContext'
 
 // Util Imports
 import { getMode, getSystemMode } from '@core/utils/serverHelpers'
@@ -29,6 +30,7 @@ const Layout = async props => {
 
   return (
     <Providers direction={direction}>
+      <ProxCenterTasksProvider>
       <LayoutWrapper
         systemMode={systemMode}
         verticalLayout={
@@ -43,6 +45,7 @@ const Layout = async props => {
         }
       />
       <TasksFooter />
+      </ProxCenterTasksProvider>
       <ScrollToTop className='mui-fixed'>
         <Button variant='contained' className='is-10 bs-10 rounded-full p-0 min-is-0 flex items-center justify-center'>
           <i className='ri-arrow-up-line' />

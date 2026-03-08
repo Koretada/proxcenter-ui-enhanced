@@ -7,6 +7,12 @@ const nextConfig = {
     output: 'standalone',
     basePath: process.env.BASEPATH,
     serverExternalPackages: ['ssh2'],
+    experimental: {
+        serverActions: {
+            bodySizeLimit: '10gb',
+        },
+        proxyClientMaxBodySize: '10gb',
+    },
     turbopack: {
         root: '.',
     },

@@ -349,6 +349,8 @@ export type DetailsPayload = {
       ctime?: number
       vmid?: number
       notes?: string
+      encrypted?: boolean | string
+      verification?: { state: string; upid?: string } | null
     }>
   }
 

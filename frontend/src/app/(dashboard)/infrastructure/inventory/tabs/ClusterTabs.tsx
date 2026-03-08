@@ -303,7 +303,7 @@ export default function ClusterTabs(props: any) {
     <>
           {/* Onglets pour Cluster: Summary / Nodes / VMs / HA / Backups / Notes / Ceph / Storage / Firewall / Rolling Update / Cluster */}
           {selection?.type === 'cluster' && data.nodesData ? (
-            <Card variant="outlined" sx={{ width: '100%', borderRadius: 2, flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Card variant="outlined" sx={{ width: '100%', borderRadius: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <Tabs
                 value={clusterTab}
                 onChange={(_e, v) => setClusterTab(v)}
@@ -477,7 +477,7 @@ export default function ClusterTabs(props: any) {
                 />
               </Tabs>
               
-              <CardContent sx={{ p: 0, '&:last-child': { pb: 0 }, flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ p: 0, '&:last-child': { pb: 0 }, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {/* Onglet Summary - Index 0 */}
                 {clusterTab === 0 && (
                   <Box sx={{ p: 2, overflow: 'auto' }}>
@@ -1783,7 +1783,7 @@ export default function ClusterTabs(props: any) {
 
                 {/* Onglet Ceph - Index 7 */}
                 {clusterTab === 7 && (
-                  <Box sx={{ p: 2 }}>
+                  <Box sx={{ p: 2, overflow: 'auto', flex: 1, minHeight: 0 }}>
                     {clusterCephLoading ? (
                       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                         <CircularProgress size={24} />

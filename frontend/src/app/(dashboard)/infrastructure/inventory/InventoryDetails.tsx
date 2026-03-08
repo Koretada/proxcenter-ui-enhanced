@@ -108,6 +108,7 @@ import { useNodeData } from './hooks/useNodeData'
 import VmDetailTabs from './tabs/VmDetailTabs'
 import ClusterTabs from './tabs/ClusterTabs'
 import NodeTabs from './tabs/NodeTabs'
+import { UploadDialog } from '@/components/storage/StorageContentBrowser'
 
 
 
@@ -116,12 +117,34 @@ import NodeTabs from './tabs/NodeTabs'
 /* Storage content group with search + sort                           */
 /* ------------------------------------------------------------------ */
 
-function StorageContentGroup({ group, formatBytes: fmt }: {
-  group: { label: string; icon: string; items: any[] }
+function StorageContentGroup({ group, formatBytes: fmt, onUpload, onDelete }: {
+  group: { label: string; icon: string; items: any[]; contentType?: string }
   formatBytes: (n: number) => string
+  onUpload?: () => void
+  onDelete?: (volid: string) => Promise<void>
 }) {
   const [search, setSearch] = React.useState('')
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc' | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<any>(null)
+  const [deleting, setDeleting] = React.useState(false)
+  const [deleteError, setDeleteError] = React.useState<string | null>(null)
+
+  // Don't allow delete on VM disks / CT volumes (they're attached)
+  const canDelete = onDelete && group.contentType !== 'images' && group.contentType !== 'rootdir'
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !onDelete) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await onDelete(deleteTarget.volid)
+      setDeleteTarget(null)
+    } catch (e: any) {
+      setDeleteError(e?.message || String(e))
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const filtered = React.useMemo(() => {
     let items = group.items
@@ -141,7 +164,14 @@ function StorageContentGroup({ group, formatBytes: fmt }: {
     return items
   }, [group.items, search, sortDir])
 
+  const getFileName = (volid: string) => {
+    const parts = String(volid || '').split(':')
+    const volPath = parts.length > 1 ? parts.slice(1).join(':') : volid
+    return volPath?.split('/')?.pop() || volPath
+  }
+
   return (
+    <>
     <Card variant="outlined" sx={{ borderRadius: 2 }}>
       <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
         <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -179,6 +209,16 @@ function StorageContentGroup({ group, formatBytes: fmt }: {
               <i className="ri-close-line" style={{ fontSize: 13, opacity: 0.4, cursor: 'pointer' }} onClick={() => setSearch('')} />
             )}
           </Box>
+          {onUpload && (
+            <IconButton
+              size="small"
+              onClick={onUpload}
+              sx={{ p: 0.5, opacity: 0.6, '&:hover': { opacity: 1 } }}
+              title="Upload"
+            >
+              <i className="ri-upload-2-line" style={{ fontSize: 16 }} />
+            </IconButton>
+          )}
         </Box>
         <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
           {filtered.length === 0 ? (
@@ -186,9 +226,7 @@ function StorageContentGroup({ group, formatBytes: fmt }: {
               <Typography variant="caption" sx={{ opacity: 0.4 }}>No results</Typography>
             </Box>
           ) : filtered.map((item: any, idx: number) => {
-            const volParts = String(item.volid || '').split(':')
-            const volPath = volParts.length > 1 ? volParts.slice(1).join(':') : item.volid
-            const fileName = volPath?.split('/')?.pop() || volPath
+            const fileName = getFileName(item.volid)
 
             return (
               <Box
@@ -216,12 +254,52 @@ function StorageContentGroup({ group, formatBytes: fmt }: {
                 <Typography variant="body2" sx={{ opacity: 0.6, flexShrink: 0, fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
                   {item.size ? fmt(item.size) : ''}
                 </Typography>
+                {canDelete && (
+                  <IconButton
+                    size="small"
+                    onClick={() => { setDeleteTarget(item); setDeleteError(null) }}
+                    sx={{ opacity: 0.3, '&:hover': { opacity: 1, color: 'error.main' }, p: 0.25 }}
+                    title="Delete"
+                  >
+                    <i className="ri-delete-bin-line" style={{ fontSize: 14 }} />
+                  </IconButton>
+                )}
               </Box>
             )
           })}
         </Box>
       </CardContent>
     </Card>
+
+    {/* Delete confirmation dialog */}
+    <Dialog open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 800 }}>Delete file</DialogTitle>
+      <DialogContent>
+        <DialogContentText>
+          Are you sure you want to delete{' '}
+          <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+            {deleteTarget ? getFileName(deleteTarget.volid) : ''}
+          </strong>?
+        </DialogContentText>
+        {deleteTarget?.size && (
+          <Typography variant="caption" sx={{ opacity: 0.6, mt: 1, display: 'block' }}>
+            Size: {fmt(deleteTarget.size)}
+          </Typography>
+        )}
+        {deleteError && (
+          <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+        <Button onClick={handleDelete} color="error" variant="contained" disabled={deleting}
+          startIcon={deleting ? <CircularProgress size={16} /> : <i className="ri-delete-bin-line" />}
+        >
+          {deleting ? 'Deleting...' : 'Delete'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   )
 }
 
@@ -438,6 +516,42 @@ export default function InventoryDetails({
   // État pour le clonage depuis la table (VM/Template sélectionné pour cloner)
   const [tableCloneVm, setTableCloneVm] = useState<{ connId: string; node: string; type: string; vmid: string; name: string } | null>(null)
 
+  // PBS storage backup panel states
+  const [pbsRestoreDialog, setPbsRestoreDialog] = useState<{
+    open: boolean
+    backup: any
+    storageType: 'qemu' | 'lxc'
+  }>({ open: false, backup: null, storageType: 'qemu' })
+  const [pbsRestoreStorage, setPbsRestoreStorage] = useState('')
+  const [pbsRestoreVmId, setPbsRestoreVmId] = useState('')
+  const [pbsRestoreBwLimit, setPbsRestoreBwLimit] = useState('')
+  const [pbsRestoreUnique, setPbsRestoreUnique] = useState(false)
+  const [pbsRestoreStart, setPbsRestoreStart] = useState(false)
+  const [pbsRestoreLive, setPbsRestoreLive] = useState(false)
+  const [pbsRestoreOverride, setPbsRestoreOverride] = useState(false)
+  const [pbsRestoreName, setPbsRestoreName] = useState('')
+  const [pbsRestoreMemory, setPbsRestoreMemory] = useState('')
+  const [pbsRestoreCores, setPbsRestoreCores] = useState('')
+  const [pbsRestoreSockets, setPbsRestoreSockets] = useState('')
+  const [pbsRestoring, setPbsRestoring] = useState(false)
+  const [pbsRestoreStorages, setPbsRestoreStorages] = useState<any[]>([])
+  const [pbsRestoreNodes, setPbsRestoreNodes] = useState<any[]>([])
+  const [pbsRestoreNode, setPbsRestoreNode] = useState('')
+  const [pbsFileRestoreDialog, setPbsFileRestoreDialog] = useState<{ open: boolean; backup: any }>({ open: false, backup: null })
+  const [pbsFileLoading, setPbsFileLoading] = useState(false)
+  const [pbsFileError, setPbsFileError] = useState<string | null>(null)
+  const [pbsFilePveStorage, setPbsFilePveStorage] = useState<any>(null)
+  // Tree state: each node has { name, type, size, mtime, browsable, isRawDiskImage, children?: [], expanded?, loaded?, loading? }
+  const [pbsFileTree, setPbsFileTree] = useState<any[]>([])
+  const [pbsFileExpandedPaths, setPbsFileExpandedPaths] = useState<Set<string>>(new Set())
+  const [pbsFileSearch, setPbsFileSearch] = useState('')
+  const [pbsFileDownloading, setPbsFileDownloading] = useState<string | null>(null)
+  const [pbsStorageSearch, setPbsStorageSearch] = useState('')
+  const [pbsStoragePage, setPbsStoragePage] = useState(0)
+  const [pbsStorageSort, setPbsStorageSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'ctime', dir: 'desc' })
+  const [expandedStorageBackupGroups, setExpandedStorageBackupGroups] = useState<Set<string>>(new Set())
+  const [storageUploadOpen, setStorageUploadOpen] = useState(false)
+
   // Initialiser la valeur quand le dialog d'édition d'option s'ouvre
   useEffect(() => {
     if (editOptionDialog) {
@@ -485,6 +599,242 @@ export default function InventoryDetails({
       setEditOptionSaving(false)
     }
   }, [editOptionDialog, editOptionValue, selection])
+
+  // PBS storage: open restore dialog
+  const openPbsRestoreDialog = useCallback(async (backup: any, si: any) => {
+    const vmType = backup.format === 'pbs-ct' ? 'lxc' : 'qemu'
+    setPbsRestoreDialog({ open: true, backup, storageType: vmType })
+    setPbsRestoreVmId(backup.vmid ? String(backup.vmid) : '')
+    setPbsRestoreStorage('')
+    setPbsRestoreBwLimit('')
+    setPbsRestoreUnique(false)
+    setPbsRestoreStart(false)
+    setPbsRestoreLive(false)
+    setPbsRestoreOverride(false)
+    setPbsRestoreName('')
+    setPbsRestoreMemory('')
+    setPbsRestoreCores('')
+    setPbsRestoreSockets('')
+    setPbsRestoreNode(si.node || '')
+
+    // Load nodes and storages for restore target
+    try {
+      const nodesR = await fetch(`/api/v1/connections/${encodeURIComponent(si.connId)}/nodes`, { cache: 'no-store' })
+      if (nodesR.ok) {
+        const json = await nodesR.json()
+        const nodes = Array.isArray(json) ? json : (json?.data || [])
+        setPbsRestoreNodes(nodes.filter((n: any) => n.status === 'online'))
+      }
+    } catch {}
+
+    // Load storages on the target node
+    const node = si.node || ''
+    if (node) {
+      try {
+        const storR = await fetch(`/api/v1/connections/${encodeURIComponent(si.connId)}/nodes/${encodeURIComponent(node)}/storages?content=${vmType === 'lxc' ? 'rootdir' : 'images'}`, { cache: 'no-store' })
+        if (storR.ok) {
+          const json = await storR.json()
+          setPbsRestoreStorages(json?.data || [])
+        }
+      } catch {}
+    }
+  }, [])
+
+  // PBS storage: load storages when node changes
+  const loadPbsRestoreStoragesForNode = useCallback(async (node: string, connId: string, vmType: string) => {
+    setPbsRestoreNode(node)
+    setPbsRestoreStorage('')
+    setPbsRestoreStorages([])
+    if (!node) return
+    try {
+      const storR = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/storages?content=${vmType === 'lxc' ? 'rootdir' : 'images'}`, { cache: 'no-store' })
+      if (storR.ok) {
+        const json = await storR.json()
+        setPbsRestoreStorages(json?.data || [])
+      }
+    } catch {}
+  }, [])
+
+  // PBS storage: execute restore
+  const handlePbsRestore = useCallback(async () => {
+    if (!pbsRestoreDialog.backup || !data?.storageInfo) return
+    const si = data.storageInfo
+    const backup = pbsRestoreDialog.backup
+    const node = pbsRestoreNode || si.node
+    if (!node) return
+
+    setPbsRestoring(true)
+    try {
+      const body: Record<string, any> = {
+        vmid: parseInt(pbsRestoreVmId) || backup.vmid,
+        archive: backup.volid,
+        type: pbsRestoreDialog.storageType,
+      }
+      if (pbsRestoreStorage) body.storage = pbsRestoreStorage
+      if (pbsRestoreBwLimit) body.bwlimit = parseInt(pbsRestoreBwLimit)
+      if (pbsRestoreUnique) body.unique = true
+      if (pbsRestoreStart) body.start = true
+      if (pbsRestoreLive) body.live = true
+      if (pbsRestoreOverride) {
+        if (pbsRestoreName) body.name = pbsRestoreName
+        if (pbsRestoreMemory) body.memory = parseInt(pbsRestoreMemory)
+        if (pbsRestoreCores) body.cores = parseInt(pbsRestoreCores)
+        if (pbsRestoreSockets) body.sockets = parseInt(pbsRestoreSockets)
+      }
+
+      const res = await fetch(
+        `/api/v1/connections/${encodeURIComponent(si.connId)}/nodes/${encodeURIComponent(node)}/restore`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      )
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+
+      if (json.data) trackTask({ upid: json.data, connId: si.connId, node, description: `Restore ${pbsRestoreDialog.storageType === 'lxc' ? 'CT' : 'VM'} ${pbsRestoreVmId}` })
+      toast.success(t('inventory.pbsRestoreStarted'))
+      setPbsRestoreDialog({ open: false, backup: null, storageType: 'qemu' })
+    } catch (e: any) {
+      toast.error(e.message || t('common.error'))
+    } finally {
+      setPbsRestoring(false)
+    }
+  }, [pbsRestoreDialog, pbsRestoreVmId, pbsRestoreStorage, pbsRestoreBwLimit, pbsRestoreUnique, pbsRestoreStart, pbsRestoreLive, pbsRestoreOverride, pbsRestoreName, pbsRestoreMemory, pbsRestoreCores, pbsRestoreSockets, pbsRestoreNode, data, trackTask, toast, t])
+
+  // PBS file restore: helper to parse files from API response
+  const parsePbsFiles = useCallback((files: any[]) => {
+    return files.map((f: any) => {
+      const fileName = (f.name || '').replace(/^\//, '')
+      const isBrowsable = f.browsable || f.type === 'virtual' || f.type === 'directory' || f.leaf === 0 || f.leaf === false
+      const isRawDiskImage = !isBrowsable && fileName && (
+        fileName.endsWith('.img.fidx') || fileName.endsWith('.img.didx') ||
+        fileName.endsWith('.raw.fidx') || fileName.endsWith('.raw.didx')
+      )
+      return { ...f, isRawDiskImage, browsable: isBrowsable, children: isBrowsable ? [] : undefined, loaded: false, loading: false }
+    })
+  }, [])
+
+  // PBS storage: open file restore dialog
+  const openPbsFileRestore = useCallback(async (backup: any, si: any) => {
+    setPbsFileRestoreDialog({ open: true, backup })
+    setPbsFileTree([])
+    setPbsFileExpandedPaths(new Set())
+    setPbsFileSearch('')
+    setPbsFileLoading(true)
+    setPbsFileError(null)
+    setPbsFilePveStorage({ storage: si.storage, connId: si.connId, node: si.node })
+
+    try {
+      const params = new URLSearchParams({ storage: si.storage, volume: backup.volid, filepath: '/' })
+      const res = await fetch(`/api/v1/connections/${encodeURIComponent(si.connId)}/file-restore?${params}`)
+      const json = await res.json()
+      if (json.error && !json.data?.files?.length) {
+        setPbsFileError(json.error)
+      } else {
+        setPbsFileTree(parsePbsFiles(json.data?.files || []))
+        if (json.error) setPbsFileError(json.error)
+      }
+    } catch (e: any) {
+      setPbsFileError(e.message || 'Error')
+    } finally {
+      setPbsFileLoading(false)
+    }
+  }, [parsePbsFiles])
+
+  // PBS file restore: toggle expand a tree node (load children on first expand)
+  const pbsToggleTreeNode = useCallback(async (treePath: string) => {
+    const dialog = pbsFileRestoreDialog
+    if (!dialog.backup || !data?.storageInfo) return
+    const si = data.storageInfo
+
+    // If already expanded, just collapse
+    if (pbsFileExpandedPaths.has(treePath)) {
+      setPbsFileExpandedPaths(prev => { const next = new Set(prev); next.delete(treePath); return next })
+      return
+    }
+
+    // Find the node in the tree and check if already loaded
+    const pathParts = treePath.split('/').filter(Boolean)
+    let nodes = pbsFileTree
+    let targetNode: any = null
+    for (const part of pathParts) {
+      targetNode = nodes.find((n: any) => n.name === part)
+      if (!targetNode) return
+      nodes = targetNode.children || []
+    }
+
+    // Expand it
+    setPbsFileExpandedPaths(prev => { const next = new Set(prev); next.add(treePath); return next })
+
+    // If children already loaded, done
+    if (targetNode.loaded) return
+
+    // Mark as loading
+    const updateNodeInTree = (tree: any[], parts: string[], updater: (node: any) => any): any[] => {
+      return tree.map(n => {
+        if (n.name === parts[0]) {
+          if (parts.length === 1) return updater(n)
+          return { ...n, children: updateNodeInTree(n.children || [], parts.slice(1), updater) }
+        }
+        return n
+      })
+    }
+
+    setPbsFileTree(prev => updateNodeInTree(prev, pathParts, n => ({ ...n, loading: true })))
+
+    try {
+      const params = new URLSearchParams({
+        storage: si.storage,
+        volume: dialog.backup.volid,
+        filepath: `/${treePath}`,
+      })
+      const res = await fetch(`/api/v1/connections/${encodeURIComponent(si.connId)}/file-restore?${params}`)
+      const json = await res.json()
+      const children = parsePbsFiles(json.data?.files || [])
+
+      setPbsFileTree(prev => updateNodeInTree(prev, pathParts, n => ({
+        ...n, children, loaded: true, loading: false,
+      })))
+    } catch (e: any) {
+      setPbsFileTree(prev => updateNodeInTree(prev, pathParts, n => ({ ...n, loading: false })))
+      setPbsFileError(e.message)
+    }
+  }, [pbsFileRestoreDialog, data, pbsFileTree, pbsFileExpandedPaths, parsePbsFiles])
+
+  // PBS file restore: download
+  const pbsDownloadFile = useCallback(async (treePath: string, isDirectory = false) => {
+    if (!pbsFileRestoreDialog.backup) return
+    const si = data?.storageInfo || pbsFilePveStorage
+    if (!si) return
+    const params = new URLSearchParams({
+      storage: si.storage,
+      volume: pbsFileRestoreDialog.backup.volid,
+      filepath: `/${treePath}`,
+    })
+    if (isDirectory) params.set('directory', '1')
+    const url = `/api/v1/connections/${encodeURIComponent(si.connId)}/file-restore/download?${params}`
+
+    setPbsFileDownloading(treePath)
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`)
+      const blob = await res.blob()
+      const fileName = treePath.split('/').pop() || 'download'
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = isDirectory ? `${fileName}.tar.zst` : fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(a.href)
+    } catch (e: any) {
+      console.error('Download error:', e)
+    } finally {
+      setPbsFileDownloading(null)
+    }
+  }, [pbsFileRestoreDialog, data, pbsFilePveStorage])
 
   // Favoris : utiliser les props si fournies, sinon état local
   const [localFavorites, setLocalFavorites] = useState<Set<string>>(new Set())
@@ -1452,6 +1802,7 @@ return next
   const [expandedClusterNodes, setExpandedClusterNodes] = useState<Set<string>>(new Set()) // Nodes expanded dans l'onglet VMs du cluster
   const [pbsTab, setPbsTab] = useState(0) // 0 = Summary, 1 = Backups (pour datastore)
   const [pbsBackupSearch, setPbsBackupSearch] = useState('')
+  const [pbsBackupPage, setPbsBackupPage] = useState(0)
   const [pbsTimeframe, setPbsTimeframe] = useState<'hour' | 'day' | 'week' | 'month' | 'year'>('hour') // Timeframe pour les graphiques PBS
   const [pbsRrdData, setPbsRrdData] = useState<any[]>([]) // Données RRD du serveur PBS
   const [datastoreRrdData, setDatastoreRrdData] = useState<any[]>([]) // Données RRD du datastore
@@ -1589,6 +1940,10 @@ return next
   const [clusterCephLoading, setClusterCephLoading] = useState(false)
   const [clusterCephLoaded, setClusterCephLoaded] = useState(false)
   const [clusterCephTimeframe, setClusterCephTimeframe] = useState<number>(60) // Durée en secondes (60s, 300s=5min, 600s=10min, 1800s=30min)
+
+  // États pour Ceph perf sur storage RBD/CephFS
+  const [storageCephPerf, setStorageCephPerf] = useState<any>(null)
+  const [storageCephPerfHistory, setStorageCephPerfHistory] = useState<Array<{ time: number; read_bytes_sec: number; write_bytes_sec: number; read_op_per_sec: number; write_op_per_sec: number }>>([])
 
   // États pour Storage du cluster
   const [clusterStorageData, setClusterStorageData] = useState<any[]>([])
@@ -3625,6 +3980,41 @@ return
     setClusterFirewallLoaded(false)
   }, [selection?.id])
 
+  // Poll Ceph perf when viewing a Ceph (rbd/cephfs) storage
+  useEffect(() => {
+    const isCephStorage = selection?.type === 'storage' && data?.storageInfo && (data.storageInfo.type === 'rbd' || data.storageInfo.type === 'cephfs')
+    if (!isCephStorage) {
+      setStorageCephPerf(null)
+      setStorageCephPerfHistory([])
+      return
+    }
+    const connId = data.storageInfo.connId
+    const fetchPerf = async () => {
+      try {
+        const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/ceph/status`, { cache: 'no-store' })
+        const json = await res.json()
+        if (json.data?.pgmap) {
+          const now = Date.now()
+          const pt = {
+            time: now,
+            read_bytes_sec: json.data.pgmap.read_bytes_sec || 0,
+            write_bytes_sec: json.data.pgmap.write_bytes_sec || 0,
+            read_op_per_sec: json.data.pgmap.read_op_per_sec || 0,
+            write_op_per_sec: json.data.pgmap.write_op_per_sec || 0,
+          }
+          setStorageCephPerf(pt)
+          setStorageCephPerfHistory(prev => {
+            const cutoff = now - 300000 // 5 min
+            return [...prev, pt].filter(p => p.time > cutoff)
+          })
+        }
+      } catch { /* ignore */ }
+    }
+    fetchPerf()
+    const iv = setInterval(fetchPerf, 3000)
+    return () => clearInterval(iv)
+  }, [selection?.type, selection?.id, data?.storageInfo])
+
   // Détecter si les valeurs CPU ont été modifiées
   const cpuModified = useMemo(() => {
     if (!data?.cpuInfo) return false
@@ -5288,9 +5678,9 @@ return vm?.isCluster ?? false
 
           {/* Affichage Datastore - Onglets Summary / Backups */}
           {selection?.type === 'datastore' && data.datastoreInfo && (
-            <Card variant="outlined" sx={{ width: '100%', borderRadius: 2, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              <Tabs 
-                value={pbsTab} 
+            <Card variant="outlined" sx={{ width: '100%', borderRadius: 2, display: 'flex', flexDirection: 'column' }}>
+              <Tabs
+                value={pbsTab}
                 onChange={(_, v) => setPbsTab(v)}
                 sx={{ 
                   borderBottom: '1px solid', 
@@ -5573,7 +5963,7 @@ return vm?.isCluster ?? false
                         fullWidth
                         placeholder={t('common.search') + '...'}
                         value={pbsBackupSearch}
-                        onChange={(e) => setPbsBackupSearch(e.target.value)}
+                        onChange={(e) => { setPbsBackupSearch(e.target.value); setPbsBackupPage(0) }}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
@@ -5593,215 +5983,206 @@ return vm?.isCluster ?? false
                     </Box>
 
                     {/* Liste des backups groupés */}
-                    <Box sx={{ flex: 1, overflow: 'auto' }}>
-                      {(() => {
-                        // Grouper les backups par backupId
-                        const backupGroups = new Map<string, any[]>()
-                        
-                        for (const backup of (data.datastoreInfo.backups || [])) {
-                          const groupKey = backup.backupId
-                          if (!backupGroups.has(groupKey)) {
-                            backupGroups.set(groupKey, [])
-                          }
-                          backupGroups.get(groupKey)!.push(backup)
+                    {(() => {
+                      // Grouper les backups par backupId
+                      const backupGroups = new Map<string, any[]>()
+
+                      for (const backup of (data.datastoreInfo.backups || [])) {
+                        const groupKey = backup.backupId
+                        if (!backupGroups.has(groupKey)) {
+                          backupGroups.set(groupKey, [])
                         }
+                        backupGroups.get(groupKey)!.push(backup)
+                      }
 
-                        // Trier chaque groupe par date (plus récent en premier)
-                        for (const [, group] of backupGroups) {
-                          group.sort((a: any, b: any) => b.backupTime - a.backupTime)
-                        }
+                      // Trier chaque groupe par date (plus récent en premier)
+                      for (const [, group] of backupGroups) {
+                        group.sort((a: any, b: any) => b.backupTime - a.backupTime)
+                      }
 
-                        // Convertir en array et trier les groupes par date du backup le plus récent
-                        let sortedGroups = Array.from(backupGroups.entries())
-                          .sort((a, b) => (b[1][0]?.backupTime || 0) - (a[1][0]?.backupTime || 0))
+                      // Convertir en array et trier les groupes par date du backup le plus récent
+                      let sortedGroups = Array.from(backupGroups.entries())
+                        .sort((a, b) => (b[1][0]?.backupTime || 0) - (a[1][0]?.backupTime || 0))
 
-                        // Filtrer par recherche
-                        if (pbsBackupSearch.trim()) {
-                          const search = pbsBackupSearch.toLowerCase()
-                          sortedGroups = sortedGroups.filter(([groupId, groupBackups]) => {
-                            const latestBackup = groupBackups[0]
-                            return groupId.toLowerCase().includes(search) ||
-                                   (latestBackup?.vmName || '').toLowerCase().includes(search) ||
-                                   (latestBackup?.backupType || '').toLowerCase().includes(search)
-                          })
-                        }
+                      // Filtrer par recherche
+                      if (pbsBackupSearch.trim()) {
+                        const search = pbsBackupSearch.toLowerCase()
+                        sortedGroups = sortedGroups.filter(([groupId, groupBackups]) => {
+                          const latestBackup = groupBackups[0]
+                          return groupId.toLowerCase().includes(search) ||
+                                 (latestBackup?.vmName || '').toLowerCase().includes(search) ||
+                                 (latestBackup?.backupType || '').toLowerCase().includes(search)
+                        })
+                      }
 
-                        if (sortedGroups.length === 0) {
-                          return (
-                            <Box sx={{ p: 4, textAlign: 'center' }}>
-                              <i className="ri-inbox-line" style={{ fontSize: 48, opacity: 0.3 }} />
-                              <Typography variant="body2" sx={{ opacity: 0.5, mt: 1 }}>
-                                {pbsBackupSearch ? t('common.noResults') : t('inventory.pbsNoBackupsFound')}
-                              </Typography>
-                            </Box>
-                          )
-                        }
+                      const pbsGroupPageSize = 25
+                      const pbsGroupTotalPages = Math.max(1, Math.ceil(sortedGroups.length / pbsGroupPageSize))
+                      const pbsGroupCurrentPage = Math.min(pbsBackupPage, pbsGroupTotalPages - 1)
+                      const paginatedGroups = sortedGroups.slice(pbsGroupCurrentPage * pbsGroupPageSize, (pbsGroupCurrentPage + 1) * pbsGroupPageSize)
 
-                        return sortedGroups.map(([groupId, groupBackups]) => {
+                      return (
+                        <>
+                          <Box sx={{ overflow: 'auto', minHeight: 0, maxHeight: 'calc(100vh - 330px)' }}>
+                            {sortedGroups.length === 0 ? (
+                              <Box sx={{ p: 4, textAlign: 'center' }}>
+                                <i className="ri-inbox-line" style={{ fontSize: 48, opacity: 0.3 }} />
+                                <Typography variant="body2" sx={{ opacity: 0.5, mt: 1 }}>
+                                  {pbsBackupSearch ? t('common.noResults') : t('inventory.pbsNoBackupsFound')}
+                                </Typography>
+                              </Box>
+                            ) : paginatedGroups.map(([groupId, groupBackups]) => {
                           const latestBackup = groupBackups[0]
                           const isExpanded = expandedBackupGroups.has(groupId)
                           const totalSize = groupBackups.reduce((sum: number, b: any) => sum + (b.size || 0), 0)
                           const verifiedCount = groupBackups.filter((b: any) => b.verified).length
                           const backupType = latestBackup.backupType || 'vm'
+                          const isVm = backupType === 'vm'
+                          const isCt = backupType === 'ct'
 
                           return (
                             <Box key={groupId}>
                               {/* Header du groupe */}
-                              <Box 
+                              <Box
                                 onClick={() => {
                                   setExpandedBackupGroups(prev => {
                                     const next = new Set(prev)
-                                    if (next.has(groupId)) {
-                                      next.delete(groupId)
-                                    } else {
-                                      next.add(groupId)
-                                    }
+                                    if (next.has(groupId)) next.delete(groupId)
+                                    else next.add(groupId)
                                     return next
                                   })
                                 }}
-                                sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  gap: 1,
-                                  px: 2,
-                                  py: 1.25,
-                                  borderBottom: '1px solid',
-                                  borderColor: 'divider',
+                                sx={{
+                                  display: 'flex', alignItems: 'center', gap: 1,
+                                  px: 1.5, py: 0.4,
+                                  borderBottom: '1px solid', borderColor: 'divider',
                                   cursor: 'pointer',
                                   '&:hover': { bgcolor: 'action.hover' },
                                   bgcolor: isExpanded ? 'action.selected' : 'transparent'
                                 }}
                               >
-                                <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 20, opacity: 0.5 }} />
-                                {/* Icône VM ou CT en début de ligne (juste l'icône, pas de texte) */}
-                                <i 
-                                  className={backupType === 'vm' ? 'ri-computer-line' : backupType === 'ct' ? 'ri-instance-line' : 'ri-server-line'} 
-                                  style={{ 
-                                    fontSize: 18, 
-                                    color: backupType === 'vm' ? '#ff9800' : backupType === 'ct' ? '#9c27b0' : '#757575'
-                                  }} 
+                                <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 16, opacity: 0.5 }} />
+                                <i
+                                  className={isVm ? 'ri-computer-line' : isCt ? 'ri-instance-line' : 'ri-server-line'}
+                                  style={{ fontSize: 14, color: isVm ? '#ff9800' : isCt ? '#9c27b0' : '#757575' }}
                                 />
-                                {/* Nom de la VM/CT */}
-                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                  <Typography variant="body2" fontWeight={600} noWrap>
-                                    {latestBackup.vmName || groupId}
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ opacity: 0.5 }}>
-                                    {groupId}
-                                  </Typography>
-                                </Box>
-                                {/* À droite: nombre de snapshots + badge VM/CT + vérification + taille */}
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                  <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: 11, flex: 1, minWidth: 0 }}>
+                                  {latestBackup.vmName || groupId} <Typography component="span" sx={{ opacity: 0.4, fontSize: 9 }}>({groupId})</Typography>
+                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography variant="caption" sx={{ opacity: 0.7, fontSize: 11 }}>
                                     {groupBackups.length} snapshot{groupBackups.length > 1 ? 's' : ''}
                                   </Typography>
-                                  {/* Badge VM/CT à droite */}
-                                  <Chip 
-                                    size="small" 
-                                    label={backupType.toUpperCase()}
-                                    sx={{ 
-                                      height: 20, 
-                                      minWidth: 32,
-                                      fontSize: 10, 
-                                      fontWeight: 700,
-                                      bgcolor: backupType === 'vm' ? '#ff9800' : backupType === 'ct' ? '#9c27b0' : 'grey.500',
-                                      color: 'white',
-                                      '& .MuiChip-label': { px: 0.75 }
-                                    }}
-                                  />
+                                  <Typography variant="caption" sx={{ opacity: 0.6, minWidth: 60, textAlign: 'right', fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>
+                                    {formatBytes(totalSize)}
+                                  </Typography>
                                   {verifiedCount === groupBackups.length ? (
                                     <MuiTooltip title={t('inventory.pbsAllVerified')}>
-                                      <i className="ri-checkbox-circle-fill" style={{ fontSize: 18, color: '#4caf50' }} />
+                                      <i className="ri-checkbox-circle-fill" style={{ fontSize: 16, color: '#4caf50' }} />
                                     </MuiTooltip>
                                   ) : verifiedCount > 0 ? (
                                     <MuiTooltip title={t('inventory.pbsPartiallyVerified', { count: verifiedCount, total: groupBackups.length })}>
-                                      <i className="ri-checkbox-circle-line" style={{ fontSize: 18, color: '#ff9800' }} />
+                                      <i className="ri-checkbox-circle-line" style={{ fontSize: 16, color: '#ff9800' }} />
                                     </MuiTooltip>
                                   ) : (
                                     <MuiTooltip title={t('inventory.pbsNotVerified')}>
-                                      <i className="ri-checkbox-blank-circle-line" style={{ fontSize: 18, opacity: 0.3 }} />
+                                      <i className="ri-checkbox-blank-circle-line" style={{ fontSize: 16, opacity: 0.3 }} />
                                     </MuiTooltip>
                                   )}
-                                  <Typography variant="body2" sx={{ opacity: 0.6, minWidth: 80, textAlign: 'right' }}>
-                                    {formatBytes(totalSize)}
-                                  </Typography>
                                 </Box>
                               </Box>
 
-                              {/* Snapshots du groupe (expandable) */}
+                              {/* Expanded snapshots */}
                               {isExpanded && (
                                 <Box sx={{ bgcolor: 'action.hover' }}>
-                                  {/* Header des colonnes */}
-                                  <Box sx={{ 
-                                    display: 'grid', 
-                                    gridTemplateColumns: '1fr 100px 80px 50px',
-                                    gap: 1,
-                                    px: 2,
-                                    pl: 5,
-                                    py: 0.5,
-                                    borderBottom: '1px solid',
-                                    borderColor: 'divider',
+                                  {/* Column headers */}
+                                  <Box sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 80px 30px 80px 30px',
+                                    gap: 0.25, px: 1.5, pl: 5, py: 0.3,
+                                    borderBottom: '1px solid', borderColor: 'divider',
                                     bgcolor: 'background.paper'
                                   }}>
-                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6 }}>{t('common.date')}</Typography>
-                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6 }}>{t('common.size')}</Typography>
-                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, textAlign: 'center' }}>{t('common.status')}</Typography>
-                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, textAlign: 'center' }}>{t('common.actions')}</Typography>
+                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10 }}>{t('inventory.pbsDateTime')}</Typography>
+                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10 }}>{t('inventory.pbsSize')}</Typography>
+                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10, textAlign: 'center' }}><i className="ri-lock-line" style={{ fontSize: 10 }} /></Typography>
+                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10, textAlign: 'center' }}>{t('common.actions')}</Typography>
+                                    <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10, textAlign: 'center' }}><i className="ri-checkbox-circle-line" style={{ fontSize: 10 }} /></Typography>
                                   </Box>
                                   {groupBackups.map((backup: any, idx: number) => (
-                                    <Box 
+                                    <Box
                                       key={backup.id || idx}
-                                      sx={{ 
-                                        display: 'grid', 
-                                        gridTemplateColumns: '1fr 100px 80px 50px',
-                                        gap: 1,
-                                        px: 2,
-                                        pl: 5,
-                                        py: 0.75,
+                                      sx={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 80px 30px 80px 30px',
+                                        gap: 0.25, px: 1.5, pl: 5, py: 0.15,
                                         borderBottom: idx < groupBackups.length - 1 ? '1px solid' : 'none',
                                         borderColor: 'divider',
                                         alignItems: 'center',
-                                        '&:hover': { bgcolor: 'action.focus' }
+                                        '&:hover': { bgcolor: 'action.focus' },
+                                        minHeight: 24,
                                       }}
                                     >
                                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                        <i className="ri-time-line" style={{ fontSize: 14, opacity: 0.5 }} />
-                                        <Typography variant="body2">
+                                        <i className="ri-time-line" style={{ fontSize: 12, opacity: 0.5 }} />
+                                        <Typography variant="body2" noWrap sx={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
                                           {backup.backupTimeFormatted}
                                         </Typography>
                                       </Box>
-                                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                                      <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, opacity: 0.7 }}>
                                         {backup.sizeFormatted}
                                       </Typography>
-                                      {/* Icônes de statut */}
-                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                                        {backup.verified ? (
-                                          <MuiTooltip title={t('pbs.verified')}>
-                                            <i className="ri-checkbox-circle-fill" style={{ fontSize: 16, color: '#4caf50' }} />
+                                      <Box sx={{ textAlign: 'center' }}>
+                                        {backup.protected ? (
+                                          <MuiTooltip title={t('pbs.protected')}>
+                                            <i className="ri-lock-fill" style={{ fontSize: 12, color: '#ff9800' }} />
                                           </MuiTooltip>
                                         ) : (
-                                          <MuiTooltip title={t('inventory.pbsNotVerified')}>
-                                            <i className="ri-checkbox-blank-circle-line" style={{ fontSize: 16, opacity: 0.3 }} />
-                                          </MuiTooltip>
-                                        )}
-                                        {backup.protected && (
-                                          <MuiTooltip title={t('pbs.protected')}>
-                                            <i className="ri-lock-fill" style={{ fontSize: 16, color: '#ff9800' }} />
-                                          </MuiTooltip>
+                                          <i className="ri-lock-unlock-line" style={{ fontSize: 12, opacity: 0.15 }} />
                                         )}
                                       </Box>
-                                      {/* Actions */}
-                                      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                                        <MuiTooltip title={t('common.delete')}>
-                                          <IconButton 
-                                            size="small" 
-                                            color="error"
-                                            disabled={backup.protected}
-                                            sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
-                                          >
-                                            <i className="ri-delete-bin-line" style={{ fontSize: 14 }} />
+                                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0 }}>
+                                        <MuiTooltip title={backup.backupType === 'ct' ? t('inventory.pbsRestoreCt') : t('inventory.pbsRestoreVm')}>
+                                          <IconButton size="small" sx={{ p: 0.15 }} onClick={() => {
+                                            // Build a pseudo storageInfo-like item for the restore dialog
+                                            const vmType = backup.backupType === 'ct' ? 'lxc' : 'qemu'
+                                            setPbsRestoreDialog({ open: true, backup: { ...backup, format: backup.backupType === 'ct' ? 'pbs-ct' : 'pbs-vm', vmid: backup.backupId }, storageType: vmType })
+                                            setPbsRestoreVmId(backup.backupId || '')
+                                            setPbsRestoreStorage('')
+                                            setPbsRestoreBwLimit('')
+                                            setPbsRestoreUnique(false)
+                                            setPbsRestoreStart(false)
+                                            setPbsRestoreLive(false)
+                                            setPbsRestoreOverride(false)
+                                            setPbsRestoreName('')
+                                            setPbsRestoreMemory('')
+                                            setPbsRestoreCores('')
+                                            setPbsRestoreSockets('')
+                                            setPbsRestoreNode('')
+                                            // Load nodes
+                                            fetch('/api/v1/nodes').then(r => r.json()).then(j => setPbsRestoreNodes(j.data || [])).catch(() => {})
+                                          }}>
+                                            <i className="ri-inbox-unarchive-line" style={{ fontSize: 13, color: '#2196f3' }} />
                                           </IconButton>
                                         </MuiTooltip>
+                                        <MuiTooltip title={t('common.delete')}>
+                                          <IconButton
+                                            size="small"
+                                            color="error"
+                                            disabled={backup.protected}
+                                            sx={{ p: 0.15, opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                          >
+                                            <i className="ri-delete-bin-line" style={{ fontSize: 13 }} />
+                                          </IconButton>
+                                        </MuiTooltip>
+                                      </Box>
+                                      <Box sx={{ textAlign: 'center' }}>
+                                        {backup.verified ? (
+                                          <MuiTooltip title={t('pbs.verified')}>
+                                            <i className="ri-checkbox-circle-fill" style={{ fontSize: 12, color: '#4caf50' }} />
+                                          </MuiTooltip>
+                                        ) : (
+                                          <i className="ri-checkbox-blank-circle-line" style={{ fontSize: 12, opacity: 0.15 }} />
+                                        )}
                                       </Box>
                                     </Box>
                                   ))}
@@ -5809,9 +6190,39 @@ return vm?.isCluster ?? false
                               )}
                             </Box>
                           )
-                        })
-                      })()}
-                    </Box>
+                        })}
+                          </Box>
+                          {pbsGroupTotalPages > 1 && (
+                            <Box sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              px: 1.5, py: 0.5, borderTop: '1px solid', borderColor: 'divider',
+                              bgcolor: 'action.hover', flexShrink: 0,
+                            }}>
+                              <Typography variant="caption" sx={{ opacity: 0.5, fontSize: 10 }}>
+                                {pbsGroupCurrentPage * pbsGroupPageSize + 1}-{Math.min((pbsGroupCurrentPage + 1) * pbsGroupPageSize, sortedGroups.length)} / {sortedGroups.length}
+                              </Typography>
+                              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                <IconButton size="small" disabled={pbsGroupCurrentPage === 0} onClick={() => setPbsBackupPage(0)} sx={{ p: 0.25 }}>
+                                  <i className="ri-skip-back-line" style={{ fontSize: 14 }} />
+                                </IconButton>
+                                <IconButton size="small" disabled={pbsGroupCurrentPage === 0} onClick={() => setPbsBackupPage(p => Math.max(0, p - 1))} sx={{ p: 0.25 }}>
+                                  <i className="ri-arrow-left-s-line" style={{ fontSize: 14 }} />
+                                </IconButton>
+                                <Typography variant="caption" sx={{ opacity: 0.7, display: 'flex', alignItems: 'center', px: 0.5, fontSize: 10 }}>
+                                  {pbsGroupCurrentPage + 1} / {pbsGroupTotalPages}
+                                </Typography>
+                                <IconButton size="small" disabled={pbsGroupCurrentPage >= pbsGroupTotalPages - 1} onClick={() => setPbsBackupPage(p => Math.min(pbsGroupTotalPages - 1, p + 1))} sx={{ p: 0.25 }}>
+                                  <i className="ri-arrow-right-s-line" style={{ fontSize: 14 }} />
+                                </IconButton>
+                                <IconButton size="small" disabled={pbsGroupCurrentPage >= pbsGroupTotalPages - 1} onClick={() => setPbsBackupPage(pbsGroupTotalPages - 1)} sx={{ p: 0.25 }}>
+                                  <i className="ri-skip-forward-line" style={{ fontSize: 14 }} />
+                                </IconButton>
+                              </Box>
+                            </Box>
+                          )}
+                        </>
+                      )
+                    })()}
                   </Box>
                 )}
               </CardContent>
@@ -5843,7 +6254,7 @@ return vm?.isCluster ?? false
             }
 
             // Group content items by type
-            const groups: Record<string, { label: string; icon: string; items: any[] }> = {}
+            const groups: Record<string, { label: string; icon: string; items: any[]; contentType?: string }> = {}
             const contentLabelMap: Record<string, { label: string; icon: string }> = {
               images: { label: t('inventory.storageVmDisks'), icon: 'ri-hard-drive-3-line' },
               rootdir: { label: t('inventory.storageCtVolumes'), icon: 'ri-archive-line' },
@@ -5857,7 +6268,7 @@ return vm?.isCluster ?? false
               const ct = item.content || 'other'
               if (!groups[ct]) {
                 const cfg = contentLabelMap[ct] || { label: ct, icon: 'ri-file-line' }
-                groups[ct] = { label: cfg.label, icon: cfg.icon, items: [] }
+                groups[ct] = { label: cfg.label, icon: cfg.icon, items: [], contentType: ct }
               }
               groups[ct].items.push(item)
             }
@@ -5868,10 +6279,10 @@ return vm?.isCluster ?? false
             }
 
             return (
-              <Stack spacing={2}>
-                {/* Usage chart card */}
+              <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {/* Usage chart card - fixed, never cropped */}
                 {si.total > 0 && (
-                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                  <Card variant="outlined" sx={{ borderRadius: 2, flexShrink: 0 }}>
                     <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                       <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                         {isCeph
@@ -5881,55 +6292,120 @@ return vm?.isCluster ?? false
                         {t('inventory.storageUsage')}
                       </Typography>
 
-                      {/* Donut-style usage bar */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                        {/* Circular gauge */}
-                        <Box sx={{ position: 'relative', width: 100, height: 100, flexShrink: 0 }}>
-                          <CircularProgress
-                            variant="determinate"
-                            value={100}
-                            size={100}
-                            thickness={6}
-                            sx={{ color: 'action.hover', position: 'absolute' }}
-                          />
-                          <CircularProgress
-                            variant="determinate"
-                            value={si.usedPct}
-                            size={100}
-                            thickness={6}
-                            sx={{
-                              color: si.usedPct > 90 ? 'error.main' : si.usedPct > 70 ? 'warning.main' : 'success.main',
-                              position: 'absolute',
-                            }}
-                          />
-                          <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-                            <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{si.usedPct}%</Typography>
-                            <Typography variant="caption" sx={{ opacity: 0.5, fontSize: 10 }}>used</Typography>
+                      {/* Usage gauge + Ceph graphs on same row */}
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'stretch' }}>
+                        {/* Donut gauge + legend */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                          <Box sx={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
+                            <CircularProgress
+                              variant="determinate"
+                              value={100}
+                              size={90}
+                              thickness={6}
+                              sx={{ color: 'action.hover', position: 'absolute' }}
+                            />
+                            <CircularProgress
+                              variant="determinate"
+                              value={si.usedPct}
+                              size={90}
+                              thickness={6}
+                              sx={{
+                                color: si.usedPct > 90 ? 'error.main' : si.usedPct > 70 ? 'warning.main' : 'success.main',
+                                position: 'absolute',
+                              }}
+                            />
+                            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                              <Typography variant="h6" fontWeight={900} sx={{ lineHeight: 1 }}>{si.usedPct}%</Typography>
+                              <Typography variant="caption" sx={{ opacity: 0.5, fontSize: 10 }}>used</Typography>
+                            </Box>
+                          </Box>
+                          <Box sx={{ minWidth: 120 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <Typography variant="caption" sx={{ opacity: 0.7 }}>Used</Typography>
+                              <Typography variant="caption" fontWeight={600} sx={{ ml: 1 }}>{formatBytes(si.used)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                              <Typography variant="caption" sx={{ opacity: 0.7 }}>Free</Typography>
+                              <Typography variant="caption" fontWeight={600} sx={{ ml: 1 }}>{formatBytes(si.total - si.used)}</Typography>
+                            </Box>
+                            <Divider sx={{ my: 0.5 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="caption" sx={{ opacity: 0.7 }}>Total</Typography>
+                              <Typography variant="caption" fontWeight={700} sx={{ ml: 1 }}>{formatBytes(si.total)}</Typography>
+                            </Box>
                           </Box>
                         </Box>
 
-                        {/* Legend */}
-                        <Box sx={{ flex: 1 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                            <Typography variant="body2" sx={{ opacity: 0.7 }}>Used</Typography>
-                            <Typography variant="body2" fontWeight={600}>{formatBytes(si.used)}</Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                            <Typography variant="body2" sx={{ opacity: 0.7 }}>Free</Typography>
-                            <Typography variant="body2" fontWeight={600}>{formatBytes(si.total - si.used)}</Typography>
-                          </Box>
-                          <Divider sx={{ my: 0.5 }} />
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="body2" sx={{ opacity: 0.7 }}>Total</Typography>
-                            <Typography variant="body2" fontWeight={700}>{formatBytes(si.total)}</Typography>
-                          </Box>
-                        </Box>
+                        {/* Ceph Read/Write + IOPS graphs */}
+                        {isCeph && storageCephPerfHistory.length > 1 && (
+                          <>
+                            {/* Read/Write throughput */}
+                            <Box sx={{ flex: 1, minWidth: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                <Typography variant="caption" fontWeight={600}>
+                                  {t('inventory.pbsTransferRate')}
+                                </Typography>
+                                <Typography variant="caption" fontWeight={700} sx={{ opacity: 0.7, fontSize: 10 }}>
+                                  {storageCephPerf ? `R: ${formatBps(storageCephPerf.read_bytes_sec)} / W: ${formatBps(storageCephPerf.write_bytes_sec)}` : '—'}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ height: 90 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <AreaChart data={storageCephPerfHistory}>
+                                    <YAxis hide domain={[0, 'auto']} />
+                                    <Tooltip
+                                      contentStyle={{ backgroundColor: '#1e1e2f', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
+                                      labelFormatter={(_, payload) => {
+                                        if (payload?.[0]?.payload?.time) return new Date(payload[0].payload.time).toLocaleTimeString()
+                                        return ''
+                                      }}
+                                      formatter={(value: number, name: string) => [formatBps(value), name === 'read_bytes_sec' ? 'Read' : 'Write']}
+                                    />
+                                    <Area type="monotone" dataKey="read_bytes_sec" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="read_bytes_sec" />
+                                    <Area type="monotone" dataKey="write_bytes_sec" stroke={primaryColorLight} fill={primaryColorLight} fillOpacity={0.3} strokeWidth={1} isAnimationActive={false} name="write_bytes_sec" />
+                                  </AreaChart>
+                                </ResponsiveContainer>
+                              </Box>
+                            </Box>
+
+                            {/* IOPS */}
+                            <Box sx={{ flex: 1, minWidth: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                <Typography variant="caption" fontWeight={600}>
+                                  IOPS
+                                </Typography>
+                                <Typography variant="caption" fontWeight={700} sx={{ opacity: 0.7, fontSize: 10 }}>
+                                  {storageCephPerf ? `R: ${storageCephPerf.read_op_per_sec?.toLocaleString() || 0} / W: ${storageCephPerf.write_op_per_sec?.toLocaleString() || 0}` : '—'}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ height: 90 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <AreaChart data={storageCephPerfHistory}>
+                                    <YAxis hide domain={[0, 'auto']} />
+                                    <Tooltip
+                                      contentStyle={{ backgroundColor: '#1e1e2f', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
+                                      labelFormatter={(_, payload) => {
+                                        if (payload?.[0]?.payload?.time) return new Date(payload[0].payload.time).toLocaleTimeString()
+                                        return ''
+                                      }}
+                                      formatter={(value: number, name: string) => [value?.toLocaleString() + ' IOPS', name === 'read_op_per_sec' ? 'Read' : 'Write']}
+                                    />
+                                    <Area type="monotone" dataKey="read_op_per_sec" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="read_op_per_sec" />
+                                    <Area type="monotone" dataKey="write_op_per_sec" stroke={primaryColorLight} fill={primaryColorLight} fillOpacity={0.3} strokeWidth={1} isAnimationActive={false} name="write_op_per_sec" />
+                                  </AreaChart>
+                                </ResponsiveContainer>
+                              </Box>
+                            </Box>
+                          </>
+                        )}
                       </Box>
 
                     </CardContent>
                   </Card>
                 )}
 
+                {/* Scrollable rest */}
+                <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {/* Properties card */}
                 <Card variant="outlined" sx={{ borderRadius: 2 }}>
                   <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
@@ -5961,20 +6437,290 @@ return vm?.isCluster ?? false
                   </CardContent>
                 </Card>
 
-                {/* Content items grouped by type */}
-                {Object.keys(groups).length > 0 ? Object.entries(groups).map(([contentType, group]) => (
-                  <StorageContentGroup key={contentType} group={group} formatBytes={formatBytes} />
-                )) : (si.contentItems || []).length === 0 && (
-                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                    <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                      <i className="ri-folder-open-line" style={{ fontSize: 36, opacity: 0.2 }} />
-                      <Typography variant="body2" sx={{ opacity: 0.5, mt: 1 }}>
-                        {t('inventory.storageEmpty')}
-                      </Typography>
-                    </CardContent>
-                  </Card>
+                {/* PBS storage: grouped backup table */}
+                {si.type === 'pbs' && (groups['backup']?.items?.length > 0) ? (() => {
+                  const backupItems = groups['backup']?.items || []
+
+                  // Group by vmid (e.g. "vm/269")
+                  const groupMap = new Map<string, any[]>()
+                  for (const item of backupItems) {
+                    const volParts = String(item.volid || '').split(':')
+                    const backupPath = volParts.length > 1 ? volParts.slice(1).join(':') : item.volid
+                    const pathParts = backupPath?.split('/') || []
+                    // backup/vm/269/timestamp → groupKey = "vm/269"
+                    const groupKey = pathParts.length >= 3 ? `${pathParts[1]}/${pathParts[2]}` : String(item.vmid || 'unknown')
+                    if (!groupMap.has(groupKey)) groupMap.set(groupKey, [])
+                    groupMap.get(groupKey)!.push(item)
+                  }
+
+                  // Sort each group by ctime desc
+                  for (const [, group] of groupMap) {
+                    group.sort((a: any, b: any) => (b.ctime || 0) - (a.ctime || 0))
+                  }
+
+                  // Sort groups by latest backup
+                  let sortedGroups = Array.from(groupMap.entries())
+                    .sort((a, b) => (b[1][0]?.ctime || 0) - (a[1][0]?.ctime || 0))
+
+                  // Filter by search
+                  if (pbsStorageSearch.trim()) {
+                    const q = pbsStorageSearch.toLowerCase()
+                    sortedGroups = sortedGroups.filter(([groupId, groupItems]) => {
+                      if (groupId.toLowerCase().includes(q)) return true
+                      return groupItems.some((item: any) =>
+                        String(item.volid || '').toLowerCase().includes(q) ||
+                        String(item.notes || '').toLowerCase().includes(q) ||
+                        (item.vmid ? String(item.vmid).includes(q) : false)
+                      )
+                    })
+                  }
+
+                  const totalFiltered = sortedGroups.reduce((sum, [, g]) => sum + g.length, 0)
+
+                  return (
+                    <Card variant="outlined" sx={{ borderRadius: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                      <CardContent sx={{ p: 0, '&:last-child': { pb: 0 }, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                        {/* Header */}
+                        <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, fontSize: 13 }}>
+                            <i className="ri-shield-check-line" style={{ fontSize: 16, opacity: 0.7 }} />
+                            {t('inventory.pbsBackupList')} ({totalFiltered}{pbsStorageSearch ? `/${backupItems.length}` : ''})
+                          </Typography>
+                          <Box sx={{ flex: 1 }} />
+                          <Box sx={{
+                            display: 'flex', alignItems: 'center', gap: 0.5,
+                            border: '1px solid', borderColor: 'divider', borderRadius: 1,
+                            px: 0.75, py: 0.15, maxWidth: 200,
+                          }}>
+                            <i className="ri-search-line" style={{ fontSize: 12, opacity: 0.4 }} />
+                            <input
+                              type="text"
+                              value={pbsStorageSearch}
+                              onChange={e => { setPbsStorageSearch(e.target.value); setPbsStoragePage(0) }}
+                              placeholder={t('inventory.pbsSearchBackups')}
+                              style={{
+                                border: 'none', outline: 'none', background: 'transparent',
+                                fontSize: 11, width: '100%', color: 'inherit',
+                                fontFamily: 'Inter, sans-serif',
+                              }}
+                            />
+                            {pbsStorageSearch && (
+                              <i className="ri-close-line" style={{ fontSize: 12, opacity: 0.4, cursor: 'pointer' }} onClick={() => { setPbsStorageSearch(''); setPbsStoragePage(0) }} />
+                            )}
+                          </Box>
+                        </Box>
+
+                        {/* Grouped backup list */}
+                        <Box sx={{ flex: 1, minHeight: 0, maxHeight: 'calc(100vh - 400px)', overflow: 'auto' }}>
+                          {sortedGroups.length === 0 ? (
+                            <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                              <Typography variant="caption" sx={{ opacity: 0.4 }}>{t('inventory.pbsNoBackups')}</Typography>
+                            </Box>
+                          ) : sortedGroups.map(([groupId, groupItems]) => {
+                            const isExpanded = expandedStorageBackupGroups.has(groupId)
+                            const latest = groupItems[0]
+                            const isVm = latest.format === 'pbs-vm'
+                            const isCt = latest.format === 'pbs-ct'
+                            const backupType = isVm ? 'vm' : isCt ? 'ct' : 'host'
+                            const totalSize = groupItems.reduce((sum: number, i: any) => sum + (i.size || 0), 0)
+                            const verifiedCount = groupItems.filter((i: any) => i.verification?.state === 'ok').length
+                            const vmName = latest.notes || (latest.vmid ? `VM ${latest.vmid}` : groupId)
+
+                            return (
+                              <Box key={groupId}>
+                                {/* Group header */}
+                                <Box
+                                  onClick={() => {
+                                    setExpandedStorageBackupGroups(prev => {
+                                      const next = new Set(prev)
+                                      if (next.has(groupId)) next.delete(groupId)
+                                      else next.add(groupId)
+                                      return next
+                                    })
+                                  }}
+                                  sx={{
+                                    display: 'flex', alignItems: 'center', gap: 1,
+                                    px: 1.5, py: 0.4,
+                                    borderBottom: '1px solid', borderColor: 'divider',
+                                    cursor: 'pointer',
+                                    '&:hover': { bgcolor: 'action.hover' },
+                                    bgcolor: isExpanded ? 'action.selected' : 'transparent',
+                                  }}
+                                >
+                                  <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 16, opacity: 0.5 }} />
+                                  <i
+                                    className={isVm ? 'ri-computer-line' : isCt ? 'ri-instance-line' : 'ri-server-line'}
+                                    style={{ fontSize: 14, color: isVm ? '#ff9800' : isCt ? '#9c27b0' : '#757575' }}
+                                  />
+                                  <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: 11, flex: 1, minWidth: 0 }}>
+                                    {vmName} <Typography component="span" sx={{ opacity: 0.4, fontSize: 9 }}>({groupId})</Typography>
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography variant="caption" sx={{ opacity: 0.7, fontSize: 11 }}>
+                                      {groupItems.length} snapshot{groupItems.length > 1 ? 's' : ''}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ opacity: 0.6, minWidth: 60, textAlign: 'right', fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>
+                                      {formatBytes(totalSize)}
+                                    </Typography>
+                                    {verifiedCount === groupItems.length ? (
+                                      <MuiTooltip title={t('inventory.pbsAllVerified')}>
+                                        <i className="ri-checkbox-circle-fill" style={{ fontSize: 16, color: '#4caf50' }} />
+                                      </MuiTooltip>
+                                    ) : verifiedCount > 0 ? (
+                                      <MuiTooltip title={t('inventory.pbsPartiallyVerified', { count: verifiedCount, total: groupItems.length })}>
+                                        <i className="ri-checkbox-circle-line" style={{ fontSize: 16, color: '#ff9800' }} />
+                                      </MuiTooltip>
+                                    ) : (
+                                      <MuiTooltip title={t('inventory.pbsNotVerified')}>
+                                        <i className="ri-checkbox-blank-circle-line" style={{ fontSize: 16, opacity: 0.3 }} />
+                                      </MuiTooltip>
+                                    )}
+                                  </Box>
+                                </Box>
+
+                                {/* Expanded snapshots */}
+                                {isExpanded && (
+                                  <Box sx={{ bgcolor: 'action.hover' }}>
+                                    {/* Column headers */}
+                                    <Box sx={{
+                                      display: 'grid',
+                                      gridTemplateColumns: '1fr 80px 30px 80px 30px',
+                                      gap: 0.25, px: 1.5, pl: 5, py: 0.3,
+                                      borderBottom: '1px solid', borderColor: 'divider',
+                                      bgcolor: 'background.paper',
+                                    }}>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10 }}>{t('inventory.pbsDateTime')}</Typography>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10 }}>{t('inventory.pbsSize')}</Typography>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10, textAlign: 'center' }}><i className="ri-lock-line" style={{ fontSize: 10 }} /></Typography>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10, textAlign: 'center' }}>{t('common.actions')}</Typography>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10, textAlign: 'center' }}><i className="ri-checkbox-circle-line" style={{ fontSize: 10 }} /></Typography>
+                                    </Box>
+                                    {groupItems.map((item: any, idx: number) => {
+                                      const dateStr = item.ctime
+                                        ? new Date(item.ctime * 1000).toLocaleString(dateLocale || 'en', {
+                                            year: 'numeric', month: '2-digit', day: '2-digit',
+                                            hour: '2-digit', minute: '2-digit',
+                                          })
+                                        : '-'
+                                      const encrypted = item.encrypted
+                                      const verifyOk = item.verification?.state === 'ok'
+                                      const itemIsVm = item.format === 'pbs-vm'
+                                      const itemIsCt = item.format === 'pbs-ct'
+
+                                      return (
+                                        <Box
+                                          key={item.volid || idx}
+                                          sx={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 80px 30px 80px 30px',
+                                            gap: 0.25, px: 1.5, pl: 5, py: 0.15,
+                                            borderBottom: idx < groupItems.length - 1 ? '1px solid' : 'none',
+                                            borderColor: 'divider',
+                                            alignItems: 'center',
+                                            '&:hover': { bgcolor: 'action.focus' },
+                                            minHeight: 24,
+                                          }}
+                                        >
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                            <i className="ri-time-line" style={{ fontSize: 12, opacity: 0.5 }} />
+                                            <Typography variant="body2" noWrap sx={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+                                              {dateStr}
+                                            </Typography>
+                                          </Box>
+                                          <Typography variant="body2" sx={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', opacity: 0.7 }}>
+                                            {item.size ? formatBytes(item.size) : '-'}
+                                          </Typography>
+                                          <Box sx={{ textAlign: 'center' }}>
+                                            {encrypted ? (
+                                              <MuiTooltip title={t('inventory.pbsEncryptedYes')}><i className="ri-lock-fill" style={{ fontSize: 12, color: '#ff9800' }} /></MuiTooltip>
+                                            ) : (
+                                              <i className="ri-lock-unlock-line" style={{ fontSize: 12, opacity: 0.15 }} />
+                                            )}
+                                          </Box>
+                                          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0 }}>
+                                            <MuiTooltip title={itemIsVm ? t('inventory.pbsRestoreVm') : itemIsCt ? t('inventory.pbsRestoreCt') : t('inventory.pbsRestoreVm')}>
+                                              <IconButton size="small" sx={{ p: 0.15 }} onClick={() => openPbsRestoreDialog(item, si)}>
+                                                <i className="ri-inbox-unarchive-line" style={{ fontSize: 13, color: '#2196f3' }} />
+                                              </IconButton>
+                                            </MuiTooltip>
+                                            <MuiTooltip title={t('inventory.pbsFileRestore')}>
+                                              <IconButton size="small" sx={{ p: 0.15 }} onClick={() => openPbsFileRestore(item, si)}>
+                                                <i className="ri-folder-open-line" style={{ fontSize: 13, color: '#ff9800' }} />
+                                              </IconButton>
+                                            </MuiTooltip>
+                                          </Box>
+                                          <Box sx={{ textAlign: 'center' }}>
+                                            {verifyOk ? (
+                                              <MuiTooltip title={t('inventory.pbsVerified')}><i className="ri-checkbox-circle-fill" style={{ fontSize: 12, color: '#4caf50' }} /></MuiTooltip>
+                                            ) : (
+                                              <i className="ri-checkbox-blank-circle-line" style={{ fontSize: 12, opacity: 0.15 }} />
+                                            )}
+                                          </Box>
+                                        </Box>
+                                      )
+                                    })}
+                                  </Box>
+                                )}
+                              </Box>
+                            )
+                          })}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  )
+                })() : null}
+
+                {/* Non-PBS content items grouped by type */}
+                {(si.type !== 'pbs' || !groups['backup']?.items?.length) && (
+                  Object.keys(groups).length > 0 ? Object.entries(groups)
+                    .filter(([ct]) => si.type === 'pbs' ? ct !== 'backup' : true)
+                    .map(([contentType, group]) => (
+                      <StorageContentGroup
+                        key={contentType}
+                        group={group}
+                        formatBytes={formatBytes}
+                        onUpload={['iso', 'snippets', 'vztmpl'].includes(contentType) ? () => setStorageUploadOpen(true) : undefined}
+                        onDelete={async (volid: string) => {
+                          const res = await fetch(
+                            `/api/v1/connections/${encodeURIComponent(si.connId)}/nodes/${encodeURIComponent(si.node)}/storage/${encodeURIComponent(si.storage)}/content/${encodeURIComponent(volid)}`,
+                            { method: 'DELETE' }
+                          )
+                          if (!res.ok) {
+                            const json = await res.json().catch(() => ({}))
+                            throw new Error(json.error || `HTTP ${res.status}`)
+                          }
+                          // Refresh data
+                          if (selection) fetchDetails(selection).then(setData)
+                        }}
+                      />
+                    )) : (si.contentItems || []).length === 0 && (
+                    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                      <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                        <i className="ri-folder-open-line" style={{ fontSize: 36, opacity: 0.2 }} />
+                        <Typography variant="body2" sx={{ opacity: 0.5, mt: 1 }}>
+                          {t('inventory.storageEmpty')}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  )
                 )}
-              </Stack>
+
+                {/* Upload dialog for storage content */}
+                <UploadDialog
+                  open={storageUploadOpen}
+                  onClose={() => setStorageUploadOpen(false)}
+                  onOpen={() => setStorageUploadOpen(true)}
+                  connId={si.connId}
+                  node={si.node}
+                  storage={si.storage}
+                  contentTypes={si.content || []}
+                  onUploaded={() => {
+                    setStorageUploadOpen(false)
+                    if (selection) fetchDetails(selection).then(setData)
+                  }}
+                />
+                </Box>
+              </Box>
             )
           })()}
 
@@ -7544,6 +8290,416 @@ return
             {t('inventoryPage.esxiMigration.upgradePlan')}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* PBS Restore VM/CT Dialog */}
+      <Dialog open={pbsRestoreDialog.open} onClose={() => setPbsRestoreDialog({ open: false, backup: null, storageType: 'qemu' })} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+          <Box sx={{
+            width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            bgcolor: pbsRestoreDialog.storageType === 'lxc' ? alpha('#9c27b0', 0.15) : alpha('#ff9800', 0.15),
+          }}>
+            <i
+              className={pbsRestoreDialog.storageType === 'lxc' ? 'ri-instance-line' : 'ri-computer-line'}
+              style={{ fontSize: 20, color: pbsRestoreDialog.storageType === 'lxc' ? '#9c27b0' : '#ff9800' }}
+            />
+          </Box>
+          {t('inventory.pbsRestoreTitle', {
+            type: pbsRestoreDialog.storageType === 'lxc' ? 'CT' : 'VM',
+            vmid: pbsRestoreDialog.backup?.vmid || '',
+          })}
+        </DialogTitle>
+        <DialogContent sx={{ pt: '8px !important' }}>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {/* Source */}
+            <TextField
+              label={t('inventory.pbsRestoreSource')}
+              value={pbsRestoreDialog.backup?.volid || ''}
+              disabled
+              size="small"
+              fullWidth
+              InputProps={{
+                sx: { fontFamily: 'JetBrains Mono, monospace', fontSize: 12 },
+              }}
+            />
+
+            {/* Target node */}
+            <FormControl size="small" fullWidth>
+              <InputLabel>Node</InputLabel>
+              <Select
+                value={pbsRestoreNode}
+                label="Node"
+                onChange={e => {
+                  const node = e.target.value
+                  if (data?.storageInfo) {
+                    loadPbsRestoreStoragesForNode(node, data.storageInfo.connId, pbsRestoreDialog.storageType)
+                  }
+                }}
+              >
+                {pbsRestoreNodes.map((n: any) => (
+                  <MenuItem key={n.node} value={n.node}>{n.node}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Target storage */}
+            <FormControl size="small" fullWidth>
+              <InputLabel>{t('inventory.pbsRestoreStorage')}</InputLabel>
+              <Select
+                value={pbsRestoreStorage}
+                label={t('inventory.pbsRestoreStorage')}
+                onChange={e => setPbsRestoreStorage(e.target.value)}
+              >
+                <MenuItem value="">({t('common.default')})</MenuItem>
+                {pbsRestoreStorages.map((s: any) => (
+                  <MenuItem key={s.storage} value={s.storage}>{s.storage} ({formatBytes(s.avail || 0)} free)</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* VM ID */}
+            <TextField
+              label={t('inventory.pbsRestoreVmId')}
+              value={pbsRestoreVmId}
+              onChange={e => setPbsRestoreVmId(e.target.value.replace(/\D/g, ''))}
+              size="small"
+              fullWidth
+              type="number"
+            />
+
+            {/* Bandwidth limit */}
+            <TextField
+              label={t('inventory.pbsRestoreBwLimit')}
+              value={pbsRestoreBwLimit}
+              onChange={e => setPbsRestoreBwLimit(e.target.value.replace(/\D/g, ''))}
+              size="small"
+              fullWidth
+              type="number"
+              placeholder="0 = unlimited"
+            />
+
+            {/* Checkboxes */}
+            <Box>
+              <FormControlLabel
+                control={<Checkbox checked={pbsRestoreUnique} onChange={e => setPbsRestoreUnique(e.target.checked)} size="small" />}
+                label={<Typography variant="body2">{t('inventory.pbsRestoreUnique')}</Typography>}
+              />
+              <FormControlLabel
+                control={<Checkbox checked={pbsRestoreStart} onChange={e => setPbsRestoreStart(e.target.checked)} size="small" />}
+                label={<Typography variant="body2">{t('inventory.pbsRestoreStart')}</Typography>}
+              />
+              {pbsRestoreDialog.storageType !== 'lxc' && (
+                <FormControlLabel
+                  control={<Checkbox checked={pbsRestoreLive} onChange={e => setPbsRestoreLive(e.target.checked)} size="small" />}
+                  label={<Typography variant="body2">{t('inventory.pbsRestoreLive')}</Typography>}
+                />
+              )}
+            </Box>
+
+            {/* Override settings */}
+            <Accordion
+              expanded={pbsRestoreOverride}
+              onChange={(_, expanded) => setPbsRestoreOverride(expanded)}
+              variant="outlined"
+              sx={{ borderRadius: '8px !important', '&:before': { display: 'none' } }}
+            >
+              <AccordionSummary expandIcon={<i className="ri-arrow-down-s-line" style={{ fontSize: 20 }} />}>
+                <Typography variant="body2" fontWeight={600}>
+                  <i className="ri-settings-3-line" style={{ marginRight: 8 }} />
+                  {t('inventory.pbsRestoreOverride')}
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Stack spacing={2}>
+                  <TextField
+                    label={t('inventory.pbsRestoreName')}
+                    value={pbsRestoreName}
+                    onChange={e => setPbsRestoreName(e.target.value)}
+                    size="small"
+                    fullWidth
+                    placeholder={pbsRestoreDialog.backup?.notes || ''}
+                  />
+                  <TextField
+                    label={t('inventory.pbsRestoreMemory')}
+                    value={pbsRestoreMemory}
+                    onChange={e => setPbsRestoreMemory(e.target.value.replace(/\D/g, ''))}
+                    size="small"
+                    fullWidth
+                    type="number"
+                  />
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <TextField
+                      label={t('inventory.pbsRestoreCores')}
+                      value={pbsRestoreCores}
+                      onChange={e => setPbsRestoreCores(e.target.value.replace(/\D/g, ''))}
+                      size="small"
+                      fullWidth
+                      type="number"
+                    />
+                    <TextField
+                      label={t('inventory.pbsRestoreSockets')}
+                      value={pbsRestoreSockets}
+                      onChange={e => setPbsRestoreSockets(e.target.value.replace(/\D/g, ''))}
+                      size="small"
+                      fullWidth
+                      type="number"
+                    />
+                  </Box>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setPbsRestoreDialog({ open: false, backup: null, storageType: 'qemu' })}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handlePbsRestore}
+            disabled={pbsRestoring || !pbsRestoreVmId}
+            startIcon={pbsRestoring ? <CircularProgress size={16} /> : <i className="ri-inbox-unarchive-line" />}
+          >
+            {pbsRestoreDialog.storageType === 'lxc' ? t('inventory.pbsRestoreCt') : t('inventory.pbsRestoreVm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* PBS File Restore Dialog — Tree View */}
+      <Dialog
+        open={pbsFileRestoreDialog.open}
+        onClose={() => setPbsFileRestoreDialog({ open: false, backup: null })}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1, pr: 5 }}>
+          <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: alpha('#ff9800', 0.15), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <i className="ri-folder-open-line" style={{ fontSize: 20, color: '#ff9800' }} />
+          </Box>
+          {t('inventory.pbsFileRestore')}
+          <IconButton onClick={() => setPbsFileRestoreDialog({ open: false, backup: null })} sx={{ position: 'absolute', right: 8, top: 8 }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: '8px !important' }}>
+          <Typography variant="caption" sx={{ opacity: 0.5, fontFamily: 'JetBrains Mono, monospace', display: 'block', mb: 1.5 }}>
+            {pbsFileRestoreDialog.backup?.volid}
+          </Typography>
+
+          {/* Search bar */}
+          {pbsFileTree.length > 0 && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 0.5,
+              border: '1px solid', borderColor: 'divider', borderRadius: 1,
+              px: 1, py: 0.5, mb: 1.5,
+            }}>
+              <i className="ri-search-line" style={{ fontSize: 14, opacity: 0.4 }} />
+              <input
+                type="text"
+                value={pbsFileSearch}
+                onChange={e => setPbsFileSearch(e.target.value)}
+                placeholder={t('common.search') + '...'}
+                style={{
+                  border: 'none', outline: 'none', background: 'transparent',
+                  fontSize: 12, width: '100%', color: 'inherit',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              />
+              {pbsFileSearch && (
+                <i className="ri-close-line" style={{ fontSize: 14, opacity: 0.4, cursor: 'pointer' }} onClick={() => setPbsFileSearch('')} />
+              )}
+            </Box>
+          )}
+
+          {pbsFileLoading && pbsFileTree.length === 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={32} />
+            </Box>
+          )}
+
+          {pbsFileError && (
+            <Alert severity="warning" sx={{ mb: 2 }}>{pbsFileError}</Alert>
+          )}
+
+          {/* Tree table */}
+          {pbsFileTree.length > 0 && (
+            <TableContainer sx={{ maxHeight: 'calc(100vh - 300px)', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700, fontSize: 11 }}>{t('inventory.pbsName')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: 11, width: 90 }}>{t('inventory.pbsSize')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: 11, width: 140 }}>Modified</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: 11, width: 50 }}></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(() => {
+                    const searchQ = pbsFileSearch.trim().toLowerCase()
+
+                    // Collect all matching nodes from expanded tree (recursive search)
+                    const collectMatches = (nodes: any[], parentPath: string): Array<{ node: any; nodePath: string; depth: number }> => {
+                      const results: Array<{ node: any; nodePath: string; depth: number }> = []
+                      const walk = (ns: any[], pp: string, d: number) => {
+                        for (const n of ns) {
+                          const np = pp ? `${pp}/${n.name}` : n.name
+                          if (n.name.toLowerCase().includes(searchQ)) {
+                            results.push({ node: n, nodePath: np, depth: 0 })
+                          }
+                          if (n.children?.length) walk(n.children, np, d + 1)
+                        }
+                      }
+                      walk(nodes, parentPath, 0)
+                      return results
+                    }
+
+                    // If searching, show flat filtered results
+                    if (searchQ) {
+                      const matches = collectMatches(pbsFileTree, '')
+                      if (matches.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={4}>
+                              <Typography variant="body2" sx={{ opacity: 0.4, textAlign: 'center', py: 2 }}>
+                                {t('common.noResults')}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      }
+                      return matches.map(({ node, nodePath }) => {
+                        const isDir = node.browsable
+                        return (
+                          <TableRow key={nodePath} hover sx={{ '& td': { py: 0.25 } }}>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                {node.type === 'virtual' ? (
+                                  <i className="ri-hard-drive-2-fill" style={{ color: '#42A5F5', fontSize: 16, marginRight: 6, flexShrink: 0 }} />
+                                ) : node.type === 'directory' || isDir ? (
+                                  <i className="ri-folder-fill" style={{ color: '#FFB74D', fontSize: 16, marginRight: 6, flexShrink: 0 }} />
+                                ) : (
+                                  <i className="ri-file-fill" style={{ color: '#90A4AE', fontSize: 16, marginRight: 6, flexShrink: 0 }} />
+                                )}
+                                <Typography variant="body2" noWrap sx={{ fontSize: 12 }}>
+                                  {nodePath}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', opacity: 0.7 }}>
+                                {node.size ? formatBytes(node.size) : '-'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontSize: 11, opacity: 0.6 }}>
+                                {node.mtime ? new Date(node.mtime * 1000).toLocaleString() : '-'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              {pbsFileDownloading === nodePath ? (
+                                <CircularProgress size={14} />
+                              ) : (
+                                <MuiTooltip title={isDir ? `${t('common.download')} (.tar.zst)` : t('common.download')}>
+                                  <IconButton size="small" sx={{ p: 0.25 }} disabled={!!pbsFileDownloading} onClick={() => pbsDownloadFile(nodePath, isDir)}>
+                                    <i className="ri-download-2-line" style={{ fontSize: 15, opacity: isDir ? 0.4 : 0.7 }} />
+                                  </IconButton>
+                                </MuiTooltip>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    }
+
+                    // Normal tree rendering
+                    const rows: React.ReactNode[] = []
+                    const renderNodes = (nodes: any[], parentPath: string, depth: number) => {
+                      for (const node of nodes) {
+                        const nodePath = parentPath ? `${parentPath}/${node.name}` : node.name
+                        const isExpanded = pbsFileExpandedPaths.has(nodePath)
+                        const isDir = node.browsable
+                        const hasChildren = node.children && node.children.length > 0
+
+                        rows.push(
+                          <TableRow
+                            key={nodePath}
+                            hover
+                            sx={{
+                              cursor: isDir ? 'pointer' : 'default',
+                              '& td': { py: 0.25 },
+                            }}
+                            onClick={() => isDir && pbsToggleTreeNode(nodePath)}
+                          >
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center', pl: depth * 2.5 }}>
+                                {/* Expand/collapse arrow */}
+                                {isDir ? (
+                                  <Box sx={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    {node.loading ? (
+                                      <CircularProgress size={12} />
+                                    ) : (
+                                      <i className={isExpanded ? 'ri-arrow-down-s-fill' : 'ri-arrow-right-s-fill'} style={{ fontSize: 16, opacity: 0.5 }} />
+                                    )}
+                                  </Box>
+                                ) : (
+                                  <Box sx={{ width: 20, flexShrink: 0 }} />
+                                )}
+                                {/* Icon */}
+                                {node.type === 'virtual' ? (
+                                  <i className="ri-hard-drive-2-fill" style={{ color: '#42A5F5', fontSize: 16, marginRight: 6, flexShrink: 0 }} />
+                                ) : node.type === 'directory' || (isDir && !node.isRawDiskImage) ? (
+                                  <i className={isExpanded ? 'ri-folder-open-fill' : 'ri-folder-fill'} style={{ color: '#FFB74D', fontSize: 16, marginRight: 6, flexShrink: 0 }} />
+                                ) : node.isRawDiskImage ? (
+                                  <i className="ri-hard-drive-2-fill" style={{ color: '#90A4AE', fontSize: 16, marginRight: 6, flexShrink: 0 }} />
+                                ) : (
+                                  <i className="ri-file-fill" style={{ color: '#90A4AE', fontSize: 16, marginRight: 6, flexShrink: 0 }} />
+                                )}
+                                <Typography variant="body2" noWrap sx={{ fontSize: 12 }}>{node.name}</Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', opacity: 0.7 }}>
+                                {node.size ? formatBytes(node.size) : '-'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontSize: 11, opacity: 0.6 }}>
+                                {node.mtime ? new Date(node.mtime * 1000).toLocaleString() : '-'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              {pbsFileDownloading === nodePath ? (
+                                <CircularProgress size={14} />
+                              ) : (
+                                <MuiTooltip title={isDir ? `${t('common.download')} (.tar.zst)` : t('common.download')}>
+                                  <IconButton
+                                    size="small"
+                                    sx={{ p: 0.25 }}
+                                    disabled={!!pbsFileDownloading}
+                                    onClick={(e) => { e.stopPropagation(); pbsDownloadFile(nodePath, isDir) }}
+                                  >
+                                    <i className="ri-download-2-line" style={{ fontSize: 15, opacity: isDir ? 0.4 : 0.7 }} />
+                                  </IconButton>
+                                </MuiTooltip>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+
+                        // Render children if expanded
+                        if (isExpanded && hasChildren) {
+                          renderNodes(node.children, nodePath, depth + 1)
+                        }
+                      }
+                    }
+                    renderNodes(pbsFileTree, '', 0)
+                    return rows
+                  })()}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
       </Dialog>
 
     </Box>

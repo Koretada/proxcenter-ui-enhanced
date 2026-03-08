@@ -2863,7 +2863,7 @@ return (
           label={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
               <img src={theme.palette.mode === 'dark' ? '/images/proxcenter-logo-dark.svg' : '/images/proxcenter-logo-light.svg'} alt='' width={18} height={18} style={{ flexShrink: 0 }} />
-              <span style={{ fontSize: 14, fontWeight: 700 }}>PROXCENTER</span>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>Infrastructure</span>
             </Box>
           }
         >
@@ -4000,10 +4000,12 @@ return (
             multiline
             rows={2}
           />
+          {snapshotTarget?.type === 'qemu' && (
           <FormControlLabel
             control={<Switch checked={snapshotVmstate} onChange={e => setSnapshotVmstate(e.target.checked)} size="small" />}
             label={t('inventory.includeRamState')}
           />
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => { setSnapshotDialogOpen(false); setSnapshotTarget(null) }}>

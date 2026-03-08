@@ -74,6 +74,7 @@ export default function VmDetailTabs(props: any) {
   const t = useTranslations()
   const locale = useLocale()
   const [cpuFlagsOpen, setCpuFlagsOpen] = useState(false)
+  const [expandedVmBackupGroups, setExpandedVmBackupGroups] = useState<Set<string>>(new Set())
   const [bootOrderOpen, setBootOrderOpen] = useState(false)
   const [bootDevices, setBootDevices] = useState<Array<{ id: string; enabled: boolean }>>([])
   const [bootSaving, setBootSaving] = useState(false)
@@ -1799,63 +1800,165 @@ return (
                     </Card>
                   )}
 
-                  {/* Liste des backups */}
-                  {!backupsLoading && !selectedBackup && (
-                    <>
-                      {backups.length === 0 ? (
+                  {/* Liste des backups groupés par PBS/datastore */}
+                  {!backupsLoading && !selectedBackup && (() => {
+                    if (backups.length === 0) {
+                      return (
                         <Alert severity="info" sx={{ mt: 2 }}>
                           {t('common.noData')}
                         </Alert>
-                      ) : (
-                        <List dense sx={{ mx: -1 }}>
-                          {backups.map((backup, idx) => (
-                            <ListItem key={idx} disablePadding>
-                              <ListItemButton
-                                onClick={() => {
-                                  setSelectedBackup(backup)
-                                  loadBackupContent(backup)
-                                }}
-                                sx={{ borderRadius: 1, py: 1.5 }}
-                              >
-                                <ListItemIcon sx={{ minWidth: 40 }}>
-                                  <i
-                                    className="ri-hard-drive-2-fill"
-                                    style={{
-                                      fontSize: 24,
-                                      color: backup.verified ? '#66BB6A' : '#90A4AE'
-                                    }}
-                                  />
-                                </ListItemIcon>
-                                <ListItemText
-                                  primary={
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                        {backup.backupTimeFormatted}
-                                      </Typography>
-                                      {backup.protected && (
-                                        <i className="ri-lock-fill" style={{ fontSize: 14, color: '#FFB74D' }} />
-                                      )}
-                                    </Box>
-                                  }
-                                  secondary={
-                                    <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                                      {backup.pbsName} • {backup.datastore} • {backup.sizeFormatted}
+                      )
+                    }
+
+                    // Group by pbsName/datastore
+                    const groupMap = new Map<string, any[]>()
+                    for (const backup of backups) {
+                      const groupKey = `${backup.pbsName || 'PBS'}/${backup.datastore || 'default'}`
+                      if (!groupMap.has(groupKey)) groupMap.set(groupKey, [])
+                      groupMap.get(groupKey)!.push(backup)
+                    }
+
+                    // Sort each group by date desc
+                    for (const [, group] of groupMap) {
+                      group.sort((a: any, b: any) => (b.backupTime || 0) - (a.backupTime || 0))
+                    }
+
+                    const sortedGroups = Array.from(groupMap.entries())
+                      .sort((a, b) => (b[1][0]?.backupTime || 0) - (a[1][0]?.backupTime || 0))
+
+                    return (
+                      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                        <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                          {sortedGroups.map(([groupId, groupBackups]) => {
+                            const isExpanded = expandedVmBackupGroups.has(groupId)
+                            const totalSize = groupBackups.reduce((sum: number, b: any) => sum + (b.size || 0), 0)
+                            const verifiedCount = groupBackups.filter((b: any) => b.verified).length
+                            const [pbsName, dsName] = groupId.split('/')
+
+                            return (
+                              <Box key={groupId}>
+                                {/* Group header */}
+                                <Box
+                                  onClick={() => {
+                                    setExpandedVmBackupGroups(prev => {
+                                      const next = new Set(prev)
+                                      if (next.has(groupId)) next.delete(groupId)
+                                      else next.add(groupId)
+                                      return next
+                                    })
+                                  }}
+                                  sx={{
+                                    display: 'flex', alignItems: 'center', gap: 1,
+                                    px: 2, py: 0.5,
+                                    borderBottom: '1px solid', borderColor: 'divider',
+                                    cursor: 'pointer',
+                                    '&:hover': { bgcolor: 'action.hover' },
+                                    bgcolor: isExpanded ? 'action.selected' : 'transparent',
+                                  }}
+                                >
+                                  <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                                  <i className="ri-shield-check-line" style={{ fontSize: 16, color: primaryColor }} />
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: 12 }}>
+                                      {pbsName}
                                     </Typography>
-                                  }
-                                />
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  {backup.verified && (
-                                    <Chip size="small" color="success" label="✓" sx={{ height: 20, minWidth: 24 }} />
-                                  )}
-                                  <i className="ri-arrow-right-s-line" style={{ opacity: 0.5 }} />
+                                    <Typography variant="caption" sx={{ opacity: 0.5, fontSize: 10 }}>
+                                      {dsName}
+                                    </Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <Typography variant="body2" sx={{ opacity: 0.7, fontSize: 12 }}>
+                                      {groupBackups.length} snapshot{groupBackups.length > 1 ? 's' : ''}
+                                    </Typography>
+                                    {verifiedCount === groupBackups.length ? (
+                                      <MuiTooltip title={t('inventory.pbsAllVerified')}>
+                                        <i className="ri-checkbox-circle-fill" style={{ fontSize: 16, color: '#4caf50' }} />
+                                      </MuiTooltip>
+                                    ) : verifiedCount > 0 ? (
+                                      <MuiTooltip title={`${verifiedCount}/${groupBackups.length}`}>
+                                        <i className="ri-checkbox-circle-line" style={{ fontSize: 16, color: '#ff9800' }} />
+                                      </MuiTooltip>
+                                    ) : (
+                                      <i className="ri-checkbox-blank-circle-line" style={{ fontSize: 16, opacity: 0.3 }} />
+                                    )}
+                                    <Typography variant="body2" sx={{ opacity: 0.6, minWidth: 70, textAlign: 'right', fontFamily: 'monospace', fontSize: 12 }}>
+                                      {formatBytes(totalSize)}
+                                    </Typography>
+                                  </Box>
                                 </Box>
-                              </ListItemButton>
-                            </ListItem>
-                          ))}
-                        </List>
-                      )}
-                    </>
-                  )}
+
+                                {/* Expanded snapshots */}
+                                {isExpanded && (
+                                  <Box sx={{ bgcolor: 'action.hover' }}>
+                                    {/* Column headers */}
+                                    <Box sx={{
+                                      display: 'grid',
+                                      gridTemplateColumns: '1fr 90px 70px 40px',
+                                      gap: 1, px: 2, pl: 5.5, py: 0.5,
+                                      borderBottom: '1px solid', borderColor: 'divider',
+                                      bgcolor: 'background.paper',
+                                    }}>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10 }}>{t('common.date')}</Typography>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10 }}>{t('common.size')}</Typography>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10, textAlign: 'center' }}>{t('common.status')}</Typography>
+                                      <Typography variant="caption" fontWeight={600} sx={{ opacity: 0.6, fontSize: 10, textAlign: 'center' }}></Typography>
+                                    </Box>
+                                    {groupBackups.map((backup: any, idx: number) => (
+                                      <Box
+                                        key={backup.id || idx}
+                                        sx={{
+                                          display: 'grid',
+                                          gridTemplateColumns: '1fr 90px 70px 40px',
+                                          gap: 1, px: 2, pl: 5.5, py: 0.25,
+                                          borderBottom: idx < groupBackups.length - 1 ? '1px solid' : 'none',
+                                          borderColor: 'divider',
+                                          alignItems: 'center',
+                                          cursor: 'pointer',
+                                          '&:hover': { bgcolor: 'action.focus' },
+                                          minHeight: 28,
+                                        }}
+                                        onClick={() => {
+                                          setSelectedBackup(backup)
+                                          loadBackupContent(backup)
+                                        }}
+                                      >
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                          <i className="ri-time-line" style={{ fontSize: 13, opacity: 0.5 }} />
+                                          <Typography variant="body2" sx={{ fontSize: 12 }}>
+                                            {backup.backupTimeFormatted}
+                                          </Typography>
+                                        </Box>
+                                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12, opacity: 0.7 }}>
+                                          {backup.sizeFormatted}
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                          {backup.verified ? (
+                                            <MuiTooltip title={t('backups.verified')}>
+                                              <i className="ri-checkbox-circle-fill" style={{ fontSize: 15, color: '#4caf50' }} />
+                                            </MuiTooltip>
+                                          ) : (
+                                            <i className="ri-checkbox-blank-circle-line" style={{ fontSize: 15, opacity: 0.3 }} />
+                                          )}
+                                          {backup.protected && (
+                                            <MuiTooltip title={t('common.protected')}>
+                                              <i className="ri-lock-fill" style={{ fontSize: 14, color: '#ff9800' }} />
+                                            </MuiTooltip>
+                                          )}
+                                        </Box>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                          <i className="ri-arrow-right-s-line" style={{ fontSize: 16, opacity: 0.4 }} />
+                                        </Box>
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                )}
+                              </Box>
+                            )
+                          })}
+                        </CardContent>
+                      </Card>
+                    )
+                  })()}
 
                   {/* Détails d'un backup sélectionné */}
                   {selectedBackup && (

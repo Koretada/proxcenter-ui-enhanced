@@ -34,6 +34,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext'
 import { formatBytes } from '@/utils/format'
 import EmptyState from '@/components/EmptyState'
 import { CardsSkeleton, TableSkeleton } from '@/components/skeletons'
+import StorageContentBrowser from '@/components/storage/StorageContentBrowser'
 
 // Icône pour les types de storage
 const StorageIcon = ({ type, size = 20 }) => {
@@ -241,6 +242,8 @@ return () => setPageInfo('', '', '')
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
+  const [contentNode, setContentNode] = useState(null)
+  const [contentConnId, setContentConnId] = useState(null)
 
   // Charger tous les storages en une seule requête
   const loadStorages = async () => {
@@ -345,6 +348,12 @@ return Array.from(types).sort()
   const openStorage = (id) => {
     setSelectedId(id)
     setDrawerOpen(true)
+    const s = storages.find(st => st.id === id) || filtered.find(st => st.id === id)
+    if (s) {
+      const firstConn = s.connections?.[0] || {}
+      setContentConnId(firstConn.id || s.connId || null)
+      setContentNode(s.node || (s.allNodes || [])[0] || null)
+    }
   }
 
   // Colonnes DataGrid
@@ -629,7 +638,7 @@ return (
         anchor='right'
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        PaperProps={{ sx: { width: { xs: '100%', sm: 450 } } }}
+        PaperProps={{ sx: { width: { xs: '100%', sm: 520 } } }}
       >
         <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2, height: '100%', overflow: 'auto' }}>
           {!selected ? (
@@ -833,6 +842,89 @@ return (
                         </Box>
                       ))}
                     </Stack>
+                  </Box>
+                </>
+              )}
+
+              {/* Content browser */}
+              {contentNode && contentConnId && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant='overline' sx={{ opacity: 0.6, mb: 1, display: 'block' }}>
+                      {t('storage.content.title')}
+                    </Typography>
+
+                    {/* Filters: connection + node + upload */}
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {/* Connection selector */}
+                      {(selected.connections || []).length > 1 ? (
+                        <FormControl size='small' sx={{ minWidth: 140 }}>
+                          <Select
+                            value={contentConnId}
+                            onChange={e => {
+                              const newConnId = e.target.value
+                              setContentConnId(newConnId)
+                              const detail = selected.connectionDetails?.find(cd => cd.id === newConnId)
+                              setContentNode(detail?.nodes?.[0] || (selected.allNodes || [])[0] || null)
+                            }}
+                            sx={{ fontSize: 12, height: 32, '& .MuiSelect-select': { py: 0.5 } }}
+                          >
+                            {(selected.connections || []).map(c => (
+                              <MenuItem key={c.id} value={c.id} sx={{ fontSize: 12 }}>
+                                <i className='ri-server-line' style={{ fontSize: 14, marginRight: 6, opacity: 0.5 }} />
+                                {c.name}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      ) : (selected.connections || []).length === 1 && (
+                        <Chip
+                          size='small'
+                          icon={<i className='ri-server-line' style={{ fontSize: 14 }} />}
+                          label={selected.connections[0].name}
+                          variant='outlined'
+                          sx={{ fontSize: 11, height: 28 }}
+                        />
+                      )}
+
+                      <Box sx={{ flex: 1 }} />
+
+                      {/* Node selector */}
+                      {(selected.allNodes || []).length > 1 ? (
+                        <FormControl size='small' sx={{ minWidth: 130 }}>
+                          <Select
+                            value={contentNode}
+                            onChange={e => setContentNode(e.target.value)}
+                            sx={{ fontSize: 12, height: 32, '& .MuiSelect-select': { py: 0.5 } }}
+                          >
+                            {(selected.allNodes || []).map(n => (
+                              <MenuItem key={n} value={n} sx={{ fontSize: 12 }}>
+                                <i className='ri-computer-line' style={{ fontSize: 14, marginRight: 6, opacity: 0.5 }} />
+                                {n}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      ) : (
+                        <Chip
+                          size='small'
+                          icon={<i className='ri-computer-line' style={{ fontSize: 14 }} />}
+                          label={contentNode}
+                          variant='outlined'
+                          sx={{ fontSize: 11, height: 28 }}
+                        />
+                      )}
+                    </Box>
+
+                    <StorageContentBrowser
+                      key={`${contentConnId}-${contentNode}`}
+                      connId={contentConnId}
+                      node={contentNode}
+                      storage={selected.storage}
+                      contentTypes={selected.content || []}
+                      onDelete={loadStorages}
+                    />
                   </Box>
                 </>
               )}

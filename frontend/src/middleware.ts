@@ -62,6 +62,11 @@ function getLocale(request: NextRequest): string {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Skip middleware for large upload routes (auth handled in route handler via checkPermission)
+  if (pathname.includes('/storage/') && pathname.endsWith('/upload')) {
+    return NextResponse.next()
+  }
+
   // Vérifier si c'est une route publique
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
   const isPublicApiRoute = publicApiRoutes.some(route => pathname.startsWith(route))
