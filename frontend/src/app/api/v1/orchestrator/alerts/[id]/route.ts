@@ -20,7 +20,9 @@ export async function GET(
     
 return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/[id]] GET error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/[id]] GET error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Alert not found' },

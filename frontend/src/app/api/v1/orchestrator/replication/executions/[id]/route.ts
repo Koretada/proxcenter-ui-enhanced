@@ -17,7 +17,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error fetching execution:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching execution:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to fetch execution" },

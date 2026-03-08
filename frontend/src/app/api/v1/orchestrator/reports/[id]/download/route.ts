@@ -52,7 +52,9 @@ export async function GET(
       headers: responseHeaders,
     })
   } catch (error: any) {
-    console.error('Failed to download report:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to download report:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to download report' },
       { status: 500 }

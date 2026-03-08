@@ -26,7 +26,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('[orchestrator/alerts] GET error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts] GET error:', error)
+    }
     
     // Si l'orchestrator n'est pas disponible, retourner une liste vide
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('timeout')) {
@@ -60,7 +62,9 @@ export async function DELETE(req: Request) {
     
 return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('[orchestrator/alerts] DELETE error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts] DELETE error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Failed to clear alerts' },

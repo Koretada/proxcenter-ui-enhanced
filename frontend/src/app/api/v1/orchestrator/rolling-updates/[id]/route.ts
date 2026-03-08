@@ -29,7 +29,9 @@ export async function GET(
 
     return NextResponse.json({ data })
   } catch (error: any) {
-    console.error("Error getting rolling update:", error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error getting rolling update:", error)
+    }
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }

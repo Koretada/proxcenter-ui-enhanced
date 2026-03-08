@@ -12,7 +12,9 @@ export async function GET() {
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to get report types:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to get report types:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to get report types' },
       { status: 500 }

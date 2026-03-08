@@ -36,7 +36,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ data })
   } catch (error: any) {
-    console.error("Error getting rolling updates:", error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error getting rolling updates:", error)
+    }
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }
@@ -108,7 +110,9 @@ export async function POST(req: Request) {
       try {
         sshCredentials.sshKey = decryptSecret(connection.sshKeyEnc)
       } catch (e: any) {
-        console.error("Failed to decrypt SSH key:", e)
+        if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+          console.error("Failed to decrypt SSH key:", e)
+        }
         return NextResponse.json(
           { error: "Failed to decrypt SSH credentials" },
           { status: 500 }
@@ -125,7 +129,9 @@ export async function POST(req: Request) {
           sshCredentials.sshPassword = decrypted
         }
       } catch (e: any) {
-        console.error("Failed to decrypt SSH passphrase/password:", e)
+        if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+          console.error("Failed to decrypt SSH passphrase/password:", e)
+        }
       }
     }
 
@@ -158,7 +164,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data })
   } catch (error: any) {
-    console.error("Error starting rolling update:", error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error starting rolling update:", error)
+    }
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }

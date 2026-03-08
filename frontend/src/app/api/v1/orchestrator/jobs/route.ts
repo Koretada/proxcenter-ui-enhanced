@@ -101,7 +101,9 @@ export async function GET(req: Request) {
         }
       }
     } catch (e) {
-      console.error("Failed to fetch rolling updates:", e)
+      if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+        console.error("Failed to fetch rolling updates:", e)
+      }
     }
 
     // Fetch DRS migrations
@@ -146,7 +148,9 @@ export async function GET(req: Request) {
         }
       }
     } catch (e) {
-      console.error("Failed to fetch DRS migrations:", e)
+      if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+        console.error("Failed to fetch DRS migrations:", e)
+      }
     }
 
     // Fetch Site Recovery replication jobs
@@ -200,7 +204,9 @@ export async function GET(req: Request) {
         }
       }
     } catch (e) {
-      console.error("Failed to fetch replication jobs:", e)
+      if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+        console.error("Failed to fetch replication jobs:", e)
+      }
     }
 
     // Fetch Site Recovery plan executions (failover/failback/test)
@@ -261,7 +267,9 @@ export async function GET(req: Request) {
         }
       }
     } catch (e) {
-      console.error("Failed to fetch recovery executions:", e)
+      if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+        console.error("Failed to fetch recovery executions:", e)
+      }
     }
 
     // Apply filters
@@ -303,7 +311,9 @@ export async function GET(req: Request) {
       stats,
     })
   } catch (error: any) {
-    console.error("Error getting jobs:", error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error getting jobs:", error)
+    }
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }

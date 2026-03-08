@@ -24,7 +24,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     
     return NextResponse.json(response.data || null)
   } catch (e: any) {
-    console.error("Error fetching cluster metrics:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching cluster metrics:", e)
+    }
     
 return NextResponse.json(
       { error: e?.message || "Failed to fetch cluster metrics" },

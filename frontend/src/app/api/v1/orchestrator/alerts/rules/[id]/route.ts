@@ -19,7 +19,9 @@ export async function GET(
     
 return NextResponse.json(rule)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/rules/[id]] GET error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/rules/[id]] GET error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Rule not found' },
@@ -47,7 +49,9 @@ export async function PUT(
     
 return NextResponse.json(result)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/rules/[id]] PUT error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/rules/[id]] PUT error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Failed to update rule' },
@@ -73,7 +77,9 @@ export async function DELETE(
     
 return NextResponse.json(result)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/rules/[id]] DELETE error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/rules/[id]] DELETE error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Failed to delete rule' },

@@ -23,7 +23,9 @@ export async function POST(
     
 return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/[id]/acknowledge] POST error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/[id]/acknowledge] POST error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Failed to acknowledge alert' },

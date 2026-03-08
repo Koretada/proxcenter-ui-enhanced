@@ -9,7 +9,9 @@ export async function GET() {
     
 return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to get notification settings:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to get notification settings:', error)
+    }
     
 return NextResponse.json(
       { error: error.message || 'Failed to get notification settings' },
@@ -30,7 +32,9 @@ export async function PUT(request: NextRequest) {
     
 return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to update notification settings:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to update notification settings:', error)
+    }
     
 return NextResponse.json(
       { error: error.message || 'Failed to update notification settings' },

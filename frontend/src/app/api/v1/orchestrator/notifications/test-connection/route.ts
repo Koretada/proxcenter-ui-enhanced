@@ -14,7 +14,9 @@ export async function POST(request: Request) {
     
 return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to test SMTP connection:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to test SMTP connection:', error)
+    }
     
 return NextResponse.json(
       { success: false, error: error.message || 'Failed to test SMTP connection' },

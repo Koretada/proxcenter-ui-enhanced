@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to get reports:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to get reports:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to get reports' },
       { status: 500 }
@@ -42,7 +44,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data, { status: 202 })
   } catch (error: any) {
-    console.error('Failed to generate report:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to generate report:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to generate report' },
       { status: 500 }

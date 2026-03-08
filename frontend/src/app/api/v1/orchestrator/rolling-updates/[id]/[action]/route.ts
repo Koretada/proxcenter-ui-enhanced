@@ -40,7 +40,9 @@ export async function POST(
 
     return NextResponse.json({ data })
   } catch (error: any) {
-    console.error(`Error in rolling update action:`, error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error(`Error in rolling update action:`, error)
+    }
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }

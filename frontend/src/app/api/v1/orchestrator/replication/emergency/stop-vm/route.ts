@@ -17,7 +17,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error stopping DR VM:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error stopping DR VM:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to stop DR VM" },

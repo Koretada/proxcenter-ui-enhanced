@@ -14,7 +14,9 @@ export async function POST(request: NextRequest) {
     
 return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to send test notification:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to send test notification:', error)
+    }
     
 return NextResponse.json(
       { error: error.message || 'Failed to send test notification' },

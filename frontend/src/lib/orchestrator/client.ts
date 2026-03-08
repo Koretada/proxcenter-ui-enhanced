@@ -57,6 +57,14 @@ export async function orchestratorFetch<T>(
       throw new Error('Orchestrator request timeout')
     }
 
+    // Tag connection errors so API routes can avoid noisy logging
+    const isConnError = error?.cause?.code === 'ECONNREFUSED' || error?.cause?.code === 'ENOTFOUND' || error?.message?.includes('fetch failed')
+    if (isConnError) {
+      const err: any = new Error('Orchestrator unavailable')
+      err.code = 'ORCHESTRATOR_UNAVAILABLE'
+      throw err
+    }
+
     throw error
   }
 }

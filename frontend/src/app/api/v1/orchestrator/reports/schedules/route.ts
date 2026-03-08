@@ -12,7 +12,9 @@ export async function GET() {
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to get schedules:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to get schedules:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to get schedules' },
       { status: 500 }
@@ -32,7 +34,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data, { status: 201 })
   } catch (error: any) {
-    console.error('Failed to create schedule:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to create schedule:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to create schedule' },
       { status: 500 }

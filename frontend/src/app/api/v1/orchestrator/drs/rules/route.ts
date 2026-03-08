@@ -35,7 +35,9 @@ export async function GET() {
 
     return NextResponse.json(response.data || [])
   } catch (error: any) {
-    console.error('Failed to fetch affinity rules:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to fetch affinity rules:', error)
+    }
 
     return NextResponse.json([])
   }
@@ -59,7 +61,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('Failed to create affinity rule:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to create affinity rule:', error)
+    }
 
     return NextResponse.json(
       { error: error.message || 'Failed to create rule' },

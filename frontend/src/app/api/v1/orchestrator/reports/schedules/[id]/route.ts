@@ -16,7 +16,9 @@ export async function GET(
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to get schedule:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to get schedule:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to get schedule' },
       { status: 500 }
@@ -40,7 +42,9 @@ export async function PUT(
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to update schedule:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to update schedule:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to update schedule' },
       { status: 500 }
@@ -61,7 +65,9 @@ export async function DELETE(
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to delete schedule:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to delete schedule:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to delete schedule' },
       { status: 500 }

@@ -42,7 +42,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     
 return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('Failed to update affinity rule:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to update affinity rule:', error)
+    }
     
 return NextResponse.json(
       { error: error.message || 'Failed to update rule' },
@@ -68,7 +70,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     
 return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error('Failed to delete affinity rule:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to delete affinity rule:', error)
+    }
     
 return NextResponse.json(
       { error: error.message || 'Failed to delete rule' },

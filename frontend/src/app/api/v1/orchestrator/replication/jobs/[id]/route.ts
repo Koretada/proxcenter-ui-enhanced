@@ -17,7 +17,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error fetching replication job:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching replication job:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to fetch replication job" },
@@ -39,7 +41,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error updating replication job:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error updating replication job:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to update replication job" },
@@ -60,7 +64,9 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error deleting replication job:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error deleting replication job:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to delete replication job" },

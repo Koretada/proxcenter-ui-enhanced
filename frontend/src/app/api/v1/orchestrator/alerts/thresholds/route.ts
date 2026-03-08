@@ -16,7 +16,9 @@ export async function GET() {
     
 return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/thresholds] GET error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/thresholds] GET error:', error)
+    }
     
     // Valeurs par défaut si orchestrator indisponible
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('timeout')) {
@@ -49,7 +51,9 @@ export async function PUT(req: Request) {
     
 return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/thresholds] PUT error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/thresholds] PUT error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Failed to update thresholds' },

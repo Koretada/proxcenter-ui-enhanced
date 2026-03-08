@@ -17,7 +17,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error cleaning up test failover:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error cleaning up test failover:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to cleanup test failover" },

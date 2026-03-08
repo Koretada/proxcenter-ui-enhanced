@@ -66,7 +66,9 @@ export async function POST(req: Request) {
         try {
           sshCredentials.sshKey = decryptSecret(connection.sshKeyEnc)
         } catch (e: any) {
-          console.error("Failed to decrypt SSH key:", e)
+          if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+            console.error("Failed to decrypt SSH key:", e)
+          }
         }
       }
 
@@ -79,7 +81,9 @@ export async function POST(req: Request) {
             sshCredentials.sshPassword = decrypted
           }
         } catch (e: any) {
-          console.error("Failed to decrypt SSH passphrase/password:", e)
+          if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+            console.error("Failed to decrypt SSH passphrase/password:", e)
+          }
         }
       }
     }
@@ -113,7 +117,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data })
   } catch (error: any) {
-    console.error("Error in rolling update preflight:", error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error in rolling update preflight:", error)
+    }
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }

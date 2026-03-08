@@ -25,7 +25,9 @@ export async function GET(req: Request) {
     // Retourner directement le tableau
     return NextResponse.json(response.data || [])
   } catch (e: any) {
-    console.error("Error fetching migrations:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching migrations:", e)
+    }
 
     // Retourner un tableau vide en cas d'erreur pour éviter les erreurs frontend
     return NextResponse.json([])

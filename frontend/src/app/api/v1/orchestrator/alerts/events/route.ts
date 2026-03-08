@@ -27,7 +27,9 @@ export async function POST(req: Request) {
     
     return NextResponse.json(result)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/events] POST error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/events] POST error:', error)
+    }
     
     // Si l'orchestrator n'est pas disponible, ignorer silencieusement
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('timeout')) {

@@ -19,7 +19,9 @@ export async function GET() {
     
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error fetching DRS status:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching DRS status:", e)
+    }
 
     // Retourner un status par défaut en cas d'erreur
     return NextResponse.json({

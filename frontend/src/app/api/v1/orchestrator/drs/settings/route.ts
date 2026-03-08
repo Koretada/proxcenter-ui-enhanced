@@ -66,7 +66,9 @@ export async function GET() {
 
     return NextResponse.json(mergedSettings)
   } catch (error: any) {
-    console.error('Failed to fetch DRS settings:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to fetch DRS settings:', error)
+    }
 
     // Retourner des settings par défaut en cas d'erreur
     return NextResponse.json(defaultSettings)
@@ -101,7 +103,9 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(mergedSettings)
   } catch (error: any) {
-    console.error('Failed to update DRS settings:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to update DRS settings:', error)
+    }
     
 return NextResponse.json(
       { error: error.message || 'Failed to update settings' },

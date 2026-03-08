@@ -27,7 +27,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     
     return NextResponse.json(response.data || [])
   } catch (e: any) {
-    console.error("Error fetching metrics history:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching metrics history:", e)
+    }
     
 return NextResponse.json(
       { error: e?.message || "Failed to fetch metrics history" },

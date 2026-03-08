@@ -23,7 +23,9 @@ export async function POST(
     
 return NextResponse.json(result)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/rules/[id]/toggle] POST error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/rules/[id]/toggle] POST error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Failed to toggle rule' },

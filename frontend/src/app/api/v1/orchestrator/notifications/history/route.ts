@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
     
 return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to get notification history:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to get notification history:', error)
+    }
     
 return NextResponse.json(
       { error: error.message || 'Failed to get notification history' },

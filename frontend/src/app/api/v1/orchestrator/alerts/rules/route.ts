@@ -16,7 +16,9 @@ export async function GET() {
     
 return NextResponse.json(rules)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/rules] GET error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/rules] GET error:', error)
+    }
     
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('timeout')) {
       return NextResponse.json([])
@@ -45,7 +47,9 @@ export async function POST(req: Request) {
     
 return NextResponse.json(rule)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/rules] POST error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/rules] POST error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Failed to create rule' },

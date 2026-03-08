@@ -23,7 +23,9 @@ export async function DELETE(req: Request) {
     
 return NextResponse.json(result)
   } catch (error: any) {
-    console.error('[orchestrator/alerts/clear] DELETE error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/alerts/clear] DELETE error:', error)
+    }
     
 return NextResponse.json(
       { error: error?.message || 'Failed to clear alerts' },

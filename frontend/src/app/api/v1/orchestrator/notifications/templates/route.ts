@@ -12,7 +12,9 @@ export async function GET() {
 
     return NextResponse.json(result)
   } catch (error: any) {
-    console.error('[orchestrator/notifications/templates] GET error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/notifications/templates] GET error:', error)
+    }
 
     return NextResponse.json(
       { error: error.message || 'Failed to get templates' },
@@ -36,7 +38,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result)
   } catch (error: any) {
-    console.error('[orchestrator/notifications/templates] POST error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/notifications/templates] POST error:', error)
+    }
 
     return NextResponse.json(
       { error: error.message || 'Failed to save template' },

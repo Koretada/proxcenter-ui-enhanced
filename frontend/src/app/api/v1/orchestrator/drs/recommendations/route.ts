@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
     // Retourner directement le tableau
     return NextResponse.json(response.data || [])
   } catch (e: any) {
-    console.error("Error fetching DRS recommendations:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching DRS recommendations:", e)
+    }
 
     // Retourner un tableau vide en cas d'erreur
     return NextResponse.json([])
@@ -41,7 +43,9 @@ export async function POST() {
     
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error triggering DRS evaluation:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error triggering DRS evaluation:", e)
+    }
     
 return NextResponse.json(
       { error: e?.message || "Failed to trigger evaluation" },

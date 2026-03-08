@@ -16,7 +16,9 @@ export async function GET() {
     
 return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('[orchestrator/health] GET error:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('[orchestrator/health] GET error:', error)
+    }
     
     // Si l'orchestrator est indisponible, retourner un statut offline
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('timeout') || error.message?.includes('fetch failed')) {

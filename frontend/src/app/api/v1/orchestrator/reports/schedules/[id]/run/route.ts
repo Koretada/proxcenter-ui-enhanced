@@ -18,7 +18,9 @@ export async function POST(
 
     return NextResponse.json(data, { status: 202 })
   } catch (error: any) {
-    console.error('Failed to run schedule:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to run schedule:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to run schedule' },
       { status: 500 }

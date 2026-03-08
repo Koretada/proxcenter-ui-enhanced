@@ -19,7 +19,9 @@ export async function POST() {
     
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error triggering DRS evaluation:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error triggering DRS evaluation:", e)
+    }
     
 return NextResponse.json(
       { error: e?.message || "Failed to trigger DRS evaluation" },

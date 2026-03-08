@@ -82,7 +82,9 @@ export async function GET(
     
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error checking migration:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error checking migration:", e)
+    }
     
     // Retourner une réponse par défaut en cas d'erreur (migration possible mais non vérifiée)
     return NextResponse.json({

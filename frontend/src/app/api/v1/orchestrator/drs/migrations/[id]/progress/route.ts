@@ -38,7 +38,9 @@ export async function GET(
     
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error fetching migration progress:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching migration progress:", e)
+    }
     
 return NextResponse.json(
       { error: e.message || 'Failed to fetch migration progress' },

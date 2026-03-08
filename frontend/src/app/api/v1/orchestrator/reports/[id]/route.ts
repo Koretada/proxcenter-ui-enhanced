@@ -16,7 +16,9 @@ export async function GET(
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to get report:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to get report:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to get report' },
       { status: 500 }
@@ -37,7 +39,9 @@ export async function DELETE(
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Failed to delete report:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Failed to delete report:', error)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to delete report' },
       { status: 500 }

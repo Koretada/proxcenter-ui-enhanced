@@ -45,7 +45,9 @@ export async function POST(req: Request, ctx: Params) {
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error executing recommendation action:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error executing recommendation action:", e)
+    }
     
 return NextResponse.json(
       { error: e?.message || "Action failed" },

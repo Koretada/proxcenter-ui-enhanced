@@ -22,7 +22,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error('Error fetching changes:', error)
+    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error('Error fetching changes:', error)
+    }
 
     return NextResponse.json(
       { error: error?.message || 'Server error' },

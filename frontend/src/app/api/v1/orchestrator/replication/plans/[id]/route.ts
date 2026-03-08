@@ -17,7 +17,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error fetching recovery plan:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error fetching recovery plan:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to fetch recovery plan" },
@@ -39,7 +41,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error updating recovery plan:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error updating recovery plan:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to update recovery plan" },
@@ -60,7 +64,9 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 
     return NextResponse.json(response.data)
   } catch (e: any) {
-    console.error("Error deleting recovery plan:", e)
+    if ((e as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
+      console.error("Error deleting recovery plan:", e)
+    }
 
     return NextResponse.json(
       { error: e?.message || "Failed to delete recovery plan" },
