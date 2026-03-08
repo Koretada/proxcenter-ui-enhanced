@@ -33,16 +33,20 @@ import {
 
 import { AllVmItem } from './InventoryTree'
 
-function CreateLxcDialog({ 
-  open, 
+function CreateLxcDialog({
+  open,
   onClose,
   allVms = [],
-  onCreated
-}: { 
+  onCreated,
+  defaultConnId,
+  defaultNode,
+}: {
   open: boolean
   onClose: () => void
   allVms: AllVmItem[]
   onCreated?: (vmid: string, connId: string, node: string) => void
+  defaultConnId?: string
+  defaultNode?: string
 }) {
   const t = useTranslations()
   const theme = useTheme()
@@ -61,7 +65,9 @@ function CreateLxcDialog({
   
   // Formulaire - Général
   const [selectedConnection, setSelectedConnection] = useState('')
-  const [selectedNode, setSelectedNode] = useState('')
+  const [selectedNodeValue, setSelectedNodeValue] = useState('')
+  const [resolvedNode, setResolvedNode] = useState('')
+  const [pendingClusterSelect, setPendingClusterSelect] = useState<string | null>(null)
   const [ctid, setCtid] = useState('')
   const [ctidError, setCtidError] = useState<string | null>(null)
   const [hostname, setHostname] = useState('')
@@ -216,9 +222,28 @@ return
 
       setNodes(allNodes)
 
-      if (allNodes.length > 0 && !selectedNode) {
-        setSelectedNode(allNodes[0].node)
-        setSelectedConnection(allNodes[0].connId)
+      if (allNodes.length > 0) {
+        if (defaultConnId && defaultNode) {
+          const match = allNodes.find((n: any) => n.connId === defaultConnId && n.node === defaultNode)
+          const target = match || allNodes[0]
+          setSelectedNodeValue(target.node)
+          setResolvedNode(target.node)
+          setSelectedConnection(target.connId)
+        } else if (defaultConnId) {
+          const clusterNodes = allNodes.filter((n: any) => n.connId === defaultConnId)
+          if (clusterNodes.length > 0) {
+            setPendingClusterSelect(defaultConnId)
+            setSelectedConnection(defaultConnId)
+          } else {
+            setSelectedNodeValue(allNodes[0].node)
+            setResolvedNode(allNodes[0].node)
+            setSelectedConnection(allNodes[0].connId)
+          }
+        } else {
+          setSelectedNodeValue(allNodes[0].node)
+          setResolvedNode(allNodes[0].node)
+          setSelectedConnection(allNodes[0].connId)
+        }
       }
 
     } catch (e) {
@@ -291,15 +316,19 @@ return
     if (open) {
       setActiveTab(0)
       setError(null)
+      setSelectedNodeValue('')
+      setResolvedNode('')
+      setSelectedConnection('')
+      setPendingClusterSelect(null)
       loadAllData()
     }
   }, [open])
 
   useEffect(() => {
-    if (selectedConnection && selectedNode) {
+    if (selectedConnection && resolvedNode) {
       loadStorages(selectedConnection)
     }
-  }, [selectedConnection, selectedNode])
+  }, [selectedConnection, resolvedNode])
 
   // Charger les pools de ressources quand la connexion change
   useEffect(() => {
@@ -325,17 +354,34 @@ return
     loadPools()
   }, [open, selectedConnection])
 
+  // Appliquer la sélection cluster en attente une fois groupedNodes calculé
+  useEffect(() => {
+    if (pendingClusterSelect && groupedNodes.length > 0) {
+      const group = groupedNodes.find(g => g.connId === pendingClusterSelect)
+      if (group && group.isCluster) {
+        handleNodeChange(`cluster:${pendingClusterSelect}`)
+      } else if (group) {
+        const nodeName = group.nodes[0]?.node || ''
+        setSelectedNodeValue(nodeName)
+        setResolvedNode(nodeName)
+        setSelectedConnection(pendingClusterSelect)
+      }
+      setPendingClusterSelect(null)
+    }
+  }, [pendingClusterSelect, groupedNodes])
+
   // Quand on sélectionne un node ou cluster
   const handleNodeChange = (value: string) => {
+    setSelectedNodeValue(value)
     if (value.startsWith('cluster:')) {
       const connId = value.replace('cluster:', '')
       const bestNode = findBestNode(connId)
       if (bestNode) {
-        setSelectedNode(bestNode)
+        setResolvedNode(bestNode)
         setSelectedConnection(connId)
       }
     } else {
-      setSelectedNode(value)
+      setResolvedNode(value)
       const nodeData = nodes.find(n => n.node === value)
       if (nodeData) {
         setSelectedConnection(nodeData.connId)
@@ -427,7 +473,7 @@ return
       if (resourcePool) payload.pool = resourcePool
 
       const res = await fetch(
-        `/api/v1/connections/${encodeURIComponent(selectedConnection)}/guests/lxc/${encodeURIComponent(selectedNode)}`,
+        `/api/v1/connections/${encodeURIComponent(selectedConnection)}/guests/lxc/${encodeURIComponent(resolvedNode)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -441,7 +487,7 @@ return
         throw new Error(err?.error || `HTTP ${res.status}`)
       }
 
-      onCreated?.(ctid, selectedConnection, selectedNode)
+      onCreated?.(ctid, selectedConnection, resolvedNode)
       onClose()
     } catch (e: any) {
       setError(e?.message || t('inventory.createLxc.errorCreatingContainer'))
@@ -472,7 +518,7 @@ return
             <FormControl fullWidth size="small">
               <InputLabel>{t('inventory.createLxc.node')}</InputLabel>
               <Select
-                value={selectedNode}
+                value={selectedNodeValue}
                 onChange={(e) => handleNodeChange(e.target.value)}
                 label={t('inventory.createLxc.node')}
                 MenuProps={{ PaperProps: { sx: { maxHeight: 400 } } }}
@@ -532,13 +578,15 @@ return
                       sx={{ pl: group.isCluster ? 4 : 2 }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                        <i
-                          className={isMaintenance ? 'ri-tools-line' : 'ri-server-line'}
-                          style={{
-                            fontSize: 14,
-                            color: isMaintenance ? theme.palette.warning.main : n.status === 'online' ? theme.palette.success.main : theme.palette.text.disabled
-                          }}
-                        />
+                        {isMaintenance ? (
+                          <i className="ri-tools-line" style={{ fontSize: 14, color: theme.palette.warning.main }} />
+                        ) : (
+                          <img
+                            src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'}
+                            alt="" width={14} height={14}
+                            style={{ opacity: n.status === 'online' ? 0.8 : 0.3 }}
+                          />
+                        )}
                         <Box sx={{ flex: 1 }}>
                           <Typography variant="body2" sx={{ opacity: isDisabled ? 0.5 : 1 }}>
                             {n.node}
@@ -903,7 +951,7 @@ return
               {t('inventory.createLxc.reviewSettingsLxc')}
             </Alert>
             <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 1, fontFamily: 'monospace', fontSize: '0.85rem' }}>
-              <Typography variant="body2"><b>{t('inventory.createLxc.confirmNode')}</b> {selectedNode}</Typography>
+              <Typography variant="body2"><b>{t('inventory.createLxc.confirmNode')}</b> {resolvedNode}</Typography>
               <Typography variant="body2"><b>{t('inventory.createLxc.confirmCtId')}</b> {ctid}</Typography>
               <Typography variant="body2"><b>{t('inventory.createLxc.confirmHostname')}</b> {hostname}</Typography>
               <Typography variant="body2"><b>{t('inventory.createLxc.confirmUnprivileged')}</b> {unprivileged ? t('common.yes') : t('common.no')}</Typography>
@@ -988,7 +1036,7 @@ return
             onClick={handleCreate}
             variant="contained"
             color="primary"
-            disabled={creating || !ctid || !selectedNode || !!ctidError}
+            disabled={creating || !ctid || !resolvedNode || !!ctidError}
             startIcon={creating ? <CircularProgress size={16} /> : null}
           >
             {t('common.create')}

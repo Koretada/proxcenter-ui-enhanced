@@ -1041,14 +1041,17 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
   // External hypervisor host (VMware ESXi, Hyper-V, XCP-ng)
   if (sel.type === 'ext') {
     const connId = sel.id
-    const [connR, statusR, vmsR] = await Promise.all([
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}`, { cache: 'no-store' }),
-      fetch(`/api/v1/vmware/${encodeURIComponent(connId)}/status`, { cache: 'no-store' }).catch(() => null),
-      fetch(`/api/v1/vmware/${encodeURIComponent(connId)}/vms`, { cache: 'no-store' }).catch(() => null),
-    ])
-
+    // First fetch the connection to know its type
+    const connR = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}`, { cache: 'no-store' })
     const connData = await connR.json().catch(() => ({}))
     const conn = connData?.data || connData || {}
+    const apiPrefix = conn.type === 'xcpng' ? 'xcpng' : 'vmware'
+
+    const [statusR, vmsR] = await Promise.all([
+      fetch(`/api/v1/${apiPrefix}/${encodeURIComponent(connId)}/status`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/${apiPrefix}/${encodeURIComponent(connId)}/vms`, { cache: 'no-store' }).catch(() => null),
+    ])
+
     const statusData = statusR?.ok ? await statusR.json().catch(() => ({})) : {}
     const vmsData = vmsR?.ok ? await vmsR.json().catch(() => ({})) : {}
 
@@ -1091,9 +1094,15 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
     const [connId, ...vmidParts] = sel.id.split(':')
     const vmid = vmidParts.join(':')
 
+    // Determine API prefix from connection type
+    const connTypeR = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}`, { cache: 'no-store' }).catch(() => null)
+    const connTypeData = connTypeR?.ok ? await connTypeR.json().catch(() => ({})) : {}
+    const connType = connTypeData?.data?.type || connTypeData?.type || 'vmware'
+    const apiPrefix = connType === 'xcpng' ? 'xcpng' : 'vmware'
+
     const [vmR, statusR] = await Promise.all([
-      fetch(`/api/v1/vmware/${encodeURIComponent(connId)}/vms/${encodeURIComponent(vmid)}`, { cache: 'no-store' }),
-      fetch(`/api/v1/vmware/${encodeURIComponent(connId)}/status`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/${apiPrefix}/${encodeURIComponent(connId)}/vms/${encodeURIComponent(vmid)}`, { cache: 'no-store' }),
+      fetch(`/api/v1/${apiPrefix}/${encodeURIComponent(connId)}/status`, { cache: 'no-store' }).catch(() => null),
     ])
     const vmJson = await vmR.json().catch(() => ({}))
     const vm = vmJson?.data || {}
@@ -1119,7 +1128,7 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
     const provisionedGB = vm.provisioned ? (vm.provisioned / 1073741824).toFixed(1) : '0'
 
     return {
-      kindLabel: 'VMWARE VM',
+      kindLabel: connType === 'xcpng' ? 'XCP-NG VM' : 'VMWARE VM',
       title: vm.name || vmid,
       subtitle: vm.guestOS || '',
       breadcrumb: ['Infrastructure', 'Inventaire', vm.connectionName || '', vm.name || vmid],
@@ -1145,7 +1154,7 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
         ...(vm.annotation ? [{ k: 'Notes', v: vm.annotation }] : []),
       ],
       lastUpdated,
-      esxiVmInfo: vm,
+      esxiVmInfo: { ...vm, hostType: connType },
     }
   }
 

@@ -125,6 +125,8 @@ function ConnectionStatus({ connection, autoTest = false, onNodesLoaded }) {
         ? `/api/v1/pbs/${connection.id}/status`
         : connection.type === 'vmware'
         ? `/api/v1/vmware/${connection.id}/status`
+        : connection.type === 'xcpng'
+        ? `/api/v1/xcpng/${connection.id}/status`
         : `/api/v1/connections/${connection.id}/nodes`
 
       const res = await fetch(endpoint)
@@ -227,15 +229,19 @@ function ConnectionsTab() {
     pveConnections,
     pbsConnections,
     vmwareConnections,
+    xcpngConnections,
     pveLoading,
     pbsLoading,
     vmwareLoading,
+    xcpngLoading,
     pveError,
     pbsError,
     vmwareError,
+    xcpngError,
     loadPveConnections,
     loadPbsConnections,
     loadVmwareConnections,
+    loadXcpngConnections,
   } = useConnectionsManagement()
 
   // Dialog
@@ -266,24 +272,24 @@ function ConnectionsTab() {
   }
 
   const handleSaveConnection = async (formData) => {
-    const isVmware = addConnType === 'vmware'
+    const isExtHypervisor = addConnType === 'vmware' || addConnType === 'xcpng'
     const payload = {
       name: formData.name.trim(),
       type: addConnType,
       baseUrl: formData.baseUrl.trim(),
-      uiUrl: isVmware ? null : (formData.uiUrl || '').trim() || null,
+      uiUrl: isExtHypervisor ? null : (formData.uiUrl || '').trim() || null,
       insecureTLS: !!formData.insecureTLS,
       // Location fields
       latitude: formData.latitude !== '' && !isNaN(parseFloat(formData.latitude)) ? parseFloat(formData.latitude) : null,
       longitude: formData.longitude !== '' && !isNaN(parseFloat(formData.longitude)) ? parseFloat(formData.longitude) : null,
       locationLabel: formData.locationLabel?.trim() || null,
       // PVE/PBS: API token
-      ...(!isVmware && formData.apiToken.trim() && { apiToken: formData.apiToken.trim() }),
-      // VMware: username + password
-      ...(isVmware && { vmwareUser: formData.vmwareUser?.trim() || 'root' }),
-      ...(isVmware && formData.vmwarePassword && { vmwarePassword: formData.vmwarePassword }),
+      ...(!isExtHypervisor && formData.apiToken.trim() && { apiToken: formData.apiToken.trim() }),
+      // VMware/XCP-ng: username + password
+      ...(isExtHypervisor && { vmwareUser: formData.vmwareUser?.trim() || (addConnType === 'xcpng' ? 'admin@admin.net' : 'root') }),
+      ...(isExtHypervisor && formData.vmwarePassword && { vmwarePassword: formData.vmwarePassword }),
       // SSH fields (PVE only)
-      ...(!isVmware && {
+      ...(!isExtHypervisor && {
         sshEnabled: formData.sshEnabled,
         sshPort: formData.sshPort,
         sshUser: formData.sshUser,
@@ -304,7 +310,7 @@ function ConnectionsTab() {
       })
     } else {
       // Create new
-      if (!isVmware && !formData.apiToken.trim()) {
+      if (!isExtHypervisor && !formData.apiToken.trim()) {
         throw new Error('API Token is required')
       }
       await fetchJson('/api/v1/connections', {
@@ -321,6 +327,8 @@ function ConnectionsTab() {
       loadPbsConnections()
     } else if (addConnType === 'vmware') {
       loadVmwareConnections()
+    } else if (addConnType === 'xcpng') {
+      loadXcpngConnections()
     }
 
     // En mode onboarding, rediriger vers la page d'accueil après création
@@ -358,7 +366,7 @@ function ConnectionsTab() {
   }
 
   const deleteConnection = async (id, type) => {
-    const typeName = type === 'pbs' ? 'PBS' : type === 'vmware' ? 'VMware ESXi' : 'PVE'
+    const typeName = type === 'pbs' ? 'PBS' : type === 'vmware' ? 'VMware ESXi' : type === 'xcpng' ? 'XCP-ng' : 'PVE'
     const ok = window.confirm(t('settings.deleteConnectionConfirm', { type: typeName }))
 
     if (!ok) return
@@ -370,6 +378,8 @@ function ConnectionsTab() {
       await loadPbsConnections()
     } else if (type === 'vmware') {
       await loadVmwareConnections()
+    } else if (type === 'xcpng') {
+      await loadXcpngConnections()
     }
   }
 
@@ -383,7 +393,7 @@ function ConnectionsTab() {
         minWidth: 180,
         renderCell: params => (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
-            <i className='ri-server-line' style={{ opacity: 0.6 }} />
+            <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt='' width={18} height={18} style={{ opacity: 0.8 }} />
             <Typography variant='body2' sx={{ fontWeight: 600 }}>{params.value}</Typography>
           </Box>
         )
@@ -533,7 +543,7 @@ function ConnectionsTab() {
         )
       }
     ],
-    [t, loadPveConnections]
+    [t, loadPveConnections, theme]
   )
 
   // PBS Columns
@@ -546,7 +556,7 @@ function ConnectionsTab() {
         minWidth: 180,
         renderCell: params => (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
-            <i className='ri-hard-drive-2-line' style={{ opacity: 0.6 }} />
+            <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt='' width={18} height={18} style={{ opacity: 0.8 }} />
             <Typography variant='body2' sx={{ fontWeight: 600 }}>{params.value}</Typography>
           </Box>
         )
@@ -621,7 +631,7 @@ function ConnectionsTab() {
         )
       }
     ],
-    [t]
+    [t, theme]
   )
 
   // VMware columns
@@ -634,7 +644,7 @@ function ConnectionsTab() {
         minWidth: 180,
         renderCell: params => (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
-            <i className='ri-cloud-line' style={{ opacity: 0.6, color: '#638C1C' }} />
+            <img src='/images/esxi-logo.svg' alt='' width={18} height={18} style={{ opacity: 0.8 }} />
             <Typography variant='body2' sx={{ fontWeight: 600 }}>{params.value}</Typography>
           </Box>
         )
@@ -701,6 +711,83 @@ function ConnectionsTab() {
     [t]
   )
 
+  // XCP-ng columns
+  const xcpngColumns = useMemo(
+    () => [
+      {
+        field: 'name',
+        headerName: t('common.name'),
+        flex: 1,
+        minWidth: 180,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
+            <img src='/images/xcpng-logo.svg' alt='' width={18} height={18} style={{ opacity: 0.8 }} />
+            <Typography variant='body2' sx={{ fontWeight: 600 }}>{params.value}</Typography>
+          </Box>
+        )
+      },
+      {
+        field: 'baseUrl',
+        headerName: t('settings.xcpngHost'),
+        flex: 1.2,
+        minWidth: 200,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            <Typography variant='body2' sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.8rem', opacity: 0.8 }}>
+              {params.value}
+            </Typography>
+          </Box>
+        )
+      },
+      {
+        field: 'status',
+        headerName: t('common.status'),
+        width: 160,
+        renderCell: params => (
+          <ConnectionStatus connection={params.row} autoTest={true} />
+        )
+      },
+      {
+        field: 'locationLabel',
+        headerName: t('settings.location'),
+        width: 140,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: '100%' }}>
+            {params.value ? (
+              <>
+                <i className='ri-map-pin-2-line' style={{ fontSize: 14, opacity: 0.6 }} />
+                <Typography variant='body2' noWrap>{params.value}</Typography>
+              </>
+            ) : (
+              <Typography variant='caption' sx={{ opacity: 0.3 }}>—</Typography>
+            )}
+          </Box>
+        )
+      },
+      {
+        field: 'actions',
+        headerName: '',
+        width: 100,
+        sortable: false,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: '100%' }}>
+            <Tooltip title={t('common.edit')}>
+              <IconButton size='small' onClick={() => openEditDialog(params.row)}>
+                <i className='ri-pencil-line' style={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={t('common.delete')}>
+              <IconButton size='small' color='error' onClick={() => deleteConnection(params.row.id, 'xcpng')}>
+                <i className='ri-delete-bin-6-line' style={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )
+      }
+    ],
+    [t]
+  )
+
   return (
     <>
       {/* Sub-tabs PVE / PBS / VMware */}
@@ -742,7 +829,7 @@ function ConnectionsTab() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <img src='/images/xcpng-logo.svg' alt='' width={18} height={18} />
                 <span>XCP-ng</span>
-                <Chip size='small' label='Soon' sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#00B9E6', color: '#fff' }} />
+                <Chip size='small' label={xcpngConnections.length} sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#00ADB5', color: '#fff' }} />
               </Box>
             }
           />
@@ -897,15 +984,45 @@ function ConnectionsTab() {
         </Box>
       </SubTabPanel>
 
-      {/* XCP-ng Tab - Coming Soon */}
+      {/* XCP-ng Tab */}
       <SubTabPanel value={connTab} index={3}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8, gap: 2 }}>
-          <img src='/images/xcpng-logo.svg' alt='XCP-ng' width={64} height={64} style={{ opacity: 0.5 }} />
-          <Typography variant='h6' sx={{ opacity: 0.7 }}>XCP-ng</Typography>
-          <Chip label='Coming Soon' color='info' />
-          <Typography variant='body2' sx={{ opacity: 0.5, maxWidth: 400, textAlign: 'center' }}>
-            {t('settings.xcpngComingSoonDesc')}
+        {xcpngError && <Alert severity='error' sx={{ mb: 2 }}>{t('common.error')}: {xcpngError}</Alert>}
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant='body2' sx={{ opacity: 0.7 }}>
+            {t('settings.xcpngServers')}
           </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button variant='outlined' size='small' onClick={loadXcpngConnections} disabled={xcpngLoading} startIcon={<i className='ri-refresh-line' />}>
+              {t('common.refresh')}
+            </Button>
+            <Button variant='contained' size='small' sx={{ bgcolor: '#00ADB5', '&:hover': { bgcolor: '#008B92' } }} onClick={() => openAddDialog('xcpng')} startIcon={<i className='ri-add-line' />}>
+              {t('common.add')} XCP-ng
+            </Button>
+          </Box>
+        </Box>
+
+        <Box sx={{ height: 'calc(100vh - 380px)', minHeight: 300 }}>
+          {!xcpngLoading && xcpngConnections.length === 0 ? (
+            <EmptyState
+              icon="ri-server-line"
+              title={t('settings.noXcpngConnections')}
+              description={t('settings.noXcpngConnectionsDesc')}
+              action={{ label: `${t('common.add')} XCP-ng`, onClick: () => openAddDialog('xcpng'), icon: 'ri-add-line' }}
+              size="large"
+            />
+          ) : (
+            <DataGrid
+              rows={xcpngConnections}
+              columns={xcpngColumns}
+              loading={xcpngLoading}
+              getRowId={r => r.id}
+              pageSizeOptions={[10, 25, 50]}
+              initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
+              disableRowSelectionOnClick
+              sx={{ '& .MuiDataGrid-row:hover': { backgroundColor: 'action.hover' } }}
+            />
+          )}
         </Box>
       </SubTabPanel>
 
@@ -1185,50 +1302,45 @@ function LicenseTab() {
                 )}
               </Box>
 
-              {/* Features Summary */}
-              <Box sx={{ flex: 1, minWidth: 200, p: 2, borderRadius: 2, border: 1, borderColor: 'divider' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <i className='ri-apps-line' style={{ fontSize: 18, opacity: 0.6 }} />
-                  <Typography variant='caption' fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.6 }}>
-                    {t('settings.includedFeatures')}
-                  </Typography>
-                </Box>
-                <Typography variant='h5' fontWeight={700} sx={{ mb: 0.5 }}>
-                  {enabledCount} <Typography component='span' variant='body2' sx={{ opacity: 0.5, fontWeight: 400 }}>/ {totalCount}</Typography>
-                </Typography>
-                <LinearProgress
-                  variant='determinate'
-                  value={totalCount > 0 ? Math.round((enabledCount / totalCount) * 100) : 0}
-                  sx={{
-                    height: 6, borderRadius: 3, mb: 0.5,
-                    bgcolor: 'action.hover',
-                    '& .MuiLinearProgress-bar': { borderRadius: 3, bgcolor: 'success.main' },
-                  }}
-                />
-                <Typography variant='caption' sx={{ opacity: 0.5 }}>
-                  {enabledCount === totalCount ? t('settings.allFeaturesEnabled') : t('settings.featuresAvailableWithUpgrade', { count: totalCount - enabledCount })}
-                </Typography>
-              </Box>
-
               {/* Days Remaining */}
-              {licenseStatus.expires_at && (
-                <Box sx={{ flex: 1, minWidth: 200, p: 2, borderRadius: 2, border: 1, borderColor: 'divider' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <i className='ri-calendar-check-line' style={{ fontSize: 18, opacity: 0.6 }} />
-                    <Typography variant='caption' fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.6 }}>
-                      {t('settings.licenseValidity')}
+              {licenseStatus.expires_at && (() => {
+                const expiresAt = new Date(licenseStatus.expires_at)
+                const now = new Date()
+                const daysRemaining = Math.max(0, Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)))
+                const startDate = licenseStatus.activated_at ? new Date(licenseStatus.activated_at) : new Date(expiresAt.getTime() - 365 * 24 * 60 * 60 * 1000)
+                const totalDays = Math.max(1, Math.ceil((expiresAt - startDate) / (1000 * 60 * 60 * 24)))
+                const remainPct = Math.max(0, Math.min(100, Math.round((daysRemaining / totalDays) * 100)))
+                return (
+                  <Box sx={{ flex: 1, minWidth: 200, p: 2, borderRadius: 2, border: 1, borderColor: 'divider' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <i className='ri-calendar-check-line' style={{ fontSize: 18, opacity: 0.6 }} />
+                      <Typography variant='caption' fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.6 }}>
+                        {t('settings.licenseValidity')}
+                      </Typography>
+                    </Box>
+                    <Typography variant='h5' fontWeight={700} sx={{ mb: 0.5 }} color={
+                      licenseStatus.expired ? 'error.main' : licenseStatus.expiration_warn ? 'warning.main' : 'text.primary'
+                    }>
+                      {licenseStatus.expired ? t('settings.licenseExpired') : t('settings.licenseDays', { count: daysRemaining })}
+                    </Typography>
+                    <LinearProgress
+                      variant='determinate'
+                      value={remainPct}
+                      sx={{
+                        height: 6, borderRadius: 3, mb: 0.5,
+                        bgcolor: 'action.hover',
+                        '& .MuiLinearProgress-bar': {
+                          borderRadius: 3,
+                          bgcolor: remainPct <= 10 ? 'error.main' : remainPct <= 25 ? 'warning.main' : 'success.main',
+                        },
+                      }}
+                    />
+                    <Typography variant='caption' sx={{ opacity: 0.5 }}>
+                      {licenseStatus.expired ? t('settings.pleaseRenewLicense') : t('settings.untilDate', { date: new Date(licenseStatus.expires_at).toLocaleDateString() })}
                     </Typography>
                   </Box>
-                  <Typography variant='h5' fontWeight={700} color={
-                    licenseStatus.expired ? 'error.main' : licenseStatus.expiration_warn ? 'warning.main' : 'text.primary'
-                  }>
-                    {licenseStatus.expired ? t('settings.licenseExpired') : t('settings.licenseDays', { count: licenseStatus.days_remaining ?? '—' })}
-                  </Typography>
-                  <Typography variant='caption' sx={{ opacity: 0.5 }}>
-                    {licenseStatus.expired ? t('settings.pleaseRenewLicense') : t('settings.untilDate', { date: new Date(licenseStatus.expires_at).toLocaleDateString() })}
-                  </Typography>
-                </Box>
-              )}
+                )
+              })()}
             </Box>
           )}
 
@@ -1348,7 +1460,7 @@ function LicenseTab() {
             </Button>
 
             <Typography variant='caption' sx={{ display: 'block', mt: 2, opacity: 0.6 }}>
-              {t('settings.needLicense')} <a href='https://proxcenter.io/pricing' target='_blank' rel='noopener noreferrer' style={{ color: '#e57000' }}>{t('settings.viewPricing')}</a>
+              {t('settings.needLicense')} <a href='https://www.proxcenter.io/' target='_blank' rel='noopener noreferrer' style={{ color: '#e57000' }}>{t('settings.viewPricing')}</a>
             </Typography>
           </CardContent>
         </Card>

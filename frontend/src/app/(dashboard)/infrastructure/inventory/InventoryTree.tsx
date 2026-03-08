@@ -1615,12 +1615,13 @@ return next
           const externalData = JSON.parse(e.data)
           setExternalHypervisors(externalData)
 
-          // Fetch VMware VMs in parallel
-          const vmwareConns = (externalData || []).filter((h: any) => h.type === 'vmware')
-          if (vmwareConns.length > 0) {
-            Promise.all(vmwareConns.map(async (conn: any) => {
+          // Fetch external hypervisor VMs in parallel (VMware + XCP-ng)
+          const extConns = (externalData || []).filter((h: any) => h.type === 'vmware' || h.type === 'xcpng')
+          if (extConns.length > 0) {
+            Promise.all(extConns.map(async (conn: any) => {
               try {
-                const vmRes = await fetch(`/api/v1/vmware/${encodeURIComponent(conn.id)}/vms`)
+                const apiPrefix = conn.type === 'xcpng' ? 'xcpng' : 'vmware'
+                const vmRes = await fetch(`/api/v1/${apiPrefix}/${encodeURIComponent(conn.id)}/vms`)
                 if (vmRes.ok) {
                   const vmJson = await vmRes.json()
                   return { id: conn.id, vms: vmJson?.data?.vms || [] }
@@ -1631,7 +1632,7 @@ return next
               if (!alive) return
               const vmMap = new Map(vmResults.map(r => [r.id, r.vms]))
               setExternalHypervisors((prev: any[]) =>
-                prev.map((h: any) => h.type === 'vmware' && vmMap.has(h.id) ? { ...h, vms: vmMap.get(h.id) } : h)
+                prev.map((h: any) => (h.type === 'vmware' || h.type === 'xcpng') && vmMap.has(h.id) ? { ...h, vms: vmMap.get(h.id) } : h)
               )
             })
           }

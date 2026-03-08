@@ -65,12 +65,16 @@ function CreateVmDialog({
   open,
   onClose,
   allVms = [],
-  onCreated
+  onCreated,
+  defaultConnId,
+  defaultNode,
 }: {
   open: boolean
   onClose: () => void
   allVms: AllVmItem[]
   onCreated?: (vmid: string, connId: string, node: string) => void
+  defaultConnId?: string
+  defaultNode?: string
 }) {
   const t = useTranslations()
   const theme = useTheme()
@@ -92,7 +96,9 @@ function CreateVmDialog({
   
   // Formulaire - Général
   const [selectedConnection, setSelectedConnection] = useState('')
-  const [selectedNode, setSelectedNode] = useState('')
+  const [selectedNodeValue, setSelectedNodeValue] = useState('')  // valeur du Select (peut être "cluster:xxx" ou "pve1")
+  const [resolvedNode, setResolvedNode] = useState('')            // vrai node pour les API calls
+  const [pendingClusterSelect, setPendingClusterSelect] = useState<string | null>(null)
   const [vmid, setVmid] = useState('')
   const [vmidError, setVmidError] = useState<string | null>(null)
   const [vmName, setVmName] = useState('')
@@ -224,6 +230,10 @@ function CreateVmDialog({
     if (open) {
       setActiveTab(0)
       setError(null)
+      setSelectedNodeValue('')
+      setResolvedNode('')
+      setSelectedConnection('')
+      setPendingClusterSelect(null)
       setDisks([createDefaultDisk()])
       loadAllData()
     }
@@ -231,17 +241,17 @@ function CreateVmDialog({
 
   // Charger les storages quand un node est sélectionné
   useEffect(() => {
-    if (selectedConnection && selectedNode) {
+    if (selectedConnection && resolvedNode) {
       loadStorages(selectedConnection)
     }
-  }, [selectedConnection, selectedNode])
+  }, [selectedConnection, resolvedNode])
 
   // Charger les bridges quand un node est sélectionné
   useEffect(() => {
-    if (selectedConnection && selectedNode) {
-      loadBridges(selectedConnection, selectedNode)
+    if (selectedConnection && resolvedNode) {
+      loadBridges(selectedConnection, resolvedNode)
     }
-  }, [selectedConnection, selectedNode])
+  }, [selectedConnection, resolvedNode])
 
   // Charger les pools de ressources quand la connexion change
   useEffect(() => {
@@ -269,10 +279,10 @@ function CreateVmDialog({
 
   // Charger les ISOs quand un storage ISO est sélectionné
   useEffect(() => {
-    if (selectedConnection && isoStorage && selectedNode) {
-      loadIsoImages(selectedConnection, selectedNode, isoStorage)
+    if (selectedConnection && isoStorage && resolvedNode) {
+      loadIsoImages(selectedConnection, resolvedNode, isoStorage)
     }
-  }, [selectedConnection, selectedNode, isoStorage])
+  }, [selectedConnection, resolvedNode, isoStorage])
 
   // Valider le VMID quand il change
   const handleVmidChange = (value: string) => {
@@ -370,11 +380,33 @@ return
 
       setNodes(allNodes)
 
-      // 3. Sélectionner le premier node par défaut et charger le VMID
-      if (allNodes.length > 0 && !selectedNode) {
-        setSelectedNode(allNodes[0].node)
-        setSelectedConnection(allNodes[0].connId)
-        loadNextVmid(allNodes[0].connId)
+      // 3. Sélectionner le node par défaut (priorité au defaultNode/defaultConnId)
+      if (allNodes.length > 0) {
+        if (defaultConnId && defaultNode) {
+          const match = allNodes.find((n: any) => n.connId === defaultConnId && n.node === defaultNode)
+          const target = match || allNodes[0]
+          setSelectedNodeValue(target.node)
+          setResolvedNode(target.node)
+          setSelectedConnection(target.connId)
+          loadNextVmid(target.connId)
+        } else if (defaultConnId) {
+          const clusterNodes = allNodes.filter((n: any) => n.connId === defaultConnId)
+          if (clusterNodes.length > 0) {
+            setPendingClusterSelect(defaultConnId)
+            setSelectedConnection(defaultConnId)
+            loadNextVmid(defaultConnId)
+          } else {
+            setSelectedNodeValue(allNodes[0].node)
+            setResolvedNode(allNodes[0].node)
+            setSelectedConnection(allNodes[0].connId)
+            loadNextVmid(allNodes[0].connId)
+          }
+        } else {
+          setSelectedNodeValue(allNodes[0].node)
+          setResolvedNode(allNodes[0].node)
+          setSelectedConnection(allNodes[0].connId)
+          loadNextVmid(allNodes[0].connId)
+        }
       }
 
     } catch (e) {
@@ -446,20 +478,35 @@ return
     return bestNode.node
   }
 
+  // Appliquer la sélection cluster en attente une fois groupedNodes calculé
+  useEffect(() => {
+    if (pendingClusterSelect && groupedNodes.length > 0) {
+      const group = groupedNodes.find(g => g.connId === pendingClusterSelect)
+      if (group && group.isCluster) {
+        handleNodeChange(`cluster:${pendingClusterSelect}`)
+      } else if (group) {
+        const nodeName = group.nodes[0]?.node || ''
+        setSelectedNodeValue(nodeName)
+        setResolvedNode(nodeName)
+        setSelectedConnection(pendingClusterSelect)
+      }
+      setPendingClusterSelect(null)
+    }
+  }, [pendingClusterSelect, groupedNodes])
+
   // Quand on sélectionne un node ou cluster
   const handleNodeChange = (value: string) => {
-    // Check if it's a cluster selection (format: "cluster:connId")
+    setSelectedNodeValue(value)
     if (value.startsWith('cluster:')) {
       const connId = value.replace('cluster:', '')
       const bestNode = findBestNode(connId)
       if (bestNode) {
-        setSelectedNode(bestNode)
+        setResolvedNode(bestNode)
         setSelectedConnection(connId)
         loadNextVmid(connId)
       }
     } else {
-      // Regular node selection
-      setSelectedNode(value)
+      setResolvedNode(value)
       const nodeData = nodes.find(n => n.node === value)
       if (nodeData) {
         setSelectedConnection(nodeData.connId)
@@ -476,12 +523,12 @@ return
       const allStorages = storagesJson.data || []
       setStorages(allStorages)
 
-      // Auto-select defaults from filtered storages (only shared + local for selectedNode)
+      // Auto-select defaults from filtered storages (only shared + local for resolvedNode)
       const filteredIso = allStorages.filter((s: any) =>
-        s.content?.includes('iso') && (s.shared || s.node === selectedNode)
+        s.content?.includes('iso') && (s.shared || s.node === resolvedNode)
       )
       const filteredDisk = allStorages.filter((s: any) =>
-        (s.content?.includes('images') || s.content?.includes('rootdir')) && (s.shared || s.node === selectedNode)
+        (s.content?.includes('images') || s.content?.includes('rootdir')) && (s.shared || s.node === resolvedNode)
       )
 
       if (filteredIso.length > 0 && !isoStorage) {
@@ -607,7 +654,7 @@ return
       console.log('Creating VM with payload:', payload)
 
       const res = await fetch(
-        `/api/v1/connections/${encodeURIComponent(selectedConnection)}/guests/qemu/${encodeURIComponent(selectedNode)}`,
+        `/api/v1/connections/${encodeURIComponent(selectedConnection)}/guests/qemu/${encodeURIComponent(resolvedNode)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -622,7 +669,7 @@ return
       }
 
       // Appeler le callback avec les infos de la VM créée
-      onCreated?.(vmid, selectedConnection, selectedNode)
+      onCreated?.(vmid, selectedConnection, resolvedNode)
       onClose()
     } catch (e: any) {
       setError(e?.message || t('errors.addError'))
@@ -644,12 +691,12 @@ return
   
   // Filtrer les storages selon leur contenu ET le node sélectionné
   const isoStoragesList = useMemo(() =>
-    storages.filter(s => s.content?.includes('iso') && (s.shared || s.node === selectedNode)),
-    [storages, selectedNode]
+    storages.filter(s => s.content?.includes('iso') && (s.shared || s.node === resolvedNode)),
+    [storages, resolvedNode]
   )
   const diskStoragesList = useMemo(() =>
-    storages.filter(s => (s.content?.includes('images') || s.content?.includes('rootdir')) && (s.shared || s.node === selectedNode)),
-    [storages, selectedNode]
+    storages.filter(s => (s.content?.includes('images') || s.content?.includes('rootdir')) && (s.shared || s.node === resolvedNode)),
+    [storages, resolvedNode]
   )
 
   const renderTabContent = () => {
@@ -660,7 +707,7 @@ return
             <FormControl fullWidth size="small">
               <InputLabel>{t('inventory.createVm.node')}</InputLabel>
               <Select
-                value={selectedNode}
+                value={selectedNodeValue}
                 onChange={(e) => handleNodeChange(e.target.value)}
                 label={t('inventory.createVm.node')}
                 MenuProps={{ PaperProps: { sx: { maxHeight: 400 } } }}
@@ -720,13 +767,15 @@ return
                       sx={{ pl: group.isCluster ? 4 : 2 }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                        <i
-                          className={isMaintenance ? 'ri-tools-line' : 'ri-server-line'}
-                          style={{
-                            fontSize: 14,
-                            color: isMaintenance ? theme.palette.warning.main : n.status === 'online' ? theme.palette.success.main : theme.palette.text.disabled
-                          }}
-                        />
+                        {isMaintenance ? (
+                          <i className="ri-tools-line" style={{ fontSize: 14, color: theme.palette.warning.main }} />
+                        ) : (
+                          <img
+                            src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'}
+                            alt="" width={14} height={14}
+                            style={{ opacity: n.status === 'online' ? 0.8 : 0.3 }}
+                          />
+                        )}
                         <Box sx={{ flex: 1 }}>
                           <Typography variant="body2" sx={{ opacity: isDisabled ? 0.5 : 1 }}>
                             {n.node}
@@ -1318,7 +1367,7 @@ return
               Review your settings before creating the VM
             </Alert>
             <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 1, fontFamily: 'monospace', fontSize: '0.85rem' }}>
-              <Typography variant="body2"><b>Node:</b> {selectedNode}</Typography>
+              <Typography variant="body2"><b>Node:</b> {resolvedNode}</Typography>
               <Typography variant="body2"><b>VM ID:</b> {vmid}</Typography>
               <Typography variant="body2"><b>Name:</b> {vmName}</Typography>
               <Divider sx={{ my: 1 }} />
@@ -1412,7 +1461,7 @@ return
             onClick={handleCreate} 
             variant="contained" 
             color="primary"
-            disabled={creating || !vmid || !selectedNode || !!vmidError}
+            disabled={creating || !vmid || !resolvedNode || !!vmidError}
             startIcon={creating ? <CircularProgress size={16} /> : null}
           >
             Create

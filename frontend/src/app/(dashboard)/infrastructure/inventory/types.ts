@@ -380,6 +380,7 @@ export type DetailsPayload = {
     }>
     snapshotCount: number
     licenseFull?: boolean
+    hostType?: string
   }
 }
 

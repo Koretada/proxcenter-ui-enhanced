@@ -59,7 +59,7 @@ type ConnectionDialogProps = {
   open: boolean
   onClose: () => void
   onSave: (data: ConnectionFormData) => Promise<void>
-  type: 'pve' | 'pbs' | 'vmware'
+  type: 'pve' | 'pbs' | 'vmware' | 'xcpng'
   initialData?: Partial<ConnectionFormData> & { 
     id?: string
     sshKeyConfigured?: boolean
@@ -137,7 +137,10 @@ export default function ConnectionDialog({
           locationLabel: initialData.locationLabel || '',
         })
       } else {
-        setForm(defaultFormData)
+        setForm({
+          ...defaultFormData,
+          vmwareUser: type === 'xcpng' ? 'admin@admin.net' : 'root',
+        })
       }
       setError(null)
       setSshTestResult(null)
@@ -217,18 +220,18 @@ export default function ConnectionDialog({
     }
     
     // Assemble API token from split fields if they were used (PVE/PBS only)
-    if (type !== 'vmware' && tokenId.trim() && tokenSecret.trim()) {
+    if (!isExternalHypervisor && tokenId.trim() && tokenSecret.trim()) {
       const separator = type === 'pbs' ? ':' : '='
       form.apiToken = `${tokenId.trim()}${separator}${tokenSecret.trim()}`
     }
 
-    if (type !== 'vmware' && mode === 'create' && !form.apiToken.trim()) {
+    if (!isExternalHypervisor && mode === 'create' && !form.apiToken.trim()) {
       setError(t('settings.errorTokenRequired'))
       return
     }
 
-    // VMware validation
-    if (type === 'vmware') {
+    // VMware / XCP-ng validation
+    if (isExternalHypervisor) {
       if (mode === 'create' && !form.vmwarePassword) {
         setError(t('settings.errorPasswordRequired'))
         return
@@ -253,21 +256,21 @@ export default function ConnectionDialog({
       }
     }
 
-    // Auto-append default port if not specified (PVE/PBS only, VMware uses 443)
-    const defaultPort = type === 'vmware' ? '443' : type === 'pbs' ? '8007' : '8006'
+    // Auto-append default port if not specified (PVE/PBS only, external hypervisors use 443)
+    const defaultPort = isExternalHypervisor ? '443' : type === 'pbs' ? '8007' : '8006'
     let finalForm = { ...form }
-    // For VMware, auto-prefix https:// if no protocol
-    if (type === 'vmware' && finalForm.baseUrl && !finalForm.baseUrl.match(/^https?:\/\//)) {
-      finalForm.baseUrl = `https://${finalForm.baseUrl}`
+    // For VMware, auto-prefix https://; for XCP-ng, auto-prefix http:// (XO often runs on HTTP)
+    if (isExternalHypervisor && finalForm.baseUrl && !finalForm.baseUrl.match(/^https?:\/\//)) {
+      finalForm.baseUrl = isXcpng ? `http://${finalForm.baseUrl}` : `https://${finalForm.baseUrl}`
     }
     try {
       const url = new URL(finalForm.baseUrl)
-      if (!url.port && type !== 'vmware') {
+      if (!url.port && !isExternalHypervisor) {
         url.port = defaultPort
         finalForm.baseUrl = url.toString().replace(/\/$/, '')
       }
     } catch {
-      if (finalForm.baseUrl && !finalForm.baseUrl.match(/:\d+/) && type !== 'vmware') {
+      if (finalForm.baseUrl && !finalForm.baseUrl.match(/:\d+/) && !isExternalHypervisor) {
         finalForm.baseUrl = finalForm.baseUrl.replace(/\/$/, '') + ':' + defaultPort
       }
     }
@@ -287,13 +290,17 @@ export default function ConnectionDialog({
 
   const isPbs = type === 'pbs'
   const isVmware = type === 'vmware'
-  const port = isVmware ? '443' : isPbs ? '8007' : '8006'
+  const isXcpng = type === 'xcpng'
+  const isExternalHypervisor = isVmware || isXcpng
+  const port = isExternalHypervisor ? '443' : isPbs ? '8007' : '8006'
   const isEdit = mode === 'edit'
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {isVmware ? (
+        {isXcpng ? (
+          <><img src="/images/xcpng-logo.svg" alt="" width={20} height={20} /> {isEdit ? t('settings.editXcpngServer') : t('settings.addXcpngServer')}</>
+        ) : isVmware ? (
           <><i className="ri-cloud-line" style={{ color: '#638C1C' }} /> {isEdit ? t('settings.editVmwareServer') : t('settings.addVmwareServer')}</>
         ) : isPbs ? (
           <><i className="ri-hard-drive-2-line" /> {isEdit ? t('settings.editPbsServer') : t('settings.addPbsServer')}</>
@@ -316,9 +323,11 @@ export default function ConnectionDialog({
         </Typography>
 
         <Alert severity="info" sx={{ mb: 2 }}>
-          {isVmware
-            ? t.rich('settings.vmwarePortInfo', { b: (chunks: any) => <b>{chunks}</b> })
-            : t.rich(isPbs ? 'settings.pbsPortInfo' : 'settings.pvePortInfo', { b: (chunks: any) => <b>{chunks}</b> })
+          {isXcpng
+            ? t.rich('settings.xcpngPortInfo', { b: (chunks: any) => <b>{chunks}</b> })
+            : isVmware
+              ? t.rich('settings.vmwarePortInfo', { b: (chunks: any) => <b>{chunks}</b> })
+              : t.rich(isPbs ? 'settings.pbsPortInfo' : 'settings.pvePortInfo', { b: (chunks: any) => <b>{chunks}</b> })
           }
         </Alert>
 
@@ -333,16 +342,16 @@ export default function ConnectionDialog({
 
         <TextField
           fullWidth
-          label={isVmware ? t('settings.esxiHostLabel') : t('settings.baseUrlLabel', { port })}
+          label={isExternalHypervisor ? (isXcpng ? t('settings.xcpngHostLabel') : t('settings.esxiHostLabel')) : t('settings.baseUrlLabel', { port })}
           value={form.baseUrl}
           onChange={e => handleChange('baseUrl', e.target.value)}
-          placeholder={isVmware ? '192.168.1.100' : t('settings.baseUrlPlaceholder', { port })}
-          helperText={isVmware ? t('settings.esxiHostHelper') : undefined}
+          placeholder={isXcpng ? 'http://10.99.99.196' : isVmware ? '192.168.1.100' : t('settings.baseUrlPlaceholder', { port })}
+          helperText={isXcpng ? t('settings.xcpngHostHelper') : isVmware ? t('settings.esxiHostHelper') : undefined}
           sx={{ mt: 2 }}
           required
         />
 
-        {!isVmware && (
+        {!isExternalHypervisor && (
           <TextField
             fullWidth
             label={t('settings.webInterfaceUrl')}
@@ -369,27 +378,27 @@ export default function ConnectionDialog({
         {/* Section: Authentication */}
         <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           <i className="ri-key-2-line" />
-          {isVmware ? t('settings.vmwareAuthentication') : t('settings.apiAuthentication')}
+          {isExternalHypervisor ? (isXcpng ? t('settings.xcpngAuthentication') : t('settings.vmwareAuthentication')) : t('settings.apiAuthentication')}
         </Typography>
 
-        {isVmware ? (
+        {isExternalHypervisor ? (
           <>
             <TextField
               fullWidth
-              label={t('settings.vmwareUsername')}
+              label={isXcpng ? t('settings.xcpngUsername') : t('settings.vmwareUsername')}
               value={form.vmwareUser}
               onChange={e => handleChange('vmwareUser', e.target.value)}
-              placeholder="root"
+              placeholder={isXcpng ? 'admin@admin.net' : 'root'}
               sx={{ mt: 1 }}
               required
             />
             <TextField
               fullWidth
-              label={t('settings.vmwarePasswordLabel')}
+              label={isXcpng ? t('settings.xcpngPasswordLabel') : t('settings.vmwarePasswordLabel')}
               value={form.vmwarePassword}
               onChange={e => handleChange('vmwarePassword', e.target.value)}
               type={showPassword ? 'text' : 'password'}
-              helperText={isEdit ? t('settings.vmwarePasswordHelperEdit') : t('settings.vmwarePasswordHelper')}
+              helperText={isEdit ? t('settings.vmwarePasswordHelperEdit') : (isXcpng ? t('settings.xcpngPasswordHelper') : t('settings.vmwarePasswordHelper'))}
               sx={{ mt: 1.5 }}
               required={!isEdit}
               slotProps={{
@@ -465,7 +474,7 @@ export default function ConnectionDialog({
           </>
         )}
 
-        {!isPbs && !isVmware && (
+        {!isPbs && !isExternalHypervisor && (
           <>
         <Divider sx={{ my: 3 }} />
 
@@ -728,7 +737,7 @@ export default function ConnectionDialog({
           variant="contained"
           color={isPbs ? 'secondary' : 'primary'}
           onClick={handleSave}
-          disabled={saving || !form.name.trim() || !form.baseUrl.trim() || (!isVmware && !isEdit && !tokenId.trim() && !tokenSecret.trim() && !form.apiToken.trim()) || (isVmware && !isEdit && !form.vmwarePassword)}
+          disabled={saving || !form.name.trim() || !form.baseUrl.trim() || (!isExternalHypervisor && !isEdit && !tokenId.trim() && !tokenSecret.trim() && !form.apiToken.trim()) || (isExternalHypervisor && !isEdit && !form.vmwarePassword)}
           startIcon={saving ? <CircularProgress size={16} /> : <i className="ri-save-line" />}
         >
           {t('common.save')}

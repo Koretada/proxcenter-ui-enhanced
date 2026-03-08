@@ -41,6 +41,11 @@ export function useConnectionsManagement() {
   const [vmwareLoading, setVmwareLoading] = useState(true)
   const [vmwareError, setVmwareError] = useState<string | null>(null)
 
+  // XCP-ng Connections
+  const [xcpngConnections, setXcpngConnections] = useState<any[]>([])
+  const [xcpngLoading, setXcpngLoading] = useState(true)
+  const [xcpngError, setXcpngError] = useState<string | null>(null)
+
   const loadPveConnections = useCallback(async () => {
     setPveLoading(true)
     setPveError(null)
@@ -86,24 +91,44 @@ export function useConnectionsManagement() {
     }
   }, [])
 
+  const loadXcpngConnections = useCallback(async () => {
+    setXcpngLoading(true)
+    setXcpngError(null)
+
+    try {
+      const json = await fetchJson('/api/v1/connections?type=xcpng')
+      setXcpngConnections(Array.isArray(json?.data) ? json.data : [])
+    } catch (e: any) {
+      setXcpngError(e?.message || String(e))
+      setXcpngConnections([])
+    } finally {
+      setXcpngLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     loadPveConnections()
     loadPbsConnections()
     loadVmwareConnections()
-  }, [loadPveConnections, loadPbsConnections, loadVmwareConnections])
+    loadXcpngConnections()
+  }, [loadPveConnections, loadPbsConnections, loadVmwareConnections, loadXcpngConnections])
 
   return {
     pveConnections,
     pbsConnections,
     vmwareConnections,
+    xcpngConnections,
     pveLoading,
     pbsLoading,
     vmwareLoading,
+    xcpngLoading,
     pveError,
     pbsError,
     vmwareError,
+    xcpngError,
     loadPveConnections,
     loadPbsConnections,
     loadVmwareConnections,
+    loadXcpngConnections,
   }
 }

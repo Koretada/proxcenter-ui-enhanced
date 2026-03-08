@@ -1116,7 +1116,10 @@
       "nearLiveMigrationInfo": "La VM restera en fonctionnement pendant la synchronisation initiale des disques. Une brève interruption aura lieu lors du basculement final pour transférer les dernières modifications.",
       "liveMigrationInfo": "La VM restera en fonctionnement pendant toute la migration sans interruption. Cela nécessite un matériel compatible et peut prendre plus de temps.",
       "sshRequired": "SSH n'est pas configuré sur la connexion Proxmox cible. L'accès SSH est nécessaire pour transférer les disques et configurer la VM. Veuillez activer SSH dans les paramètres de connexion.",
-      "requiresLicensedEsxi": "Nécessite un hôte ESXi avec licence (accès API en écriture requis pour les snapshots et CBT)"
+      "requiresLicensedEsxi": "Nécessite un hôte ESXi avec licence (accès API en écriture requis pour les snapshots et CBT)",
+      "enterpriseRequired": "Plan Enterprise requis",
+      "enterpriseRequiredDesc": "La migration VMware vers Proxmox est disponible avec le plan Enterprise. Mettez à niveau votre licence pour débloquer cette fonctionnalité.",
+      "upgradePlan": "Mettre à niveau"
     }
   },
   "storage": {
@@ -1593,6 +1596,19 @@
     "noVmwareConnections": "Aucune connexion VMware ESXi",
     "noVmwareConnectionsDesc": "Ajoutez un hôte ESXi pour lister les VMs disponibles pour la migration vers Proxmox",
     "hypervComingSoonDesc": "Le support des hyperviseurs Microsoft Hyper-V arrive bientôt. Vous pourrez connecter des hôtes Hyper-V et migrer les VMs vers Proxmox.",
+    "addXcpngServer": "Ajouter une connexion XCP-ng (XO)",
+    "editXcpngServer": "Modifier la connexion XCP-ng (XO)",
+    "xcpngServers": "Hôtes XCP-ng gérés par Xen Orchestra (XO/XOA) pour la migration de VMs vers Proxmox",
+    "xcpngPortInfo": "Connexion à votre instance Xen Orchestra (XO/XOA) — Les identifiants sont stockés chiffrés",
+    "xcpngAuthentication": "Authentification XO",
+    "xcpngUsername": "Nom d'utilisateur XO (email)",
+    "xcpngPasswordLabel": "Mot de passe XO",
+    "xcpngPasswordHelper": "Mot de passe de l'instance Xen Orchestra",
+    "xcpngHostLabel": "URL XO (Xen Orchestra)",
+    "xcpngHostHelper": "URL complète de votre instance Xen Orchestra (ex: https://xo.example.com)",
+    "xcpngHost": "URL XO",
+    "noXcpngConnections": "Aucune connexion XCP-ng",
+    "noXcpngConnectionsDesc": "Ajoutez une connexion Xen Orchestra (XO/XOA) pour lister les VMs XCP-ng disponibles pour la migration vers Proxmox",
     "xcpngComingSoonDesc": "Le support des hyperviseurs XCP-ng / XenServer arrive bientôt. Vous pourrez connecter des hôtes XCP-ng et migrer les VMs vers Proxmox.",
     "nutanixComingSoonDesc": "Le support des hyperviseurs Nutanix AHV arrive bientôt. Vous pourrez connecter des clusters Nutanix et migrer les VMs vers Proxmox.",
     "errorPasswordRequired": "Le mot de passe est requis",

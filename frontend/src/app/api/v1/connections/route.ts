@@ -122,9 +122,9 @@ export async function POST(req: Request) {
       locationLabel: locationLabel ?? null,
     }
 
-    if (type === 'vmware') {
-      // VMware: store "user:password" in apiTokenEnc
-      data.apiTokenEnc = encryptSecret(`${vmwareUser || 'root'}:${vmwarePassword || ''}`)
+    if (type === 'vmware' || type === 'xcpng') {
+      // VMware/XCP-ng: store "user:password" in apiTokenEnc
+      data.apiTokenEnc = encryptSecret(`${vmwareUser || (type === 'xcpng' ? 'admin@admin.net' : 'root')}:${vmwarePassword || ''}`)
       data.sshEnabled = false
     } else {
       data.apiTokenEnc = encryptSecret(apiToken || '')
@@ -214,6 +214,40 @@ export async function POST(req: Request) {
       } catch (e: any) {
         return NextResponse.json(
           { error: `ESXi connection failed: ${e?.message || 'Unable to connect'}. Verify the host IP/hostname and network connectivity.` },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate XCP-ng (XO) connectivity
+    if (type === 'xcpng') {
+      try {
+        const xoUrl = baseUrl.replace(/\/$/, '')
+        const xoAuth = Buffer.from(`${vmwareUser || 'admin@admin.net'}:${vmwarePassword || ''}`).toString('base64')
+        const fetchOpts: any = {
+          headers: { 'Authorization': `Basic ${xoAuth}`, 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(15000),
+        }
+        if (insecureTLS) {
+          fetchOpts.dispatcher = new (await import('undici')).Agent({ connect: { rejectUnauthorized: false } })
+        }
+        const res = await fetch(`${xoUrl}/rest/v0/hosts`, fetchOpts).catch((err: any) => {
+          console.error(`[xcpng] Connection to ${xoUrl}/rest/v0/hosts failed:`, err?.message || err)
+          return null
+        })
+        if (!res) {
+          throw new Error('Unable to connect to XO server')
+        }
+        console.log(`[xcpng] XO responded with status ${res.status}`)
+        if (res.status === 401) {
+          throw new Error('Invalid credentials')
+        }
+        if (!res.ok) {
+          throw new Error(`XO returned HTTP ${res.status}`)
+        }
+      } catch (e: any) {
+        return NextResponse.json(
+          { error: `XCP-ng XO connection failed: ${e?.message || 'Unable to connect'}. Verify the XO URL and credentials.` },
           { status: 400 }
         )
       }

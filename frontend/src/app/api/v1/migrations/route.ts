@@ -5,12 +5,13 @@ import { prisma } from "@/lib/db/prisma"
 import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 import { authOptions } from "@/lib/auth/config"
 import { runMigrationPipeline } from "@/lib/migration/pipeline"
+import { runXcpngMigrationPipeline } from "@/lib/migration/xcpng-pipeline"
 
 export const runtime = "nodejs"
 
 /**
  * POST /api/v1/migrations
- * Start a new ESXi → Proxmox migration
+ * Start a new external hypervisor → Proxmox migration (ESXi or XCP-ng)
  */
 export async function POST(req: Request) {
   try {
@@ -36,28 +37,30 @@ export async function POST(req: Request) {
     }
 
     // Verify connections exist
-    const [esxiConn, pveConn] = await Promise.all([
+    const [sourceConn, pveConn] = await Promise.all([
       prisma.connection.findUnique({ where: { id: sourceConnectionId }, select: { id: true, type: true, name: true, baseUrl: true } }),
       prisma.connection.findUnique({ where: { id: targetConnectionId }, select: { id: true, type: true, name: true } }),
     ])
 
-    if (!esxiConn || esxiConn.type !== "vmware") {
-      return NextResponse.json({ error: "ESXi connection not found" }, { status: 404 })
+    if (!sourceConn || (sourceConn.type !== "vmware" && sourceConn.type !== "xcpng")) {
+      return NextResponse.json({ error: "Source hypervisor connection not found (must be vmware or xcpng)" }, { status: 404 })
     }
     if (!pveConn || pveConn.type !== "pve") {
       return NextResponse.json({ error: "Proxmox connection not found" }, { status: 404 })
     }
+
+    const sourceType = sourceConn.type as "vmware" | "xcpng"
 
     // Create job record
     const job = await prisma.migrationJob.create({
       data: {
         sourceConnectionId,
         sourceVmId,
-        sourceHost: esxiConn.baseUrl,
+        sourceHost: sourceConn.baseUrl,
         targetConnectionId,
         targetNode,
         targetStorage,
-        config: JSON.stringify({ sourceConnectionId, sourceVmId, targetConnectionId, targetNode, targetStorage, networkBridge, startAfterMigration }),
+        config: JSON.stringify({ sourceConnectionId, sourceVmId, targetConnectionId, targetNode, targetStorage, networkBridge, startAfterMigration, sourceType }),
         status: "pending",
         currentStep: "pending",
         startedAt: new Date(),
@@ -65,17 +68,23 @@ export async function POST(req: Request) {
       },
     })
 
-    // Run pipeline in background after response
+    const migrationConfig = {
+      sourceConnectionId,
+      sourceVmId,
+      targetConnectionId,
+      targetNode,
+      targetStorage,
+      networkBridge,
+      startAfterMigration,
+    }
+
+    // Run appropriate pipeline in background after response
     after(async () => {
-      await runMigrationPipeline(job.id, {
-        sourceConnectionId,
-        sourceVmId,
-        targetConnectionId,
-        targetNode,
-        targetStorage,
-        networkBridge,
-        startAfterMigration,
-      })
+      if (sourceType === "xcpng") {
+        await runXcpngMigrationPipeline(job.id, migrationConfig)
+      } else {
+        await runMigrationPipeline(job.id, migrationConfig)
+      }
     })
 
     return NextResponse.json({ data: { jobId: job.id, status: "pending" } })

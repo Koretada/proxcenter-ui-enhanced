@@ -1111,7 +1111,10 @@
       "nearLiveMigrationInfo": "The VM will remain running during initial disk sync. A brief downtime occurs during final cutover to transfer the last changes.",
       "liveMigrationInfo": "The VM will remain running throughout the migration with no downtime. This requires compatible hardware and may take longer.",
       "sshRequired": "SSH is not configured on the target Proxmox connection. SSH access is required to transfer disks and configure the VM. Please enable SSH in the connection settings.",
-      "requiresLicensedEsxi": "Requires a licensed ESXi host (API write access needed for snapshots and CBT)"
+      "requiresLicensedEsxi": "Requires a licensed ESXi host (API write access needed for snapshots and CBT)",
+      "enterpriseRequired": "Enterprise Plan Required",
+      "enterpriseRequiredDesc": "VMware to Proxmox migration is available on the Enterprise plan. Upgrade your license to unlock this feature.",
+      "upgradePlan": "Upgrade Plan"
     }
   },
   "storage": {
@@ -1588,6 +1591,19 @@
     "noVmwareConnections": "No VMware ESXi connections",
     "noVmwareConnectionsDesc": "Add an ESXi host to list VMs available for migration to Proxmox",
     "hypervComingSoonDesc": "Support for Microsoft Hyper-V hypervisors is coming soon. You will be able to connect Hyper-V hosts and migrate VMs to Proxmox.",
+    "addXcpngServer": "Add XCP-ng Connection (XO)",
+    "editXcpngServer": "Edit XCP-ng Connection (XO)",
+    "xcpngServers": "XCP-ng hosts managed by Xen Orchestra (XO/XOA) for VM migration to Proxmox",
+    "xcpngPortInfo": "Connect to your Xen Orchestra (XO/XOA) instance — Credentials are stored encrypted",
+    "xcpngAuthentication": "XO Authentication",
+    "xcpngUsername": "XO Username (email)",
+    "xcpngPasswordLabel": "XO Password",
+    "xcpngPasswordHelper": "Password for the Xen Orchestra instance",
+    "xcpngHostLabel": "XO URL (Xen Orchestra)",
+    "xcpngHostHelper": "Full URL of your Xen Orchestra instance (e.g. https://xo.example.com)",
+    "xcpngHost": "XO URL",
+    "noXcpngConnections": "No XCP-ng connections",
+    "noXcpngConnectionsDesc": "Add a Xen Orchestra (XO/XOA) connection to list XCP-ng VMs available for migration to Proxmox",
     "xcpngComingSoonDesc": "Support for XCP-ng / XenServer hypervisors is coming soon. You will be able to connect XCP-ng hosts and migrate VMs to Proxmox.",
     "nutanixComingSoonDesc": "Support for Nutanix AHV hypervisors is coming soon. You will be able to connect Nutanix clusters and migrate VMs to Proxmox.",
     "errorPasswordRequired": "Password is required",

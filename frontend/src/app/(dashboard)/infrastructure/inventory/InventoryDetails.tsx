@@ -174,6 +174,8 @@ export default function InventoryDetails({
   const rollingUpdateAvailable = !licenseLoading && hasFeature(Features.ROLLING_UPDATES)
   const crossClusterMigrationAvailable = !licenseLoading && hasFeature(Features.CROSS_CLUSTER_MIGRATION)
   const cveAvailable = !licenseLoading && hasFeature(Features.CVE_SCANNER)
+  const vmwareMigrationAvailable = !licenseLoading && hasFeature(Features.VMWARE_MIGRATION)
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false)
 
   const [data, setData] = useState<DetailsPayload | null>(null)
   const [loading, setLoading] = useState(false)
@@ -203,7 +205,7 @@ export default function InventoryDetails({
   const [savingMemory, setSavingMemory] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [exitMaintenanceDialogOpen, setExitMaintenanceDialogOpen] = useState(false)
-  const [esxiMigrateVm, setEsxiMigrateVm] = useState<{ vmid: string; name: string; connId: string; connName: string; cpu?: number; memoryMB?: number; committed?: number; guestOS?: string; licenseFull?: boolean } | null>(null)
+  const [esxiMigrateVm, setEsxiMigrateVm] = useState<{ vmid: string; name: string; connId: string; connName: string; cpu?: number; memoryMB?: number; committed?: number; guestOS?: string; licenseFull?: boolean; hostType?: string } | null>(null)
   const [migTargetConn, setMigTargetConn] = useState('')
   const [migTargetNode, setMigTargetNode] = useState('')
   const [migTargetStorage, setMigTargetStorage] = useState('')
@@ -251,6 +253,23 @@ export default function InventoryDetails({
   const setEditNetworkDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'editNetwork' : 'none'), [])
   const setMigrateDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'migrate' : 'none'), [])
   const setCloneDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'clone' : 'none'), [])
+
+  // Compute default connId/node from current selection for Create dialogs
+  const createDefaults = useMemo(() => {
+    if (!selection) return {}
+    if (selection.type === 'node') {
+      const { connId, node } = parseNodeId(selection.id)
+      return { connId, node }
+    }
+    if (selection.type === 'cluster') {
+      return { connId: selection.id }
+    }
+    if (selection.type === 'vm') {
+      const { connId, node } = parseVmId(selection.id)
+      return { connId, node }
+    }
+    return {}
+  }, [selection])
 
   const [highlightedVmId, setHighlightedVmId] = useState<string | null>(null)
   const [creationPending, setCreationPending] = useState<{ vmid: string; connId: string; node: string; type: 'qemu' | 'lxc' } | null>(null)
@@ -5686,13 +5705,16 @@ return vm?.isCluster ?? false
             </Card>
           )}
 
-          {/* ESXi Host — VM List with Migrate buttons */}
-          {selection?.type === 'ext' && data.esxiHostInfo && (
+          {/* External Host — VM List with Migrate buttons */}
+          {selection?.type === 'ext' && data.esxiHostInfo && (() => {
+            const isXcpng = data.esxiHostInfo.hostType === 'xcpng'
+            const extVmIcon = isXcpng ? '/images/xcpng-logo.svg' : '/images/esxi-vm.svg'
+            return (
             <Card variant="outlined" sx={{ width: '100%', borderRadius: 2 }}>
               <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
                 {data.esxiHostInfo.vms.length === 0 ? (
                   <Box sx={{ p: 4, textAlign: 'center' }}>
-                    <img src="/images/esxi-vm.svg" alt="" width={48} height={48} style={{ opacity: 0.3 }} />
+                    <img src={extVmIcon} alt="" width={48} height={48} style={{ opacity: 0.3 }} />
                     <Typography variant="body2" sx={{ opacity: 0.5, mt: 1 }}>No virtual machines found on this host</Typography>
                   </Box>
                 ) : (
@@ -5719,7 +5741,7 @@ return vm?.isCluster ?? false
                           >
                             <TableCell>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <img src="/images/esxi-vm.svg" alt="" width={16} height={16} style={{ opacity: 0.7 }} />
+                                <img src={extVmIcon} alt="" width={16} height={16} style={{ opacity: 0.7 }} />
                                 <Typography variant="body2" fontWeight={600}>{vm.name || vm.vmid}</Typography>
                               </Box>
                             </TableCell>
@@ -5753,11 +5775,15 @@ return vm?.isCluster ?? false
                                 color="primary"
                                 sx={{ textTransform: 'none', fontSize: 10, height: 24, minWidth: 0, px: 1.5 }}
                                 startIcon={<img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={12} height={12} />}
-                                onClick={() => setEsxiMigrateVm({
-                                  vmid: vm.vmid, name: vm.name || vm.vmid, connId: data.esxiHostInfo!.connectionId,
-                                  connName: data.esxiHostInfo!.connectionName, cpu: vm.cpu, memoryMB: vm.memory_size_MiB,
-                                  committed: vm.committed, guestOS: vm.guest_OS, licenseFull: data.esxiHostInfo!.licenseFull,
-                                })}
+                                onClick={() => {
+                                  if (!vmwareMigrationAvailable) { setUpgradeDialogOpen(true); return }
+                                  setEsxiMigrateVm({
+                                    vmid: vm.vmid, name: vm.name || vm.vmid, connId: data.esxiHostInfo!.connectionId,
+                                    connName: data.esxiHostInfo!.connectionName, cpu: vm.cpu, memoryMB: vm.memory_size_MiB,
+                                    committed: vm.committed, guestOS: vm.guest_OS, licenseFull: data.esxiHostInfo!.licenseFull,
+                                    hostType: data.esxiHostInfo!.hostType,
+                                  })
+                                }}
                               >
                                 {t('inventoryPage.esxiMigration.migrate')}
                               </Button>
@@ -5770,11 +5796,15 @@ return vm?.isCluster ?? false
                 )}
               </CardContent>
             </Card>
-          )}
+            )
+          })()}
 
-          {/* ESXi VM — Migration Control Panel */}
+          {/* External VM — Migration Control Panel */}
           {selection?.type === 'extvm' && data.esxiVmInfo && (() => {
             const vm = data.esxiVmInfo
+            const isXcpngVm = vm.hostType === 'xcpng'
+            const extSourceIcon = isXcpngVm ? '/images/xcpng-logo.svg' : '/images/esxi-logo.svg'
+            const extSourceLabel = isXcpngVm ? 'XCP-ng' : 'ESXi'
             const memGB = vm.memoryMB ? (vm.memoryMB / 1024).toFixed(1) : '0'
             const diskGB = vm.committed ? (vm.committed / 1073741824).toFixed(1) : '0'
 
@@ -5808,11 +5838,15 @@ return vm?.isCluster ?? false
                         color="primary"
                         sx={{ textTransform: 'none', fontSize: 11, height: 28, minWidth: 0, px: 1.5, whiteSpace: 'nowrap', flexShrink: 0 }}
                         startIcon={<i className="ri-play-circle-line" style={{ fontSize: 14 }} />}
-                        onClick={() => setEsxiMigrateVm({
-                          vmid: vm.vmid, name: vm.name, connId: vm.connectionId,
-                          connName: vm.connectionName, cpu: vm.numCPU, memoryMB: vm.memoryMB,
-                          committed: vm.committed, guestOS: vm.guestOS, licenseFull: vm.licenseFull,
-                        })}
+                        onClick={() => {
+                          if (!vmwareMigrationAvailable) { setUpgradeDialogOpen(true); return }
+                          setEsxiMigrateVm({
+                            vmid: vm.vmid, name: vm.name, connId: vm.connectionId,
+                            connName: vm.connectionName, cpu: vm.numCPU, memoryMB: vm.memoryMB,
+                            committed: vm.committed, guestOS: vm.guestOS, licenseFull: vm.licenseFull,
+                            hostType: vm.hostType || data.esxiVmInfo?.hostType,
+                          })
+                        }}
                       >
                         {t('inventoryPage.esxiMigration.startMigration')}
                       </Button>
@@ -5833,10 +5867,10 @@ return vm?.isCluster ?? false
                     {/* Migration flow visual */}
                     <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                       <Box sx={{ textAlign: 'center' }}>
-                        <Box sx={{ width: 44, height: 44, borderRadius: 1.5, bgcolor: 'rgba(99,140,28,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 0.5 }}>
-                          <img src="/images/esxi-logo.svg" alt="" width={24} height={24} />
+                        <Box sx={{ width: 44, height: 44, borderRadius: 1.5, bgcolor: isXcpngVm ? 'rgba(0,173,181,0.1)' : 'rgba(99,140,28,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 0.5 }}>
+                          <img src={extSourceIcon} alt="" width={24} height={24} />
                         </Box>
-                        <Typography variant="caption" fontWeight={600} sx={{ fontSize: 11 }}>ESXi</Typography>
+                        <Typography variant="caption" fontWeight={600} sx={{ fontSize: 11 }}>{extSourceLabel}</Typography>
                         <Typography variant="caption" sx={{ display: 'block', opacity: 0.5, fontSize: 9 }}>{vm.name}</Typography>
                       </Box>
                       <Box sx={{ flex: 1, maxWidth: 160, position: 'relative' }}>
@@ -6033,6 +6067,8 @@ return vm?.isCluster ?? false
         onClose={() => setCreateVmDialogOpen(false)}
         allVms={allVms}
         onCreated={handleVmCreated}
+        defaultConnId={createDefaults.connId}
+        defaultNode={createDefaults.node}
       />
 
       {/* Dialog Créer LXC */}
@@ -6041,6 +6077,8 @@ return vm?.isCluster ?? false
         onClose={() => setCreateLxcDialogOpen(false)}
         allVms={allVms}
         onCreated={handleLxcCreated}
+        defaultConnId={createDefaults.connId}
+        defaultNode={createDefaults.node}
       />
 
       {/* Dialogs Hardware */}
@@ -6810,10 +6848,10 @@ return
         </DialogActions>
       </Dialog>
 
-      {/* ESXi Migration Dialog */}
+      {/* ESXi / XCP-ng Migration Dialog */}
       <Dialog open={!!esxiMigrateVm} onClose={() => { if (!migStarting && !migJobId) setEsxiMigrateVm(null) }} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <img src="/images/esxi-logo.svg" alt="" width={22} height={22} />
+          <img src={esxiMigrateVm?.hostType === 'xcpng' ? '/images/xcpng-logo.svg' : '/images/esxi-logo.svg'} alt="" width={22} height={22} />
           {t('inventoryPage.esxiMigration.migrateToProxmox')}
         </DialogTitle>
         <DialogContent>
@@ -6994,7 +7032,7 @@ return
                   border: '2px solid', borderColor: migJob.status === 'completed' ? 'success.main' : migJob.status === 'failed' ? 'error.main' : 'divider',
                   transition: 'border-color 0.3s',
                 }}>
-                  <img src="/images/esxi-logo.svg" alt="VMware" width={28} height={28} style={{ opacity: migJob.status === 'completed' ? 0.4 : 1 }} />
+                  <img src={esxiMigrateVm?.hostType === 'xcpng' ? '/images/xcpng-logo.svg' : '/images/esxi-logo.svg'} alt={esxiMigrateVm?.hostType === 'xcpng' ? 'XCP-ng' : 'VMware'} width={28} height={28} style={{ opacity: migJob.status === 'completed' ? 0.4 : 1 }} />
                 </Box>
 
                 {/* Animated flow with tooltip */}
@@ -7192,6 +7230,46 @@ return
               </Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Enterprise Upgrade Dialog */}
+      <Dialog open={upgradeDialogOpen} onClose={() => setUpgradeDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1, pr: 5 }}>
+          <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: 'warning.main', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="ri-lock-line" style={{ fontSize: 20, color: '#fff' }} />
+          </Box>
+          {t('inventoryPage.esxiMigration.enterpriseRequired')}
+          <IconButton onClick={() => setUpgradeDialogOpen(false)} sx={{ position: 'absolute', right: 8, top: 8 }}>
+            <i className="ri-close-line" style={{ fontSize: 20 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ opacity: 0.8, mb: 2 }}>
+            {t('inventoryPage.esxiMigration.enterpriseRequiredDesc')}
+          </Typography>
+          <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <img src={esxiMigrateVm?.hostType === 'xcpng' ? '/images/xcpng-logo.svg' : '/images/esxi-logo.svg'} alt="" width={24} height={24} />
+              <i className="ri-arrow-right-line" style={{ fontSize: 20, opacity: 0.4 }} />
+              <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={24} height={24} />
+            </Box>
+            <Box>
+              <Typography variant="body2" fontWeight={700}>{esxiMigrateVm?.hostType === 'xcpng' ? 'XCP-ng' : 'VMware'} → Proxmox VE</Typography>
+              <Typography variant="caption" sx={{ opacity: 0.6 }}>Enterprise / Enterprise+</Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={<i className="ri-vip-crown-line" />}
+            onClick={() => { setUpgradeDialogOpen(false); window.open('https://www.proxcenter.io/', '_blank') }}
+            sx={{ textTransform: 'none' }}
+          >
+            {t('inventoryPage.esxiMigration.upgradePlan')}
+          </Button>
         </DialogActions>
       </Dialog>
 
