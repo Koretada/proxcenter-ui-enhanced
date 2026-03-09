@@ -3230,12 +3230,14 @@ return (
             // Standalone (1 node) : flatten — no intermediate node level
             if (!cs.isCluster && cs.nodes.length <= 1) {
               const allStorages = [...cs.sharedStorages, ...(cs.nodes[0]?.storages || [])]
+              const nodeStatus = cs.nodes[0]?.status
               return (
                 <TreeItem
                   key={`storage-cluster:${cs.connId}`}
                   itemId={`storage-cluster:${cs.connId}`}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <StatusIcon status={nodeStatus} type="node" />
                       <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
                       <span style={{ fontSize: 14 }}>{cs.connName}</span>
                       <span style={{ opacity: 0.4, fontSize: 11 }}>({allStorages.length})</span>
@@ -3280,6 +3282,7 @@ return (
                     itemId={`storage-node:${cs.connId}:${n.node}`}
                     label={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <StatusIcon status={n.status} type="node" />
                         <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: n.status === 'online' ? 0.8 : 0.3 }} />
                         <span style={{ fontSize: 13, opacity: n.status === 'online' ? 1 : 0.5 }}>{n.node}</span>
                         <span style={{ opacity: 0.4, fontSize: 11 }}>({n.storages.length})</span>
@@ -3356,7 +3359,7 @@ return (
                   itemId={`net-conn:${cId}`}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <i className="ri-server-fill" style={{ fontSize: 14, opacity: 0.6 }} />
+                      <i className="ri-server-fill" style={{ fontSize: 14, opacity: 0.8 }} />
                       <span style={{ fontSize: 14 }}>{connName}</span>
                       <span style={{ opacity: 0.4, fontSize: 11 }}>({nodes.length} nodes)</span>
                     </Box>
@@ -3368,6 +3371,7 @@ return (
                       itemId={`net-node:${cId}:${node}`}
                       label={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <StatusIcon status="online" type="node" />
                           <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
                           <span style={{ fontSize: 13 }}>{node}</span>
                           <span style={{ opacity: 0.4, fontSize: 11 }}>
