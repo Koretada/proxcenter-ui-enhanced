@@ -3424,9 +3424,9 @@ return (
                                   >
                                     <StatusIcon status={vm.status} type="vm" />
                                     <i className={getVmIcon(vm.type)} style={{ opacity: 0.8, fontSize: 14 }} />
-                                    <span style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <Typography variant="body2" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                       {vm.name}
-                                    </span>
+                                    </Typography>
                                     <span style={{ opacity: 0.3, fontFamily: 'monospace', fontSize: 10 }}>
                                       {vm.vmid}
                                     </span>
