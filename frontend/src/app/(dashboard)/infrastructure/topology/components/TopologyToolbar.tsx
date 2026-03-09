@@ -16,7 +16,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useTranslations } from 'next-intl'
-import { useReactFlow } from '@xyflow/react'
+import { useReactFlow, getNodesBounds, getViewportForBounds } from '@xyflow/react'
 
 import type { TopologyFilters, InventoryCluster } from '../types'
 
@@ -28,38 +28,96 @@ interface TopologyToolbarProps {
 
 export default function TopologyToolbar({ filters, onChange, connections }: TopologyToolbarProps) {
   const t = useTranslations('topology')
-  const { fitView } = useReactFlow()
+  const { fitView, getNodes } = useReactFlow()
 
   const isNetworkView = filters.viewMode === 'network'
   const isGeoView = filters.viewMode === 'geo'
 
-  const handleExport = async () => {
-    const viewport = document.querySelector('.react-flow__viewport') as HTMLElement
-
-    if (!viewport) return
-
-    const { toPng } = await import('html-to-image')
-    const dataUrl = await toPng(viewport, {
-      backgroundColor: '#1e1e2d',
-      filter: (node) => {
-        if (node instanceof HTMLElement) {
-          const cls = node.className || ''
-
-          if (typeof cls === 'string' && (cls.includes('react-flow__minimap') || cls.includes('react-flow__controls'))) {
-            return false
-          }
+  // Patch CSSStyleDeclaration.font to prevent html-to-image crash on SVG elements
+  const patchFontProperty = () => {
+    const desc = Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype, 'font')
+    if (!desc || !desc.get) return null
+    const originalGet = desc.get
+    Object.defineProperty(CSSStyleDeclaration.prototype, 'font', {
+      get() {
+        try {
+          const val = originalGet.call(this)
+          return val || ''
+        } catch {
+          return ''
         }
-
-        return true
       },
+      set: desc.set,
+      enumerable: desc.enumerable,
+      configurable: true,
     })
-
-    const link = document.createElement('a')
-
-    link.download = 'topology-export.png'
-    link.href = dataUrl
-    link.click()
+    return originalGet
   }
+
+  const restoreFontProperty = (originalGet: (() => string) | null) => {
+    if (!originalGet) return
+    const desc = Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype, 'font')
+    Object.defineProperty(CSSStyleDeclaration.prototype, 'font', {
+      get: originalGet,
+      set: desc?.set,
+      enumerable: desc?.enumerable,
+      configurable: true,
+    })
+  }
+
+  const getExportParams = () => {
+    const nodes = getNodes()
+    if (nodes.length === 0) return null
+    const bounds = getNodesBounds(nodes)
+    const padding = 80
+    const imageWidth = bounds.width + padding * 2
+    const imageHeight = bounds.height + padding * 2
+    const vp = getViewportForBounds(bounds, imageWidth, imageHeight, 0.5, 2, padding)
+    const flowEl = document.querySelector('.react-flow__viewport') as HTMLElement
+    if (!flowEl) return null
+    return { flowEl, imageWidth, imageHeight, vp }
+  }
+
+  const captureOpts = (flowEl: HTMLElement, w: number, h: number, vp: { x: number; y: number; zoom: number }) => ({
+    backgroundColor: '#1e1e2d',
+    width: w,
+    height: h,
+    pixelRatio: 2,
+    style: {
+      width: `${w}px`,
+      height: `${h}px`,
+      transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
+    },
+    filter: (node: any) => {
+      if (node instanceof HTMLElement) {
+        const cls = node.className || ''
+        if (typeof cls === 'string' && (cls.includes('react-flow__minimap') || cls.includes('react-flow__controls') || cls.includes('react-flow__panel'))) {
+          return false
+        }
+      }
+      return true
+    },
+  })
+
+  const handleExport = async () => {
+    const params = getExportParams()
+    if (!params) return
+
+    const originalFont = patchFontProperty()
+    try {
+      const { toPng } = await import('html-to-image')
+      const dataUrl = await toPng(params.flowEl, captureOpts(params.flowEl, params.imageWidth, params.imageHeight, params.vp))
+      const link = document.createElement('a')
+      link.download = 'topology-export.png'
+      link.href = dataUrl
+      link.click()
+    } catch (e) {
+      console.error('[PNG export] Error:', e)
+    } finally {
+      restoreFontProperty(originalFont)
+    }
+  }
+
 
   return (
     <Box
