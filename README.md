@@ -88,8 +88,6 @@ curl -fsSL https://proxcenter.io/install/enterprise | sudo bash -s -- --token YO
   <img src="docs/screenshots/architecture.png" alt="Architecture" width="100%">
 </p>
 
-> [Interactive version (HTML)](docs/architecture.html)
-
 - **Single port** (3000) — HTTP + WebSocket from one process
 - **Nginx optional** — SSL termination + reverse proxy
 - **Enterprise** adds a Go orchestrator for DRS, alerts, reports, etc.
