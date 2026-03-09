@@ -3188,6 +3188,7 @@ return (
           </Box>
           <Collapse in={!collapsedSections.has('storage')}>
           <SimpleTreeView
+            selectedItems={selectedItemId || ''}
             onSelectedItemsChange={(_event, ids) => {
               const picked = Array.isArray(ids) ? ids[0] : ids
               if (!picked) return
@@ -3478,6 +3479,7 @@ return (
 
           <Collapse in={!collapsedSections.has('pbs')}>
           <SimpleTreeView
+            selectedItems={selectedItemId || ''}
             onSelectedItemsChange={(_event, ids) => {
               const picked = Array.isArray(ids) ? ids[0] : ids
               if (!picked) return
@@ -3587,6 +3589,7 @@ return (
             </Box>
             <Collapse in={!collapsedSections.has('migrate-ext')}>
               <SimpleTreeView
+                selectedItems={selectedItemId || ''}
                 onSelectedItemsChange={(_event, ids) => {
                   const picked = Array.isArray(ids) ? ids[0] : ids
                   if (!picked) return
