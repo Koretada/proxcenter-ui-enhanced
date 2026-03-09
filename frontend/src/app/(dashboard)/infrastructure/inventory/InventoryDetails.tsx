@@ -129,8 +129,8 @@ function StorageContentGroup({ group, formatBytes: fmt, onUpload, onDelete }: {
   const [deleting, setDeleting] = React.useState(false)
   const [deleteError, setDeleteError] = React.useState<string | null>(null)
 
-  // Don't allow delete on VM disks / CT volumes (they're attached)
-  const canDelete = onDelete && group.contentType !== 'images' && group.contentType !== 'rootdir'
+  const canDelete = !!onDelete
+  const isAttachedType = group.contentType === 'images' || group.contentType === 'rootdir'
 
   const handleDelete = async () => {
     if (!deleteTarget || !onDelete) return
@@ -285,6 +285,11 @@ function StorageContentGroup({ group, formatBytes: fmt, onUpload, onDelete }: {
           <Typography variant="caption" sx={{ opacity: 0.6, mt: 1, display: 'block' }}>
             Size: {fmt(deleteTarget.size)}
           </Typography>
+        )}
+        {isAttachedType && (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            This volume may be attached to a VM/CT{deleteTarget?.vmid ? ` (${deleteTarget.vmid})` : ''}. Deleting it could cause data loss.
+          </Alert>
         )}
         {deleteError && (
           <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>
@@ -4974,11 +4979,11 @@ return vm?.isCluster ?? false
             </Card>
           </Box>
         ) : (
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               justifyContent: 'center',
               height: '100%',
               minHeight: 'calc(100vh - 200px)',

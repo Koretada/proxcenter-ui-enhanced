@@ -84,7 +84,8 @@ function ContentGroupCard({ group, connId, node, storage, readOnly, onDeleted, o
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const canDelete = !readOnly && group.contentType !== 'images' && group.contentType !== 'rootdir'
+  const canDelete = !readOnly
+  const isAttachedType = group.contentType === 'images' || group.contentType === 'rootdir'
 
   const filtered = useMemo(() => {
     let items = group.items
@@ -252,6 +253,11 @@ function ContentGroupCard({ group, connId, node, storage, readOnly, onDeleted, o
             <Typography variant="caption" sx={{ opacity: 0.6, mt: 1, display: 'block' }}>
               Size: {formatBytes(deleteTarget.size)}
             </Typography>
+          )}
+          {isAttachedType && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              This volume may be attached to a VM/CT{deleteTarget?.vmid ? ` (${deleteTarget.vmid})` : ''}. Deleting it could cause data loss.
+            </Alert>
           )}
           {deleteError && (
             <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>
