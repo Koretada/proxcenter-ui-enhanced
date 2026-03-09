@@ -181,7 +181,7 @@ export function getMetricIcon(label: string): string {
   const l = label.toLowerCase()
 
   if (l.includes('cpu')) return 'ri-cpu-line'
-  if (l.includes('ram') || l.includes('memory')) return 'ri-database-2-line'
+  if (l.includes('ram') || l.includes('memory')) return 'ri-ram-line'
   if (l.includes('storage') || l.includes('hd') || l.includes('disk')) return 'ri-hard-drive-2-line'
   if (l.includes('swap')) return 'ri-swap-line'
   if (l.includes('load')) return 'ri-dashboard-3-line'

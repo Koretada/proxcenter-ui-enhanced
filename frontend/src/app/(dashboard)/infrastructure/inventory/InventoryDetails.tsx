@@ -1975,7 +1975,7 @@ return next
   const [rollingUpdateWizardOpen, setRollingUpdateWizardOpen] = useState(false)
 
   // États pour les infos guest (IP, uptime, OS)
-  const [guestInfo, setGuestInfo] = useState<{ ip?: string; uptime?: number; osInfo?: { type: 'linux' | 'windows' | 'other'; name: string | null; version: string | null; kernel: string | null } | null } | null>(null)
+  const [guestInfo, setGuestInfo] = useState<{ ip?: string; uptime?: number; pid?: number; osInfo?: { type: 'linux' | 'windows' | 'other'; name: string | null; version: string | null; kernel: string | null } | null } | null>(null)
   const [guestInfoLoading, setGuestInfoLoading] = useState(false)
 
   // États pour l'explorateur de fichiers
@@ -3666,6 +3666,7 @@ return
           setGuestInfo({
             ip: data.ip,
             uptime: data.uptime,
+            pid: data.pid,
             osInfo: data.osInfo
           })
         } else {
@@ -5081,6 +5082,26 @@ return vm?.isCluster ?? false
                     <CircularProgress size={16} thickness={5} sx={{ flexShrink: 0 }} />
                   )}
                   <StatusChip status={data.status} />
+                  {vmLock.locked && (
+                    <MuiTooltip title={`Lock: ${vmLock.lockType || 'unknown'}`}>
+                      <Chip
+                        size="small"
+                        icon={<i className="ri-lock-line" style={{ fontSize: 12, marginLeft: 6 }} />}
+                        label={vmLock.lockType || 'locked'}
+                        color="warning"
+                        variant="outlined"
+                        sx={{ height: 20, fontSize: '0.7rem', flexShrink: 0 }}
+                      />
+                    </MuiTooltip>
+                  )}
+                  {guestInfo?.pid && (
+                    <Chip
+                      size="small"
+                      label={`PID ${guestInfo.pid}`}
+                      variant="outlined"
+                      sx={{ height: 20, fontSize: '0.7rem', fontFamily: 'monospace', flexShrink: 0, opacity: 0.6 }}
+                    />
+                  )}
                   <Typography variant="body2" noWrap sx={{ color: 'text.secondary', flexShrink: 0 }}>
                     #{vmid} · {data.kindLabel}{vmState ? ` · ${vmState}` : ''} · on{' '}
                     <Typography
@@ -5110,6 +5131,21 @@ return vm?.isCluster ?? false
                     vmid={vmid}
                     onTagsChange={setLocalTags}
                   />
+
+                  {/* Hardware summary */}
+                  {data.cpuInfo && (
+                    <Typography variant="caption" noWrap sx={{ color: 'primary.main', fontFamily: 'monospace', fontSize: '0.7rem', flexShrink: 0, flex: 1, textAlign: 'center' }}>
+                      {(data.cpuInfo.sockets || 1) * (data.cpuInfo.cores || 1)} vCPU
+                      {' / '}
+                      {data.memoryInfo?.memory >= 1024
+                        ? `${(data.memoryInfo.memory / 1024).toFixed(data.memoryInfo.memory % 1024 === 0 ? 0 : 1)} GB`
+                        : `${data.memoryInfo?.memory || 0} MB`}
+                      {' / '}
+                      {data.networkInfo?.length || 0} NIC
+                      {' / '}
+                      {data.disksInfo?.filter((d: any) => !d.isCdrom).length || 0} Disk{(data.disksInfo?.filter((d: any) => !d.isCdrom).length || 0) > 1 ? 's' : ''}
+                    </Typography>
+                  )}
 
                   {/* Refresh + Actions — poussées à droite */}
                   <Box sx={{ ml: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -5337,8 +5373,9 @@ return vm?.isCluster ?? false
           )}
 
           {selection?.type !== 'ext' && selection?.type !== 'extvm' && selection?.type !== 'storage' && (<>
-          <Divider />
+          <Divider sx={{ flexShrink: 0 }} />
 
+          <Box sx={{ flexShrink: 0 }}>
           <InventorySummary
             kindLabel={data.kindLabel}
             status={data.status}
@@ -5366,7 +5403,12 @@ return vm?.isCluster ?? false
             vmCount={selection?.type === 'node' ? data.vmsData?.filter((vm: any) => vm.status === 'running').length : undefined}
             isCluster={!!data.clusterName}
             hasCeph={!!data.cephHealth}
+            haState={selection?.type === 'vm' ? (allVms.find(vm => `${vm.connId}:${vm.node}:${vm.type}:${vm.vmid}` === selection.id)?.hastate || null) : null}
+            haGroup={selection?.type === 'vm' ? (allVms.find(vm => `${vm.connId}:${vm.node}:${vm.type}:${vm.vmid}` === selection.id)?.hagroup || null) : null}
+            agentEnabled={selection?.type === 'vm' ? data.optionsInfo?.agentEnabled ?? null : null}
+            ioSeries={selection?.type === 'vm' ? series : undefined}
           />
+          </Box>
           </>)}
 
           {/* VM Detail Tabs */}

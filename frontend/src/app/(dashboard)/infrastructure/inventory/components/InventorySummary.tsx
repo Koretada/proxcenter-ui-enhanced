@@ -28,8 +28,8 @@ import { lighten } from '@mui/material/styles'
 
 import { formatBytes } from '@/utils/format'
 
-import type { Status, Kpi, DetailsPayload } from '../types'
-import { formatUptime } from '../helpers'
+import type { Status, Kpi, DetailsPayload, SeriesPoint } from '../types'
+import { formatBps, formatUptime } from '../helpers'
 import UsageBar from './UsageBar'
 import ConsolePreview from './ConsolePreview'
 import StatusChip from './StatusChip'
@@ -57,6 +57,10 @@ function InventorySummary({
   vmCount,
   isCluster,
   hasCeph,
+  haState,
+  haGroup,
+  agentEnabled,
+  ioSeries,
 }: {
   kindLabel: string
   status: Status
@@ -79,6 +83,10 @@ function InventorySummary({
   vmCount?: number
   isCluster?: boolean
   hasCeph?: boolean
+  haState?: string | null
+  haGroup?: string | null
+  agentEnabled?: boolean | null
+  ioSeries?: SeriesPoint[]
 }) {
   const t = useTranslations()
   const theme = useTheme()
@@ -97,6 +105,13 @@ function InventorySummary({
   const diskCap = metrics?.storage?.max ?? 0
   const swapUsed = metrics?.swap?.used ?? 0
   const swapCap = metrics?.swap?.max ?? 0
+
+  // I/O: latest values from RRD series
+  const latestIo = ioSeries?.length ? ioSeries[ioSeries.length - 1] : null
+  const diskReadBps = latestIo?.diskReadBps ?? 0
+  const diskWriteBps = latestIo?.diskWriteBps ?? 0
+  const netInBps = latestIo?.netInBps ?? 0
+  const netOutBps = latestIo?.netOutBps ?? 0
 
   const consoleWidth = { xs: '100%', md: 360 }
 
@@ -220,6 +235,9 @@ return `${mins}m`
               sx={{
                 flex: 1,
                 minWidth: 0,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
                 border: '1px solid',
                 borderColor: 'divider',
                 borderRadius: 2,
@@ -231,43 +249,128 @@ return `${mins}m`
               <UsageBar themeColor={primaryColor} label="CPU" used={cpuNowPct} capacity={100} mode="pct" />
               <UsageBar themeColor={primaryColor} label={t('inventory.memoryLabel')} used={memUsed} capacity={memCap} mode="bytes" />
 
-              {/* IP et Uptime */}
-              <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <i className="ri-global-line" style={{ fontSize: 14, opacity: 0.6 }} />
-                  <Typography variant="body2" sx={{ opacity: 0.7 }}>IP:</Typography>
-                  {guestInfoLoading ? (
-                    <CircularProgress size={12} />
-                  ) : guestInfo?.ip ? (
+              {/* Disk I/O & Network I/O */}
+              {showConsole && (<>
+                <Box sx={{ my: 1.5 }} />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 1 }}>
+                  {/* Disk I/O */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <i className="ri-hard-drive-3-line" style={{ fontSize: 14, color: primaryColor }} />
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Disk I/O</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <i className="ri-arrow-up-line" style={{ fontSize: 12, color: theme.palette.success.main }} />
+                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                          {formatBps(diskReadBps)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <i className="ri-arrow-down-line" style={{ fontSize: 12, color: theme.palette.warning.main }} />
+                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                          {formatBps(diskWriteBps)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                  {/* Network I/O */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <i className="ri-wifi-line" style={{ fontSize: 14, color: primaryColor }} />
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Network I/O</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <i className="ri-arrow-down-line" style={{ fontSize: 12, color: theme.palette.success.main }} />
+                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                          {formatBps(netInBps)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <i className="ri-arrow-up-line" style={{ fontSize: 12, color: theme.palette.warning.main }} />
+                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                          {formatBps(netOutBps)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                </Box>
+              </>)}
+
+              {/* Spacer to push IP/Uptime/HA to bottom */}
+              <Box sx={{ flex: 1 }} />
+
+              {/* IP, Uptime, HA */}
+              <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <i className="ri-global-line" style={{ fontSize: 14, opacity: 0.6 }} />
+                    <Typography variant="body2" sx={{ opacity: 0.7 }}>IP:</Typography>
+                    {guestInfoLoading ? (
+                      <CircularProgress size={12} />
+                    ) : guestInfo?.ip ? (
+                      <Chip
+                        size="small"
+                        label={guestInfo.ip}
+                        sx={{
+                          height: 20,
+                          fontSize: '0.75rem',
+                          fontFamily: 'monospace',
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: 'action.hover' }
+                        }}
+                        onClick={() => navigator.clipboard.writeText(guestInfo.ip!)}
+                        title={t('inventoryPage.clickToCopy')}
+                      />
+                    ) : (
+                      <Typography variant="body2" sx={{ opacity: 0.4 }}>—</Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <i className="ri-time-line" style={{ fontSize: 14, opacity: 0.6 }} />
+                    <Typography variant="body2" sx={{ opacity: 0.7 }}>{t('inventory.uptime')}:</Typography>
+                    {guestInfoLoading ? (
+                      <CircularProgress size={12} />
+                    ) : formatUptime(guestInfo?.uptime) ? (
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {formatUptime(guestInfo?.uptime)}
+                      </Typography>
+                    ) : (
+                      <Typography variant="body2" sx={{ opacity: 0.4 }}>—</Typography>
+                    )}
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <i className="ri-robot-line" style={{ fontSize: 14, opacity: 0.6 }} />
+                    <Typography variant="body2" sx={{ opacity: 0.7 }}>QEMU-GA:</Typography>
                     <Chip
                       size="small"
-                      label={guestInfo.ip}
-                      sx={{
-                        height: 20,
-                        fontSize: '0.75rem',
-                        fontFamily: 'monospace',
-                        cursor: 'pointer',
-                        '&:hover': { bgcolor: 'action.hover' }
-                      }}
-                      onClick={() => navigator.clipboard.writeText(guestInfo.ip!)}
-                      title={t('inventoryPage.clickToCopy')}
+                      label={agentEnabled ? t('common.enabled') : t('common.disabled')}
+                      color={agentEnabled ? 'success' : 'default'}
+                      variant="outlined"
+                      sx={{ height: 20, fontSize: '0.75rem' }}
                     />
-                  ) : (
-                    <Typography variant="body2" sx={{ opacity: 0.4 }}>—</Typography>
-                  )}
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <i className="ri-time-line" style={{ fontSize: 14, opacity: 0.6 }} />
-                  <Typography variant="body2" sx={{ opacity: 0.7 }}>{t('inventory.uptime')}:</Typography>
-                  {guestInfoLoading ? (
-                    <CircularProgress size={12} />
-                  ) : formatUptime(guestInfo?.uptime) ? (
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {formatUptime(guestInfo?.uptime)}
-                    </Typography>
-                  ) : (
-                    <Typography variant="body2" sx={{ opacity: 0.4 }}>—</Typography>
-                  )}
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <i className="ri-shield-check-line" style={{ fontSize: 14, opacity: 0.6 }} />
+                    <Typography variant="body2" sx={{ opacity: 0.7 }}>HA:</Typography>
+                    {haState ? (
+                      <Chip
+                        size="small"
+                        icon={<i className="ri-shield-check-fill" style={{ fontSize: 12, marginLeft: 6 }} />}
+                        label={`${haState}${haGroup ? ` (${haGroup})` : ''}`}
+                        color={haState === 'started' ? 'success' : haState === 'stopped' ? 'default' : haState === 'error' ? 'error' : 'warning'}
+                        variant="outlined"
+                        sx={{ height: 20, fontSize: '0.75rem' }}
+                      />
+                    ) : (
+                      <Typography variant="body2" sx={{ opacity: 0.4 }}>
+                        {t('common.disabled')}
+                      </Typography>
+                    )}
+                  </Box>
                 </Box>
               </Box>
             </Box>

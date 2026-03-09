@@ -61,10 +61,11 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
     const conn = await getConnectionById(id)
     
-    // Récupérer le status actuel (contient uptime)
+    // Récupérer le status actuel (contient uptime, pid)
     let uptime: number | undefined
     let status: string | undefined
-    
+    let pid: number | undefined
+
     try {
       const statusData = await pveFetch<any>(
         conn,
@@ -73,6 +74,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
       uptime = statusData?.uptime
       status = statusData?.status
+      pid = statusData?.pid
     } catch (e) {
       console.error("[guest] Error fetching status:", e)
     }
@@ -199,6 +201,7 @@ return undefined
         ip,
         uptime,
         status,
+        pid,
         osInfo
       }
     })
