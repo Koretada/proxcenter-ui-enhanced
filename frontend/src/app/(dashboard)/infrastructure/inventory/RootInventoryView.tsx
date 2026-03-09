@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 
 import {
@@ -171,6 +171,27 @@ function RootInventoryView({
   // État pour sections collapsed - par défaut tout est replié (on stocke les IDs dépliés, pas repliés)
   const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set())
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set())
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  // Hydrate from localStorage
+  useEffect(() => {
+    try {
+      const savedClusters = localStorage.getItem('rootViewExpandedClusters')
+      if (savedClusters) setExpandedClusters(new Set(JSON.parse(savedClusters)))
+      const savedHosts = localStorage.getItem('rootViewExpandedHosts')
+      if (savedHosts) setExpandedHosts(new Set(JSON.parse(savedHosts)))
+    } catch {}
+    setIsHydrated(true)
+  }, [])
+
+  // Persist
+  useEffect(() => {
+    if (isHydrated) localStorage.setItem('rootViewExpandedClusters', JSON.stringify([...expandedClusters]))
+  }, [expandedClusters, isHydrated])
+
+  useEffect(() => {
+    if (isHydrated) localStorage.setItem('rootViewExpandedHosts', JSON.stringify([...expandedHosts]))
+  }, [expandedHosts, isHydrated])
 
   // Context menu state for host bulk actions
   const [hostContextMenu, setHostContextMenu] = useState<{
@@ -315,6 +336,8 @@ function RootInventoryView({
     setExpandedClusters(new Set())
     setExpandedHosts(new Set())
   }
+
+  const isAllExpanded = expandedClusters.size > 0 || expandedHosts.size > 0
   
   // Composant mini barre de progression avec gradient
   const MINI_GRADIENT = 'linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%)'
@@ -687,6 +710,13 @@ function RootInventoryView({
         <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 16, height: 16 }} />
         <Typography variant="subtitle2" fontWeight={700} sx={{ opacity: 0.7 }}>{t('inventory.proxmoxVe')}</Typography>
         <Box sx={{ flex: 1, height: 1, bgcolor: 'divider', ml: 1 }} />
+        {clusters.length > 0 && (
+          <MuiTooltip title={isAllExpanded ? t('inventory.collapseAll') : t('inventory.expandAll')}>
+            <IconButton size="small" onClick={isAllExpanded ? collapseAll : expandAll} sx={{ opacity: 0.5 }}>
+              <i className={isAllExpanded ? 'ri-contract-up-down-line' : 'ri-expand-up-down-line'} style={{ fontSize: 16 }} />
+            </IconButton>
+          </MuiTooltip>
+        )}
       </Box>
 
       {/* Liste des Clusters avec leurs Hosts et VMs */}
