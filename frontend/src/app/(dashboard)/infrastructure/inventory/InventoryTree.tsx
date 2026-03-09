@@ -3168,7 +3168,7 @@ return (
       )}
 
       {/* ── Proxmox Storage Section ── */}
-      {clusterStorages.length > 0 && (
+      {viewMode === 'tree' && clusterStorages.length > 0 && (
         <>
           <Box
             onClick={() => toggleSection('storage')}
@@ -3187,7 +3187,14 @@ return (
             </Typography>
           </Box>
           <Collapse in={!collapsedSections.has('storage')}>
-          <SimpleTreeView>
+          <SimpleTreeView
+            onSelectedItemsChange={(_event, ids) => {
+              const picked = Array.isArray(ids) ? ids[0] : ids
+              if (!picked) return
+              const sel = selectionFromItemId(String(picked))
+              if (sel) onSelect(sel)
+            }}
+          >
           {clusterStorages.map(cs => {
             const isCeph = (type: string) => type === 'rbd' || type === 'cephfs'
             const storageIcon = (type: string) => {
@@ -3306,7 +3313,7 @@ return (
       )}
 
       {/* ── Network Section ── */}
-      {clusters.length > 0 && (
+      {viewMode === 'tree' && clusters.length > 0 && (
         <>
           <Box
             onClick={() => {
@@ -3450,7 +3457,7 @@ return (
       )}
 
       {/* ── PBS / Backup Section ── */}
-      {pbsServers.length > 0 && (
+      {viewMode === 'tree' && pbsServers.length > 0 && (
         <>
           <Box
             onClick={() => toggleSection('pbs')}
@@ -3470,7 +3477,14 @@ return (
           </Box>
 
           <Collapse in={!collapsedSections.has('pbs')}>
-          <SimpleTreeView>
+          <SimpleTreeView
+            onSelectedItemsChange={(_event, ids) => {
+              const picked = Array.isArray(ids) ? ids[0] : ids
+              if (!picked) return
+              const sel = selectionFromItemId(String(picked))
+              if (sel) onSelect(sel)
+            }}
+          >
           {pbsServers.map(pbs => (
             <TreeItem
               key={`pbs:${pbs.connId}`}
@@ -3538,7 +3552,7 @@ return (
       )}
 
       {/* ── Migration Section ── */}
-      {externalHypervisors.length > 0 && (() => {
+      {viewMode === 'tree' && externalHypervisors.length > 0 && (() => {
         const hypervisorConfig: Record<string, { label: string; icon: string; svgIcon?: string; vmIcon?: string; color: string }> = {
           vmware: { label: 'VMware ESXi', icon: 'ri-cloud-line', svgIcon: '/images/esxi-logo.svg', vmIcon: '/images/esxi-vm.svg', color: '#638C1C' },
           hyperv: { label: 'Microsoft Hyper-V', icon: 'ri-microsoft-line', svgIcon: '/images/hyperv-logo.svg', color: '#00BCF2' },
@@ -3572,67 +3586,70 @@ return (
               </Typography>
             </Box>
             <Collapse in={!collapsedSections.has('migrate-ext')}>
-              <SimpleTreeView>
+              <SimpleTreeView
+                onSelectedItemsChange={(_event, ids) => {
+                  const picked = Array.isArray(ids) ? ids[0] : ids
+                  if (!picked) return
+                  const sel = selectionFromItemId(String(picked))
+                  if (sel) onSelect(sel)
+                }}
+              >
               {Object.entries(grouped).map(([type, conns]) => {
                 const cfg = hypervisorConfig[type] || { label: type, icon: 'ri-server-line', color: '#999' }
-                const sectionKey = `ext-${type}`
                 const totalVms = conns.reduce((acc, c) => acc + (c.vms?.length || 0), 0)
                 return (
-                  <React.Fragment key={sectionKey}>
-                    <Box
-                      onClick={() => toggleSection(sectionKey)}
-                      sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1, py: 0.5, mt: 0.5, ml: 1, opacity: 0.6, cursor: 'pointer', userSelect: 'none', '&:hover': { opacity: 0.9 } }}
-                    >
-                      <i className={collapsedSections.has(sectionKey) ? 'ri-arrow-right-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 14, flexShrink: 0 }} />
-                      {cfg.svgIcon ? <img src={cfg.svgIcon} alt="" width={12} height={12} /> : <i className={cfg.icon} style={{ fontSize: 12, color: cfg.color }} />}
-                      <Typography variant="caption" fontWeight={600} sx={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        {cfg.label}
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontSize: 10, opacity: 0.8 }}>
-                        ({conns.length}{totalVms > 0 ? `, ${totalVms} VMs` : ''})
-                      </Typography>
-                    </Box>
-                    <Collapse in={!collapsedSections.has(sectionKey)}>
-                      {conns.map(conn => (
-                        <TreeItem
-                          key={`ext:${conn.id}`}
-                          itemId={`ext:${conn.id}`}
-                          label={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                              {cfg.svgIcon ? <img src={cfg.svgIcon} alt="" width={14} height={14} style={{ opacity: 0.8 }} /> : <i className={cfg.icon} style={{ fontSize: 14, color: cfg.color, opacity: 0.8 }} />}
-                              <span style={{ fontSize: 14 }}>{conn.name}</span>
-                              <span style={{ opacity: 0.5, fontSize: 12 }}>({conn.vms?.length || 0})</span>
-                            </Box>
-                          }
-                        >
-                          {(conn.vms || []).map(vm => (
-                            <TreeItem
-                              key={`extvm:${conn.id}:${vm.vmid}`}
-                              itemId={`extvm:${conn.id}:${vm.vmid}`}
-                              label={
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14 }}>
-                                    {vm.status === 'running' ? (
-                                      <PlayArrowIcon sx={{ fontSize: 14, color: '#4caf50', filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.5))' }} />
-                                    ) : (
-                                      <StopIcon sx={{ fontSize: 14, color: 'text.disabled', opacity: 0.5 }} />
-                                    )}
-                                  </Box>
-                                  {cfg.vmIcon ? <img src={cfg.vmIcon} alt="" width={14} height={14} style={{ opacity: 0.6 }} /> : <i className="ri-computer-line" style={{ fontSize: 14, opacity: 0.6 }} />}
-                                  <span style={{ fontSize: 13 }}>{vm.name || vm.vmid}</span>
-                                  {vm.memory_size_MiB && (
-                                    <span style={{ opacity: 0.4, fontSize: 11 }}>
-                                      {vm.cpu ? `${vm.cpu}c` : ''}{vm.memory_size_MiB ? `${vm.cpu ? '/' : ''}${Math.round(vm.memory_size_MiB / 1024)}G` : ''}
-                                    </span>
+                  <TreeItem
+                    key={`ext-type:${type}`}
+                    itemId={`ext-type:${type}`}
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        {cfg.svgIcon ? <img src={cfg.svgIcon} alt="" width={14} height={14} style={{ opacity: 0.8 }} /> : <i className={cfg.icon} style={{ fontSize: 14, color: cfg.color, opacity: 0.8 }} />}
+                        <span style={{ fontSize: 14 }}>{cfg.label}</span>
+                        <span style={{ fontSize: 11, opacity: 0.5 }}>
+                          ({conns.length}{totalVms > 0 ? `, ${totalVms} VMs` : ''})
+                        </span>
+                      </Box>
+                    }
+                  >
+                    {conns.map(conn => (
+                      <TreeItem
+                        key={`ext:${conn.id}`}
+                        itemId={`ext:${conn.id}`}
+                        label={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            {cfg.svgIcon ? <img src={cfg.svgIcon} alt="" width={14} height={14} style={{ opacity: 0.8 }} /> : <i className={cfg.icon} style={{ fontSize: 14, color: cfg.color, opacity: 0.8 }} />}
+                            <span style={{ fontSize: 13 }}>{conn.name}</span>
+                            <span style={{ opacity: 0.5, fontSize: 11 }}>({conn.vms?.length || 0})</span>
+                          </Box>
+                        }
+                      >
+                        {(conn.vms || []).map(vm => (
+                          <TreeItem
+                            key={`extvm:${conn.id}:${vm.vmid}`}
+                            itemId={`extvm:${conn.id}:${vm.vmid}`}
+                            label={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14 }}>
+                                  {vm.status === 'running' ? (
+                                    <PlayArrowIcon sx={{ fontSize: 14, color: '#4caf50', filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.5))' }} />
+                                  ) : (
+                                    <StopIcon sx={{ fontSize: 14, color: 'text.disabled', opacity: 0.5 }} />
                                   )}
                                 </Box>
-                              }
-                            />
-                          ))}
-                        </TreeItem>
-                      ))}
-                    </Collapse>
-                  </React.Fragment>
+                                {cfg.vmIcon ? <img src={cfg.vmIcon} alt="" width={14} height={14} style={{ opacity: 0.6 }} /> : <i className="ri-computer-line" style={{ fontSize: 14, opacity: 0.6 }} />}
+                                <span style={{ fontSize: 13 }}>{vm.name || vm.vmid}</span>
+                                {vm.memory_size_MiB && (
+                                  <span style={{ opacity: 0.4, fontSize: 11 }}>
+                                    {vm.cpu ? `${vm.cpu}c` : ''}{vm.memory_size_MiB ? `${vm.cpu ? '/' : ''}${Math.round(vm.memory_size_MiB / 1024)}G` : ''}
+                                  </span>
+                                )}
+                              </Box>
+                            }
+                          />
+                        ))}
+                      </TreeItem>
+                    ))}
+                  </TreeItem>
                 )
               })}
               </SimpleTreeView>
