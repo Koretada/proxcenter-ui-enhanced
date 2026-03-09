@@ -2343,7 +2343,10 @@ return favorites.has(vmKey)
     const items: string[] = []
     networkTree.forEach(({ connId, nodes }) => {
       items.push(`net-conn:${connId}`)
-      nodes.forEach(({ node }) => items.push(`net-node:${connId}:${node}`))
+      nodes.forEach(({ node, vlans }) => {
+        items.push(`net-node:${connId}:${node}`)
+        vlans.forEach(({ tag }) => items.push(`net-vlan:${connId}:${node}:${tag}`))
+      })
     })
     setNetworkTreeExpandedItems(items)
   }, [networkTree])
