@@ -378,8 +378,8 @@ describe('getMetricIcon', () => {
   })
 
   it('returns memory icon for ram/memory labels', () => {
-    expect(getMetricIcon('RAM')).toBe('ri-database-2-line')
-    expect(getMetricIcon('Memory Usage')).toBe('ri-database-2-line')
+    expect(getMetricIcon('RAM')).toBe('ri-ram-line')
+    expect(getMetricIcon('Memory Usage')).toBe('ri-ram-line')
   })
 
   it('returns disk icon for storage/disk labels', () => {
