@@ -5057,6 +5057,7 @@ return vm?.isCluster ?? false
                     </IconButton>
                   )}
 
+                  <StatusChip status={data.status} />
                   {/* Icône VM/LXC */}
                   <Box sx={{
                     width: 28,
@@ -5076,12 +5077,11 @@ return vm?.isCluster ?? false
 
                   {/* Nom + meta inline */}
                   <Typography variant="subtitle1" fontWeight={900} noWrap sx={{ minWidth: 0, flexShrink: 1 }}>
-                    {data.title}
+                    {data.title} <Typography component="span" variant="body2" sx={{ color: 'text.disabled', fontWeight: 400 }}>({vmid})</Typography>
                   </Typography>
                   {pendingActionVmIds?.has(`${connId}:${vmid}`) && (
                     <CircularProgress size={16} thickness={5} sx={{ flexShrink: 0 }} />
                   )}
-                  <StatusChip status={data.status} />
                   {vmLock.locked && (
                     <MuiTooltip title={`Lock: ${vmLock.lockType || 'unknown'}`}>
                       <Chip
@@ -5094,16 +5094,8 @@ return vm?.isCluster ?? false
                       />
                     </MuiTooltip>
                   )}
-                  {guestInfo?.pid && (
-                    <Chip
-                      size="small"
-                      label={`PID ${guestInfo.pid}`}
-                      variant="outlined"
-                      sx={{ height: 20, fontSize: '0.7rem', fontFamily: 'monospace', flexShrink: 0, opacity: 0.6 }}
-                    />
-                  )}
                   <Typography variant="body2" noWrap sx={{ color: 'text.secondary', flexShrink: 0 }}>
-                    #{vmid} · {data.kindLabel}{vmState ? ` · ${vmState}` : ''} · on{' '}
+                    {vmState === 'running' ? <><i className="ri-flashlight-fill" style={{ fontSize: 12, color: '#f9a825', verticalAlign: 'middle' }} /></> : vmState ? vmState : ''} · on{' '}
                     <Typography
                       component="span"
                       variant="body2"
