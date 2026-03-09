@@ -25,6 +25,10 @@
 
 **ProxCenter** is a modern web interface for monitoring, managing, and optimizing Proxmox VE infrastructure. Multi-cluster management, cross-hypervisor migration, workload balancing, and more — from a single pane of glass.
 
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="100%">
+</p>
+
 ---
 
 ## Quick Start
@@ -43,7 +47,7 @@ curl -fsSL https://proxcenter.io/install/enterprise | sudo bash -s -- --token YO
 
 | Feature | Community | Enterprise |
 |---|:---:|:---:|
-| **Infrastructure** | | |
+| **Community — included for free** | | |
 | Dashboard & Health Scores | ✅ | ✅ |
 | Inventory (Nodes, VMs, CTs, Storage, Network, Backups) | ✅ | ✅ |
 | VM Operations (clone, snapshot, resize, move disk) | ✅ | ✅ |
@@ -52,33 +56,29 @@ curl -fsSL https://proxcenter.io/install/enterprise | sudo bash -s -- --token YO
 | Backup Monitoring (PBS) | ✅ | ✅ |
 | Web Terminal (xterm.js) & VNC Console (noVNC) | ✅ | ✅ |
 | SSH Remote Management | ✅ | ✅ |
-| **Provisioning & Migration** | | |
 | Templates, Custom Images & Blueprints | ✅ | ✅ |
 | VMware ESXi → Proxmox Migration | ✅ | ✅ |
 | XCP-ng (XO) → Proxmox Migration | ✅ | ✅ |
-| Cross-Cluster Migration (PVE ↔ PVE) | | ✅ |
-| **Orchestration** | | |
+| Events Log | ✅ | ✅ |
+| User Management & OIDC / SSO | ✅ | ✅ |
+| Audit Logs | ✅ | ✅ |
+| Themes (Light / Dark / System) | ✅ | ✅ |
+| Multi-language (EN / FR) | ✅ | ✅ |
+| **Enterprise — unlock the full platform** | | |
 | DRS (Distributed Resource Scheduler) | | ✅ |
 | Rolling Updates (zero-downtime) | | ✅ |
+| Cross-Cluster Migration (PVE ↔ PVE) | | ✅ |
 | Site Recovery (Ceph Replication) | | ✅ |
 | Task Center (Scheduled Jobs) | | ✅ |
-| **Observability** | | |
-| Events Log | ✅ | ✅ |
 | Resource Trends & AI Insights | | ✅ |
 | Alerts & Notifications (SMTP) | | ✅ |
 | Change Tracking | | ✅ |
 | Reports (PDF, AI-powered) | | ✅ |
 | Green IT / Environmental Metrics | | ✅ |
-| **Security & Access** | | |
-| User Management & OIDC / SSO | ✅ | ✅ |
-| Audit Logs | ✅ | ✅ |
 | RBAC (Role-Based Access Control) | | ✅ |
 | LDAP / Active Directory | | ✅ |
 | Network Microsegmentation | | ✅ |
 | Compliance Dashboard | | ✅ |
-| **UX** | | |
-| Themes (Light / Dark / System) | ✅ | ✅ |
-| Multi-language (EN / FR) | ✅ | ✅ |
 
 ---
 
