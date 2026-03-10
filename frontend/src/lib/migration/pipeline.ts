@@ -421,10 +421,30 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
 
       // Parse the actual disk volume name from qm disk import output
       // Output format: "Successfully imported disk as 'unused0:storage:vm-XXX-disk-N'"
-      let diskVolume = `${config.targetStorage}:vm-${targetVmid}-disk-${i}`
+      // or for NFS: "Successfully imported disk as 'unused0:storage:VMID/vm-XXX-disk-N.qcow2'"
+      let diskVolume = ""
       const importMatch = importResult.output?.match(/Successfully imported disk as '(?:unused\d+:)?(.+?)'/)
       if (importMatch?.[1]) {
         diskVolume = importMatch[1]
+      } else {
+        // Fallback: read VM config to find the unused disk volume
+        await appendLog(jobId, `Parsing import output failed, reading VM config to find unused disk...`, "info")
+        try {
+          const vmConf = await pveFetch<Record<string, any>>(
+            pveConn,
+            `/nodes/${encodeURIComponent(config.targetNode)}/qemu/${targetVmid}/config`
+          )
+          // Find the highest unused disk (unused0, unused1, etc.)
+          const unusedKeys = Object.keys(vmConf)
+            .filter(k => k.startsWith("unused"))
+            .sort()
+          if (unusedKeys.length > 0) {
+            diskVolume = vmConf[unusedKeys[unusedKeys.length - 1]] as string
+          }
+        } catch {}
+        if (!diskVolume) {
+          diskVolume = `${config.targetStorage}:vm-${targetVmid}-disk-${i}`
+        }
       }
 
       // Attach unused disk to SCSI slot via PVE API (more reliable than qm set via SSH)
