@@ -1032,7 +1032,12 @@ export default function ClusterTabs(props: any) {
                                     }
                                     return (
                                       <TableRow key={idx} hover sx={{ cursor: 'pointer' }} onClick={() => onSelect?.({ type: 'node', id: node.id })}>
-                                        <TableCell sx={{ fontWeight: 600 }}>{node.node || node.name}</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} style={{ opacity: 0.8 }} />
+                                            {node.node || node.name}
+                                          </Box>
+                                        </TableCell>
                                         <TableCell>{idx + 1}</TableCell>
                                         <TableCell>
                                           {node.status === 'maintenance' ? (
@@ -2506,7 +2511,7 @@ export default function ClusterTabs(props: any) {
                                     <TableRow key={node.node}>
                                       <TableCell>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                          <i className="ri-server-line" style={{ fontSize: 16, opacity: 0.7 }} />
+                                          <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} style={{ opacity: 0.8 }} />
                                           <Typography variant="body2" fontWeight={600}>{node.node}</Typography>
                                         </Box>
                                       </TableCell>
@@ -3230,6 +3235,7 @@ export default function ClusterTabs(props: any) {
                                     }}
                                   >
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} style={{ opacity: 0.8 }} />
                                       <Box
                                         sx={{
                                           width: 8,
