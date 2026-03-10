@@ -22,6 +22,7 @@ import { VlanGroupNode } from './nodes/VlanGroupNode'
 import { VlanContainerNode } from './nodes/VlanContainerNode'
 import { TagGroupNode } from './nodes/TagGroupNode'
 import { ProxCenterNode } from './nodes/ProxCenterNode'
+import { PbsServerNode } from './nodes/PbsServerNode'
 import type { SelectedNodeInfo } from '../types'
 
 const nodeTypes = {
@@ -33,6 +34,7 @@ const nodeTypes = {
   vlanContainer: VlanContainerNode,
   tagGroup: TagGroupNode,
   proxcenter: ProxCenterNode,
+  pbsServer: PbsServerNode,
 }
 
 interface TopologyCanvasProps {
@@ -61,7 +63,7 @@ export default function TopologyCanvas({ nodes, edges, isLoading, onNodeSelect }
     (_event, node) => {
       const nodeType = node.type as string
 
-      if (nodeType === 'cluster' || nodeType === 'host' || nodeType === 'vm' || nodeType === 'vmSummary' || nodeType === 'vlanGroup' || nodeType === 'vlanContainer' || nodeType === 'tagGroup' || nodeType === 'proxcenter') {
+      if (nodeType === 'cluster' || nodeType === 'host' || nodeType === 'vm' || nodeType === 'vmSummary' || nodeType === 'vlanGroup' || nodeType === 'vlanContainer' || nodeType === 'tagGroup' || nodeType === 'proxcenter' || nodeType === 'pbsServer') {
         onNodeSelect({ type: nodeType, data: node.data as any })
       }
     },

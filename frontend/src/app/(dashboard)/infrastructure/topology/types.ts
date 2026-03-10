@@ -46,8 +46,32 @@ export interface InventoryCluster {
   nodes: InventoryNode[]
 }
 
+export interface InventoryPbsDatastore {
+  name: string
+  totalSize: number
+  usedSize: number
+  backupCount: number
+}
+
+export interface InventoryPbsServer {
+  id: string
+  name: string
+  type: 'pbs'
+  status: 'online' | 'offline'
+  version?: string
+  uptime?: number
+  datastores: InventoryPbsDatastore[]
+  stats: {
+    totalSize: number
+    totalUsed: number
+    datastoreCount: number
+    backupCount: number
+  }
+}
+
 export interface InventoryData {
   clusters: InventoryCluster[]
+  pbsServers?: InventoryPbsServer[]
 }
 
 // Custom node data types — index signature required by React Flow v12
@@ -154,6 +178,21 @@ export interface ProxCenterNodeData {
   clusterCount: number
   totalNodes: number
   totalVms: number
+  pbsCount?: number
+  width: number
+  height: number
+}
+
+export interface PbsServerNodeData {
+  [key: string]: unknown
+  label: string
+  serverId: string
+  status: 'online' | 'offline'
+  version?: string
+  datastoreCount: number
+  backupCount: number
+  totalSize: number
+  totalUsed: number
   width: number
   height: number
 }
@@ -168,3 +207,4 @@ export type SelectedNodeInfo =
   | { type: 'tagGroup'; data: TagGroupNodeData }
   | { type: 'vlanContainer'; data: VlanContainerNodeData }
   | { type: 'proxcenter'; data: ProxCenterNodeData }
+  | { type: 'pbsServer'; data: PbsServerNodeData }

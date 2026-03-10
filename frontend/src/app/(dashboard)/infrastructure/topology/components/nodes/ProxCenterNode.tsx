@@ -68,6 +68,11 @@ function ProxCenterNodeComponent({ data }: NodeProps) {
           <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.7rem' }}>
             {d.totalVms} VMs
           </Typography>
+          {(d.pbsCount ?? 0) > 0 && (
+            <Typography variant='caption' color='text.secondary' sx={{ fontSize: '0.7rem' }}>
+              {d.pbsCount} PBS
+            </Typography>
+          )}
         </Box>
       </Box>
 

@@ -13,6 +13,7 @@ import type {
   VlanContainerVm,
   TagGroupNodeData,
   ProxCenterNodeData,
+  PbsServerNodeData,
   NodeStatus,
 } from '../types'
 import type { NetworkMap } from '../hooks/useTopologyNetworks'
@@ -598,11 +599,13 @@ function buildInfraView(
   }
 
   // ProxCenter root node — always at top, connecting to all clusters/standalone nodes
+  const pbsCount = (data.pbsServers || []).length
   const proxcenterData: ProxCenterNodeData = {
     label: 'ProxCenter',
     clusterCount: clusters.length,
     totalNodes: grandTotalNodes,
     totalVms: grandTotalVms,
+    pbsCount,
     width: 300,
     height: 90,
   }
@@ -624,6 +627,42 @@ function buildInfraView(
       type: 'smoothstep',
       animated: true,
       style: { stroke: '#F29221', strokeWidth: 2 },
+    })
+  }
+
+  // PBS servers
+  const pbsServers = data.pbsServers || []
+
+  for (const pbs of pbsServers) {
+    const pbsId = `pbs-${pbs.id}`
+
+    const pbsData: PbsServerNodeData = {
+      label: pbs.name,
+      serverId: pbs.id,
+      status: pbs.status,
+      version: pbs.version,
+      datastoreCount: pbs.stats?.datastoreCount || 0,
+      backupCount: pbs.stats?.backupCount || 0,
+      totalSize: pbs.stats?.totalSize || 0,
+      totalUsed: pbs.stats?.totalUsed || 0,
+      width: 220,
+      height: 100,
+    }
+
+    nodes.push({
+      id: pbsId,
+      type: 'pbsServer',
+      position: { x: 0, y: 0 },
+      data: pbsData,
+    })
+
+    edges.push({
+      id: `e-proxcenter-${pbsId}`,
+      source: 'proxcenter',
+      target: pbsId,
+      type: 'smoothstep',
+      animated: pbs.status === 'online',
+      style: { stroke: '#26a269', strokeWidth: 2 },
     })
   }
 
