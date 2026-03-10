@@ -11,6 +11,10 @@ export type InventorySelection =
   | { type: 'datastore'; id: string }
   | { type: 'ext'; id: string }      // external hypervisor host (connectionId)
   | { type: 'extvm'; id: string }    // external hypervisor VM (connectionId:vmid)
+  | { type: 'storage-root'; id: 'storage-root' }
+  | { type: 'network-root'; id: 'network-root' }
+  | { type: 'backup-root'; id: 'backup-root' }
+  | { type: 'migration-root'; id: 'migration-root' }
 
 export type Kpi = { label: string; value: string; hint?: string }
 export type KV = { k: string; v: string }

@@ -215,6 +215,10 @@ export type InventorySelection =
   | { type: 'pbs-datastore'; id: string } // alias for datastore
   | { type: 'ext'; id: string } // id = connectionId (external hypervisor host)
   | { type: 'extvm'; id: string } // id = connectionId:vmid (external hypervisor VM)
+  | { type: 'storage-root'; id: 'storage-root' }
+  | { type: 'network-root'; id: 'network-root' }
+  | { type: 'backup-root'; id: 'backup-root' }
+  | { type: 'migration-root'; id: 'migration-root' }
 
 export type ViewMode = 'tree' | 'vms' | 'hosts' | 'pools' | 'tags' | 'templates' | 'favorites'
 
@@ -3309,7 +3313,10 @@ return (
       {viewMode === 'tree' && clusterStorages.length > 0 && (
         <>
           <Box
-            onClick={() => toggleSection('storage')}
+            onClick={(e) => {
+              toggleSection('storage')
+              onSelect({ type: 'storage-root', id: 'storage-root' })
+            }}
             sx={{
               display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, mt: 1,
               bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
@@ -3467,6 +3474,7 @@ return (
                 networkFetchedRef.current = true
                 fetchNetworks()
               }
+              onSelect({ type: 'network-root', id: 'network-root' })
             }}
             sx={{
               display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, mt: 1,
@@ -3588,7 +3596,10 @@ return (
       {viewMode === 'tree' && pbsServers.length > 0 && (
         <>
           <Box
-            onClick={() => toggleSection('pbs')}
+            onClick={() => {
+              toggleSection('pbs')
+              onSelect({ type: 'backup-root', id: 'backup-root' })
+            }}
             sx={{
               display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, mt: 1,
               bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
@@ -3702,7 +3713,10 @@ return (
         return (
           <>
             <Box
-              onClick={() => toggleSection('migrate-ext')}
+              onClick={() => {
+                toggleSection('migrate-ext')
+                onSelect({ type: 'migration-root', id: 'migration-root' })
+              }}
               sx={{
                 display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, mt: 1,
                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',

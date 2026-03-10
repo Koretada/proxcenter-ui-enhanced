@@ -272,8 +272,8 @@ return asArray<any>(safeJson<any>(json))
 }
 
 export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayload | null> {
-  // Root selection doesn't have details — skip fetching
-  if (sel.type === 'root') return null
+  // Root / section selections don't have details — skip fetching
+  if (sel.type === 'root' || sel.type === 'storage-root' || sel.type === 'network-root' || sel.type === 'backup-root' || sel.type === 'migration-root') return null
 
   const lastUpdated = new Date().toLocaleString()
 

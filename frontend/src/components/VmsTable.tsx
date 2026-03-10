@@ -1425,12 +1425,13 @@ return true
   }, [isCompact, expanded, showNode, showTrends, showActions, showIpSnap, onVmAction, onMigrate, onNodeClick, primaryColor, trendsData, trendsLoading, vms, isMobile, isTablet, isSmallDesktop, isLargeDesktop, favorites, onToggleFavorite, visibleColumns])
 
   return (
-    <Box sx={{ 
-      width: '100%', 
-      height: maxHeight === 'auto' ? 'auto' : maxHeight, 
-      display: 'flex', 
+    <Box sx={{
+      width: '100%',
+      height: maxHeight === 'auto' ? 'auto' : maxHeight,
+      display: 'flex',
       flexDirection: 'column',
-      minHeight: maxHeight === 'auto' ? 0 : 400 
+      minHeight: maxHeight === 'auto' ? 0 : 400,
+      overflow: 'hidden',
     }}>
       {/* Toolbar avec toggle densité et bouton IP/Snap */}
       {(showDensityToggle || (showIpSnap && onLoadIpSnap) || vms.length > 0) && (
@@ -1721,7 +1722,17 @@ return [
           '& .MuiDataGrid-footerContainer': {
             borderTop: '1px solid',
             borderColor: 'divider',
-            minHeight: '48px !important',
+            minHeight: '40px !important',
+            maxHeight: '40px !important',
+            overflow: 'hidden',
+            '& .MuiTablePagination-root': {
+              overflow: 'hidden',
+            },
+            '& .MuiTablePagination-toolbar': {
+              minHeight: '40px !important',
+              overflow: 'hidden',
+              px: 1,
+            },
           },
 
           // Scrollbar plus discrète

@@ -92,6 +92,10 @@ import CreateLxcDialog from './CreateLxcDialog'
 import HaGroupDialog from './HaGroupDialog'
 import HaRuleDialog from './HaRuleDialog'
 import RootInventoryView from './RootInventoryView'
+import StorageDashboard from './StorageDashboard'
+import NetworkDashboard from './NetworkDashboard'
+import BackupDashboard from './BackupDashboard'
+import MigrationDashboard from './MigrationDashboard'
 import { ViewMode, AllVmItem, HostItem, PoolItem, TagItem } from './InventoryTree'
 import TagManager from './components/TagManager'
 import VmActions from './components/VmActions'
@@ -589,7 +593,7 @@ export default function InventoryDetails({
   hosts?: HostItem[]
   pools?: PoolItem[]
   tags?: TagItem[]
-  pbsServers?: { connId: string; name: string; status: string; stats?: { backupCount?: number } }[]
+  pbsServers?: import('./InventoryTree').TreePbsServer[]
   showIpSnap?: boolean
   ipSnapLoading?: boolean
   onLoadIpSnap?: () => void
@@ -5011,17 +5015,49 @@ return vm?.isCluster ?? false
   }, [selection, allVms])
 
   return (
-    <Box sx={{ p: selection && selection.type !== 'root' ? 2.5 : 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box sx={{ p: selection && selection.type !== 'root' && !selection.type.endsWith('-root') ? 2.5 : 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {progress}
 
       {error ? (
-        <Alert severity="error" sx={{ mb: 2, mx: selection && selection.type !== 'root' ? 0 : 2 }}>
+        <Alert severity="error" sx={{ mb: 2, mx: selection && selection.type !== 'root' && !selection.type.endsWith('-root') ? 0 : 2 }}>
           Erreur: {error}
         </Alert>
       ) : null}
 
-      {/* Quand sélection root et mode tree: afficher vue hiérarchique collapsable */}
-      {selection?.type === 'root' && viewMode === 'tree' ? (
+      {/* Section dashboards */}
+      {selection?.type === 'storage-root' ? (
+        <Box sx={{ p: 2.5, height: '100%', overflow: 'auto' }}>
+          <StorageDashboard
+            clusterStorages={clusterStorages}
+            onStorageClick={(sel) => onSelect?.(sel)}
+          />
+        </Box>
+      ) : selection?.type === 'network-root' ? (
+        <Box sx={{ p: 2.5, height: '100%', overflow: 'auto' }}>
+          <NetworkDashboard
+            connectionIds={[...new Set(clusterStorages.map(cs => cs.connId))]}
+            connectionNames={Object.fromEntries(clusterStorages.map(cs => [cs.connId, cs.connName]))}
+          />
+        </Box>
+      ) : selection?.type === 'backup-root' ? (
+        <Box sx={{ p: 2.5, height: '100%', overflow: 'auto' }}>
+          <BackupDashboard
+            pbsServers={pbsServers}
+            onPbsClick={(sel) => onSelect?.(sel)}
+            onDatastoreClick={(sel) => onSelect?.(sel)}
+          />
+        </Box>
+      ) : selection?.type === 'migration-root' ? (
+        <Box sx={{ p: 2.5, height: '100%', overflow: 'auto' }}>
+          <MigrationDashboard
+            externalHypervisors={externalHypervisors}
+            onHostClick={(sel) => onSelect?.(sel)}
+          />
+        </Box>
+      ) :
+
+      /* Quand sélection root et mode tree: afficher vue hiérarchique collapsable */
+      selection?.type === 'root' && viewMode === 'tree' ? (
         <RootInventoryView
           allVms={displayVms}
           hosts={hosts}
@@ -5051,9 +5087,9 @@ return vm?.isCluster ?? false
         />
       ) : !selection || selection?.type === 'root' ? (
         viewMode === 'vms' && displayVms.length > 0 ? (
-          <Box sx={{ height: '100%' }}>
-            <Card variant="outlined" sx={{ width: '100%', borderRadius: 0, height: '100%', border: 'none' }}>
-              <CardContent sx={{ p: 0, '&:last-child': { pb: 0 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <Card variant="outlined" sx={{ width: '100%', borderRadius: 0, flex: 1, minHeight: 0, border: 'none', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ p: 0, '&:last-child': { pb: 0 }, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                 <Box sx={{
                   px: 2,
                   py: 1.5,
