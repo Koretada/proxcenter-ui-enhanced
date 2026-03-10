@@ -710,10 +710,14 @@ function RootInventoryView({
       </Box>
 
       {/* Séparateur PVE */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 16, height: 16 }} />
-        <Typography variant="subtitle2" fontWeight={700} sx={{ opacity: 0.7 }}>{t('inventory.proxmoxVe')}</Typography>
-        <Box sx={{ flex: 1, height: 1, bgcolor: 'divider', ml: 1 }} />
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, mb: 1, mx: -2.5,
+        bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+        borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
+      }}>
+        <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 18, height: 18 }} />
+        <Typography variant="body2" fontWeight={700}>PROXMOX VE</Typography>
+        <Box sx={{ flex: 1 }} />
         {clusters.length > 0 && (
           <MuiTooltip title={isAllExpanded ? t('inventory.collapseAll') : t('inventory.expandAll')}>
             <IconButton size="small" onClick={isAllExpanded ? collapseAll : expandAll} sx={{ opacity: 0.5 }}>
@@ -884,15 +888,19 @@ function RootInventoryView({
             </Card>
           )
         })}
+      </Stack>
 
         {/* ── STORAGE Section ── */}
         {clusterStorages.length > 0 && (
           <>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 3, mb: 1 }}>
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, mt: 3, mb: 1, mx: -2.5,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+              borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
+            }}>
               <i className="ri-database-2-fill" style={{ fontSize: 16, opacity: 0.7 }} />
-              <Typography variant="subtitle2" fontWeight={700} sx={{ opacity: 0.7 }}>STORAGE</Typography>
-              <Chip size="small" label={clusterStorages.reduce((acc, cs) => acc + cs.sharedStorages.length + cs.nodes.reduce((a, n) => a + n.storages.length, 0), 0)} sx={{ height: 18, fontSize: 10, ml: 1 }} />
-              <Box sx={{ flex: 1, height: 1, bgcolor: 'divider', ml: 1 }} />
+              <Typography variant="body2" fontWeight={700}>STORAGE</Typography>
+              <Chip size="small" label={clusterStorages.reduce((acc, cs) => acc + cs.sharedStorages.length + cs.nodes.reduce((a, n) => a + n.storages.length, 0), 0)} sx={{ height: 18, fontSize: 10 }} />
             </Box>
             <Stack spacing={1}>
               {clusterStorages.map(cs => {
@@ -936,26 +944,30 @@ function RootInventoryView({
         <Box
           onClick={() => onSelect?.({ type: 'root', id: 'root' })}
           sx={{
-            display: 'flex', alignItems: 'center', gap: 1, mt: 3, mb: 1,
-            cursor: 'pointer', '&:hover': { opacity: 0.8 },
+            display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, mt: 3, mx: -2.5,
+            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+            borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
+            cursor: 'pointer', '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)' },
           }}
         >
           <i className="ri-router-fill" style={{ fontSize: 16, opacity: 0.7 }} />
-          <Typography variant="subtitle2" fontWeight={700} sx={{ opacity: 0.7 }}>NETWORK</Typography>
+          <Typography variant="body2" fontWeight={700}>NETWORK</Typography>
           <Typography variant="caption" sx={{ opacity: 0.4, ml: 0.5 }}>
             {t('inventory.expandInTree')}
           </Typography>
-          <Box sx={{ flex: 1, height: 1, bgcolor: 'divider', ml: 1 }} />
         </Box>
 
         {/* ── BACKUP Section ── */}
         {pbsServers && pbsServers.length > 0 && (
           <>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 3, mb: 1 }}>
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, mt: 3, mb: 1, mx: -2.5,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+              borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
+            }}>
               <i className="ri-hard-drive-2-fill" style={{ fontSize: 16, opacity: 0.7 }} />
-              <Typography variant="subtitle2" fontWeight={700} sx={{ opacity: 0.7 }}>BACKUP</Typography>
-              <Chip size="small" label={t('inventory.nBackups', { count: pbsServers.reduce((acc, pbs) => acc + pbs.backupCount, 0) })} sx={{ height: 18, fontSize: 10, ml: 1 }} />
-              <Box sx={{ flex: 1, height: 1, bgcolor: 'divider', ml: 1 }} />
+              <Typography variant="body2" fontWeight={700}>BACKUP</Typography>
+              <Chip size="small" label={t('inventory.nBackups', { count: pbsServers.reduce((acc, pbs) => acc + pbs.backupCount, 0) })} sx={{ height: 18, fontSize: 10 }} />
             </Box>
 
             <Stack spacing={1}>
@@ -1007,11 +1019,14 @@ function RootInventoryView({
 
           return (
             <>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 3, mb: 1 }}>
+              <Box sx={{
+                display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, mt: 3, mb: 1, mx: -2.5,
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
+              }}>
                 <img src="/images/esxi-logo.svg" alt="" width={16} height={16} style={{ opacity: 0.7 }} />
-                <Typography variant="subtitle2" fontWeight={700} sx={{ opacity: 0.7 }}>MIGRATIONS</Typography>
-                <Chip size="small" label={`${externalHypervisors.length} hosts${totalExtVms > 0 ? `, ${totalExtVms} VMs` : ''}`} sx={{ height: 18, fontSize: 10, ml: 1 }} />
-                <Box sx={{ flex: 1, height: 1, bgcolor: 'divider', ml: 1 }} />
+                <Typography variant="body2" fontWeight={700}>MIGRATIONS</Typography>
+                <Chip size="small" label={`${externalHypervisors.length} hosts${totalExtVms > 0 ? `, ${totalExtVms} VMs` : ''}`} sx={{ height: 18, fontSize: 10 }} />
               </Box>
               <Stack spacing={1}>
                 {Object.entries(grouped).map(([type, conns]) => {
@@ -1042,7 +1057,6 @@ function RootInventoryView({
             </>
           )
         })()}
-      </Stack>
 
       {/* Context menu for host bulk actions */}
       {onBulkAction && (
