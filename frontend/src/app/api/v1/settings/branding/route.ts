@@ -29,6 +29,13 @@ export async function GET() {
     const row = db.prepare("SELECT value FROM settings WHERE key = 'branding'").get() as any
     const settings = row ? { ...DEFAULT_BRANDING, ...JSON.parse(row.value) } : DEFAULT_BRANDING
 
+    // Migrate old static paths to API serving paths
+    const fixUrl = (url: string) =>
+      url ? url.replace(/^\/uploads\/branding\//, '/api/v1/settings/branding/uploads/') : url
+    settings.logoUrl = fixUrl(settings.logoUrl)
+    settings.faviconUrl = fixUrl(settings.faviconUrl)
+    settings.loginLogoUrl = fixUrl(settings.loginLogoUrl)
+
     return NextResponse.json(settings)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -30,12 +30,16 @@ export async function GET() {
       return NextResponse.json(DEFAULT_BRANDING)
     }
 
+    // Migrate old static paths to API serving paths
+    const fixUrl = (url: string) =>
+      url ? url.replace(/^\/uploads\/branding\//, '/api/v1/settings/branding/uploads/') : url
+
     return NextResponse.json({
       enabled: true,
       appName: settings.appName,
-      logoUrl: settings.logoUrl,
-      faviconUrl: settings.faviconUrl,
-      loginLogoUrl: settings.loginLogoUrl,
+      logoUrl: fixUrl(settings.logoUrl),
+      faviconUrl: fixUrl(settings.faviconUrl),
+      loginLogoUrl: fixUrl(settings.loginLogoUrl),
       primaryColor: settings.primaryColor,
       browserTitle: settings.browserTitle,
       poweredByVisible: settings.poweredByVisible,

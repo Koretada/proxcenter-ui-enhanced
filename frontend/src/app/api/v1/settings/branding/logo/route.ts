@@ -3,8 +3,8 @@ import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 import path from 'path'
 import fs from 'fs'
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'branding')
-const PUBLIC_PATH = '/uploads/branding'
+const UPLOAD_DIR = path.join(process.cwd(), 'data', 'uploads', 'branding')
+const SERVE_PATH = '/api/v1/settings/branding/uploads'
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon']
 
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer())
     fs.writeFileSync(filePath, buffer)
 
-    const imageUrl = `${PUBLIC_PATH}/${fileName}?t=${Date.now()}`
+    const imageUrl = `${SERVE_PATH}/${fileName}?t=${Date.now()}`
 
     return NextResponse.json({ success: true, imageUrl })
   } catch (error: any) {
