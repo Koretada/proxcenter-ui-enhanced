@@ -532,7 +532,118 @@ function StorageIntermediatePanel({ selection, clusterStorages, onSelect }: {
   const nodeName = selection.type === 'storage-node' ? parts[1] : undefined
 
   const cs = clusterStorages.find(c => c.connId === connId)
+
+  // RRD history for storage graphs
+  const [rrdTimeframe, setRrdTimeframe] = React.useState<'hour' | 'day' | 'week' | 'month' | 'year'>('day')
+  const [rrdData, setRrdData] = React.useState<Record<string, Array<{ time: number; usedPct: number; used: number; total: number }>>>({})
+
+  React.useEffect(() => {
+    if (!cs) return
+    const storages = selection.type === 'storage-node' && nodeName
+      ? [...cs.sharedStorages, ...(cs.nodes.find(n => n.node === nodeName)?.storages || [])]
+      : [...cs.sharedStorages, ...cs.nodes.flatMap(n => n.storages)]
+    // Deduplicate shared storages (same name across nodes)
+    const seen = new Set<string>()
+    const uniqueStorages = storages.filter(s => {
+      const key = `${s.storage}:${s.node}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    let cancelled = false
+    const loadAll = async () => {
+      const results: Record<string, Array<{ time: number; usedPct: number; used: number; total: number }>> = {}
+      await Promise.all(uniqueStorages.map(async (s) => {
+        try {
+          const path = `/nodes/${encodeURIComponent(s.node)}/storage/${encodeURIComponent(s.storage)}`
+          const raw = await fetchRrd(connId, path, rrdTimeframe)
+          if (cancelled) return
+          results[s.storage] = (Array.isArray(raw) ? raw : [])
+            .filter((p: any) => p.time || p.t || p.timestamp)
+            .map((p: any) => {
+              const time = Math.round(pickNumber(p, ['time', 't', 'timestamp']) || 0) * 1000
+              const total = pickNumber(p, ['total', 'maxdisk']) || 0
+              const used = pickNumber(p, ['used', 'disk']) || 0
+              return { time, used, total, usedPct: total > 0 ? Math.round((used / total) * 100) : 0 }
+            })
+            .filter((p: any) => p.time > 0 && p.total > 0)
+        } catch { /* skip */ }
+      }))
+      if (!cancelled) setRrdData(results)
+    }
+    loadAll()
+    return () => { cancelled = true }
+  }, [cs, connId, nodeName, selection.type, rrdTimeframe])
+
   if (!cs) return <Box sx={{ p: 3, textAlign: 'center' }}><Typography variant="body2" sx={{ opacity: 0.5 }}>No data</Typography></Box>
+
+  const primaryColor = theme.palette.primary.main
+
+  const timeframeSelector = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+      {([
+        { value: 'hour', label: '1h' },
+        { value: 'day', label: '24h' },
+        { value: 'week', label: '7d' },
+        { value: 'month', label: '30d' },
+        { value: 'year', label: '1y' },
+      ] as const).map(opt => (
+        <Box
+          key={opt.value}
+          onClick={() => setRrdTimeframe(opt.value)}
+          sx={{
+            px: 0.8, py: 0.2, borderRadius: 0.5, cursor: 'pointer',
+            fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.4,
+            bgcolor: rrdTimeframe === opt.value ? 'primary.main' : 'transparent',
+            color: rrdTimeframe === opt.value ? 'primary.contrastText' : 'text.secondary',
+            opacity: rrdTimeframe === opt.value ? 1 : 0.5,
+            '&:hover': { opacity: 1 },
+          }}
+        >
+          {opt.label}
+        </Box>
+      ))}
+    </Box>
+  )
+
+  const renderStorageGraph = (storageName: string, points: Array<{ time: number; usedPct: number; used: number; total: number }>) => {
+    if (points.length < 2) return null
+    const fmtBytes = (bytes: number) => {
+      if (!bytes) return '0 B'
+      const k = 1024
+      const sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      return `${(bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0)} ${sizes[i]}`
+    }
+    return (
+      <Box key={storageName} sx={{ flex: 1, minWidth: 250, border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Typography variant="caption" fontWeight={700}>{storageName}</Typography>
+          <Typography variant="caption" sx={{ opacity: 0.5, fontSize: 10 }}>
+            {points.length > 0 ? `${points[points.length - 1].usedPct}%` : ''}
+          </Typography>
+        </Box>
+        <Box sx={{ height: 80 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={points}>
+              <XAxis dataKey="time" hide type="number" domain={['dataMin', 'dataMax']} />
+              <YAxis hide domain={[0, 100]} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e1e2f', border: '1px solid #333', borderRadius: 8, fontSize: 11 }}
+                labelFormatter={(v) => new Date(v).toLocaleString()}
+                formatter={(value: number, name: string) => {
+                  if (name === 'usedPct') return [`${value}%`, 'Usage']
+                  return [value, name]
+                }}
+              />
+              <Area type="monotone" dataKey="usedPct" stroke={primaryColor} fill={primaryColor} fillOpacity={0.3} strokeWidth={1.5} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Box>
+      </Box>
+    )
+  }
 
   const isCeph = (type: string) => type === 'rbd' || type === 'cephfs'
   const storageIcon = (type: string) => {
@@ -597,19 +708,20 @@ function StorageIntermediatePanel({ selection, clusterStorages, onSelect }: {
           ))}
         </Box>
 
-        {/* Global usage */}
-        {totalSize > 0 && (
+        {/* Storage usage graphs */}
+        {Object.keys(rrdData).length > 0 && (
           <Card variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <Typography fontWeight={800} sx={{ fontSize: 14 }}>{t('inventory.storageUsage')}</Typography>
-                <Typography variant="body2" sx={{ opacity: 0.6 }}>{fmt(totalUsed)} / {fmt(totalSize)}</Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                <Typography fontWeight={800} sx={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <i className="ri-line-chart-line" style={{ fontSize: 16, opacity: 0.7 }} />
+                  {t('inventory.storageUsage')}
+                </Typography>
+                {timeframeSelector}
               </Box>
-              <LinearProgress
-                variant="determinate"
-                value={totalSize > 0 ? Math.round(totalUsed / totalSize * 100) : 0}
-                sx={{ height: 8, borderRadius: 1, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: 1 } }}
-              />
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                {Object.entries(rrdData).map(([name, points]) => renderStorageGraph(name, points))}
+              </Box>
             </CardContent>
           </Card>
         )}
@@ -683,7 +795,7 @@ function StorageIntermediatePanel({ selection, clusterStorages, onSelect }: {
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Node</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="center">Storages</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="center">Local Storages</TableCell>
                       <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Status</TableCell>
                     </TableRow>
                   </TableHead>
@@ -728,7 +840,7 @@ function StorageIntermediatePanel({ selection, clusterStorages, onSelect }: {
   // --- STORAGE-NODE: Node-level storage view ---
   if (selection.type === 'storage-node' && nodeName) {
     const nodeData = cs.nodes.find(n => n.node === nodeName)
-    const storages = nodeData?.storages || []
+    const storages = [...cs.sharedStorages, ...(nodeData?.storages || [])]
     const totalUsed = storages.reduce((s, st) => s + st.used, 0)
     const totalSize = storages.reduce((s, st) => s + st.total, 0)
 
@@ -780,6 +892,24 @@ function StorageIntermediatePanel({ selection, clusterStorages, onSelect }: {
             </Card>
           ))}
         </Box>
+
+        {/* Storage usage graphs */}
+        {Object.keys(rrdData).length > 0 && (
+          <Card variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                <Typography fontWeight={800} sx={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <i className="ri-line-chart-line" style={{ fontSize: 16, opacity: 0.7 }} />
+                  {t('inventory.storageUsage')}
+                </Typography>
+                {timeframeSelector}
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                {Object.entries(rrdData).map(([name, points]) => renderStorageGraph(name, points))}
+              </Box>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Storages list */}
         <Card variant="outlined" sx={{ borderRadius: 2 }}>
