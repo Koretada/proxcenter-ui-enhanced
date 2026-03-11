@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useLocale, useTranslations } from 'next-intl'
 
+import { useFavorites } from './hooks/useFavorites'
 import { formatBytes } from '@/utils/format'
 import { getDateLocale } from '@/lib/i18n/date'
 
@@ -69,7 +70,7 @@ import { lighten, alpha } from '@mui/material/styles'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts'
 
 import NodesTable, { NodeRow, BulkAction } from '@/components/NodesTable'
-import VmsTable, { VmRow, TrendPoint } from '@/components/VmsTable'
+import VmsTable, { VmRow } from '@/components/VmsTable'
 // Dynamic imports for HardwareModals (code-split, loaded on demand)
 const AddDiskDialog = dynamic(() => import('@/components/HardwareModals').then(mod => ({ default: mod.AddDiskDialog })), { ssr: false })
 const AddNetworkDialog = dynamic(() => import('@/components/HardwareModals').then(mod => ({ default: mod.AddNetworkDialog })), { ssr: false })
@@ -86,7 +87,7 @@ import { useLicense, Features } from '@/contexts/LicenseContext'
 import { useToast } from '@/contexts/ToastContext'
 import { useTaskTracker } from '@/hooks/useTaskTracker'
 import type { Status, InventorySelection, Kpi, KV, UtilMetric, DetailsPayload, RrdTimeframe, SeriesPoint, ActiveDialog } from './types'
-import { TAG_PALETTE, hashStringToInt, tagColor, safeJson, asArray, parseTags, pct, cpuPct, formatBps, formatTime, formatUptime, parseMarkdown, parseNodeId, parseVmId, getMetricIcon, pickNumber, buildSeriesFromRrd, fetchRrd, fetchDetails } from './helpers'
+import { TAG_PALETTE, hashStringToInt, tagColor, parseTags, formatBps, formatTime, formatUptime, parseMarkdown, parseNodeId, parseVmId, getMetricIcon, pickNumber, buildSeriesFromRrd, fetchRrd, fetchDetails } from './helpers'
 import CreateVmDialog from './CreateVmDialog'
 import CreateLxcDialog from './CreateLxcDialog'
 import HaGroupDialog from './HaGroupDialog'
@@ -109,9 +110,11 @@ import InventorySummary from './components/InventorySummary'
 import StorageIntermediatePanel from './components/StorageIntermediatePanel'
 import StorageContentGroup from './components/StorageContentGroup'
 import { PlayArrowIcon, StopIcon, PowerSettingsNewIcon, MoveUpIcon, AddIcon, CloseIcon, SaveIcon } from './components/IconWrappers'
+import { useDetailData } from './hooks/useDetailData'
 import { useCephPerf } from './hooks/useCephPerf'
 import { useSyslogLive, useCephLogLive } from './hooks/useSyslogLive'
 import { useNodeData } from './hooks/useNodeData'
+import { useVmActions } from './hooks/useVmActions'
 import VmDetailTabs from './tabs/VmDetailTabs'
 import ClusterTabs from './tabs/ClusterTabs'
 import NodeTabs from './tabs/NodeTabs'
@@ -424,10 +427,14 @@ export default function InventoryDetails({
   const vmwareMigrationAvailable = !licenseLoading && hasFeature(Features.VMWARE_MIGRATION)
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false)
 
-  const [data, setData] = useState<DetailsPayload | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [localTags, setLocalTags] = useState<string[]>([])
+  const {
+    data, setData,
+    loading, error,
+    localTags, setLocalTags,
+    refreshing,
+    refreshData,
+    loadVmTrendsBatch,
+  } = useDetailData(selection)
 
   const [tf, setTf] = useState<RrdTimeframe>('hour')
   const [rrdLoading, setRrdLoading] = useState(false)
@@ -448,7 +455,6 @@ export default function InventoryDetails({
   const [balloon, setBalloon] = useState(0) // en MB
   const [balloonEnabled, setBalloonEnabled] = useState(false)
   const [savingCpu, setSavingCpu] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
   const [savingMemory, setSavingMemory] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [exitMaintenanceDialogOpen, setExitMaintenanceDialogOpen] = useState(false)
@@ -546,8 +552,6 @@ export default function InventoryDetails({
     if (activeDialog === 'none') setExternalCreateDefaults({})
   }, [activeDialog])
 
-  const [highlightedVmId, setHighlightedVmId] = useState<string | null>(null)
-  const [creationPending, setCreationPending] = useState<{ vmid: string; connId: string; node: string; type: 'qemu' | 'lxc' } | null>(null)
   const [selectedDisk, setSelectedDisk] = useState<any>(null)
   const [selectedNetwork, setSelectedNetwork] = useState<any>(null)
   
@@ -561,7 +565,39 @@ export default function InventoryDetails({
   } | null>(null)
 
   const [confirmActionLoading, setConfirmActionLoading] = useState(false)
-  
+
+  // VM action handlers extracted into a custom hook
+  const {
+    tableMigrateVm, setTableMigrateVm,
+    tableCloneVm, setTableCloneVm,
+    bulkActionDialog, setBulkActionDialog,
+    creationPending, setCreationPending,
+    highlightedVmId, setHighlightedVmId,
+    handleVmCreated, handleLxcCreated,
+    handleMigrateVm, handleCrossClusterMigrate, handleCloneVm,
+    handleTableMigrate, handleTableMigrateVm, handleTableCrossClusterMigrate, handleTableCloneVm,
+    handleNodeBulkAction, handleHostBulkAction, executeBulkAction,
+    handleVmAction, handleTableVmAction,
+    onStart, onShutdown, onStop, onPause,
+  } = useVmActions({
+    selection,
+    onSelect,
+    onRefresh,
+    toast,
+    t,
+    trackTask,
+    data,
+    setData,
+    setLocalTags,
+    allVms,
+    onVmActionStart,
+    onVmActionEnd,
+    onOptimisticVmStatus,
+    setConfirmAction,
+    setConfirmActionLoading,
+    setActionBusy,
+  })
+
   const createBackupDialogOpen = activeDialog === 'createBackup'
   const setCreateBackupDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'createBackup' : 'none'), [])
   const [backupStorage, setBackupStorage] = useState('')
@@ -594,12 +630,6 @@ export default function InventoryDetails({
   const [editOptionValue, setEditOptionValue] = useState<any>('')
   const [editOptionSaving, setEditOptionSaving] = useState(false)
   
-  // État pour la migration depuis la table (VM sélectionnée pour migrer)
-  const [tableMigrateVm, setTableMigrateVm] = useState<{ connId: string; node: string; type: string; vmid: string; name: string; status: string; isCluster: boolean } | null>(null)
-
-  // État pour le clonage depuis la table (VM/Template sélectionné pour cloner)
-  const [tableCloneVm, setTableCloneVm] = useState<{ connId: string; node: string; type: string; vmid: string; name: string } | null>(null)
-
   // PBS storage backup panel states
   const [pbsRestoreDialog, setPbsRestoreDialog] = useState<{
     open: boolean
@@ -921,87 +951,7 @@ export default function InventoryDetails({
     }
   }, [pbsFileRestoreDialog, data, pbsFilePveStorage])
 
-  // Favoris : utiliser les props si fournies, sinon état local
-  const [localFavorites, setLocalFavorites] = useState<Set<string>>(new Set())
-  const favorites = propFavorites ?? localFavorites
-
-  // Charger les favoris (mode local seulement)
-  const loadFavorites = useCallback(async () => {
-    try {
-      const res = await fetch('/api/v1/favorites', { cache: 'no-store' })
-
-      if (res.ok) {
-        const json = await res.json()
-        const favSet = new Set<string>((json.data || []).map((f: any) => f.vm_key))
-
-        setLocalFavorites(favSet)
-      }
-    } catch (e) {
-      console.error('Error loading favorites:', e)
-    }
-  }, [])
-
-  // Toggle favori - wrapper pour VmsTable (qui passe un objet vm)
-  const toggleFavorite = useCallback((vm: { id: string; connId: string; node: string; type: string; vmid: string | number; name?: string }) => {
-    const vmidStr = String(vm.vmid)
-
-
-    // Si la prop onToggleFavorite est fournie, l'utiliser
-    if (propToggleFavorite) {
-      propToggleFavorite({ connId: vm.connId, node: vm.node, type: vm.type, vmid: vm.vmid, name: vm.name })
-
-return
-    }
-    
-    // Sinon, gérer localement (fallback)
-    const vmKey = `${vm.connId}:${vm.node}:${vm.type}:${vmidStr}`
-    const isFav = favorites.has(vmKey)
-    
-    const doToggle = async () => {
-      try {
-        if (isFav) {
-          const res = await fetch(`/api/v1/favorites?vmKey=${encodeURIComponent(vmKey)}`, { method: 'DELETE' })
-
-          if (res.ok) {
-            setLocalFavorites(prev => {
-              const next = new Set(prev)
-
-              next.delete(vmKey)
-              
-return next
-            })
-          }
-        } else {
-          const res = await fetch('/api/v1/favorites', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              connectionId: vm.connId,
-              node: vm.node,
-              vmType: vm.type,
-              vmid: vmidStr,
-              vmName: vm.name
-            })
-          })
-
-          if (res.ok) {
-            setLocalFavorites(prev => new Set(prev).add(vmKey))
-          }
-        }
-      } catch (e) {
-        console.error('Error toggling favorite:', e)
-      }
-    }
-
-    doToggle()
-  }, [favorites, propToggleFavorite])
-
-  // Charger les favoris au mount (seulement si pas de prop favorites)
-  useEffect(() => {
-    if (!propFavorites) {
-      loadFavorites()
-    }
-  }, [propFavorites, loadFavorites])
+  const { favorites, toggleFavorite } = useFavorites({ propFavorites, propToggleFavorite })
 
   // Fetch PVE connections when migration dialog opens
   useEffect(() => {
@@ -1102,97 +1052,6 @@ return next
     }
     return map
   }, [allVms])
-
-  // Quand une création est en attente, poll pour voir si la VM apparaît
-  useEffect(() => {
-    if (!creationPending) return
-
-    const { vmid, connId, node, type } = creationPending
-    const fullId = `${connId}:${node}:${type}:${vmid}`
-    
-    // Vérifier si la VM est apparue dans la liste
-    const vmExists = allVms.some(vm => 
-      vm.connId === connId && 
-      String(vm.vmid) === vmid
-    )
-    
-    if (vmExists) {
-      // La VM est apparue, appliquer le highlight
-      setHighlightedVmId(fullId)
-      setCreationPending(null)
-      
-      // Supprimer le highlight après 5 secondes
-      setTimeout(() => {
-        setHighlightedVmId(null)
-      }, 5000)
-    }
-  }, [allVms, creationPending])
-
-  // Callback quand une VM/LXC est créée - lance le polling
-  const handleVmCreated = useCallback(async (vmid: string, connId: string, node: string) => {
-    // Stocker les infos de la VM en attente
-    setCreationPending({ vmid, connId, node, type: 'qemu' })
-    
-    // Attendre un peu que Proxmox traite la création
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    // Déclencher un refresh des données
-    if (onRefresh) {
-      await onRefresh()
-    }
-    
-    // Si la VM n'apparaît toujours pas, réessayer quelques fois
-    let attempts = 0
-    const maxAttempts = 10
-
-    const pollInterval = setInterval(async () => {
-      attempts++
-
-      if (onRefresh) {
-        await onRefresh()
-      }
-
-      if (attempts >= maxAttempts) {
-        clearInterval(pollInterval)
-        setCreationPending(null)
-      }
-    }, 3000)
-    
-    // Cleanup après 30 secondes max
-    setTimeout(() => {
-      clearInterval(pollInterval)
-    }, 30000)
-  }, [onRefresh])
-
-  const handleLxcCreated = useCallback(async (ctid: string, connId: string, node: string) => {
-    setCreationPending({ vmid: ctid, connId, node, type: 'lxc' })
-    
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    if (onRefresh) {
-      await onRefresh()
-    }
-    
-    let attempts = 0
-    const maxAttempts = 10
-
-    const pollInterval = setInterval(async () => {
-      attempts++
-
-      if (onRefresh) {
-        await onRefresh()
-      }
-
-      if (attempts >= maxAttempts) {
-        clearInterval(pollInterval)
-        setCreationPending(null)
-      }
-    }, 3000)
-    
-    setTimeout(() => {
-      clearInterval(pollInterval)
-    }, 30000)
-  }, [onRefresh])
 
   // ==================== HARDWARE HANDLERS ====================
   
@@ -1436,434 +1295,7 @@ return next
     setSelectedNetwork(null)
   }, [selection, selectedNetwork])
 
-  // Handler pour la migration de VM
-  const handleMigrateVm = useCallback(async (targetNode: string, online: boolean, targetStorage?: string, withLocalDisks?: boolean) => {
-    if (!selection || selection.type !== 'vm') throw new Error('No VM selected')
-    
-    const { connId, node, type, vmid } = parseVmId(selection.id)
-    
-    const body: Record<string, any> = { target: targetNode, online }
-
-    if (targetStorage) {
-      body['targetstorage'] = targetStorage
-    }
-
-    if (withLocalDisks) {
-      body['withLocalDisks'] = true
-    }
-    
-    const res = await fetch(
-      `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/migrate`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }
-    )
-    
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-
-      throw new Error(err?.error || `HTTP ${res.status}`)
-    }
-
-    toast.success(t('vmActions.migrateSuccess'))
-
-    // Désélectionner la VM pour éviter les erreurs 404 pendant la migration
-    // Le polling des tâches en cours marquera la VM comme "en cours de migration"
-    if (onSelect) {
-      onSelect({ type: 'cluster', id: connId })
-    }
-
-    // Attendre un peu puis rafraîchir l'inventaire
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    if (onRefresh) {
-      await onRefresh()
-    }
-  }, [selection, onRefresh, onSelect, toast, t])
-
-  // Handler pour la migration cross-cluster
-  const handleCrossClusterMigrate = useCallback(async (params: CrossClusterMigrateParams) => {
-    if (!selection || selection.type !== 'vm') throw new Error('No VM selected')
-    
-    const { connId, node, type, vmid } = parseVmId(selection.id)
-    
-    const res = await fetch(
-      `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/remote-migrate`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetConnectionId: params.targetConnectionId,
-          targetNode: params.targetNode,
-          targetVmid: params.targetVmid,
-          targetStorage: params.targetStorage,
-          targetBridge: params.targetBridge,
-          online: params.online,
-          delete: params.deleteSource,
-          bwlimit: params.bwlimit
-        })
-      }
-    )
-    
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err?.error || `HTTP ${res.status}`)
-    }
-
-    toast.success(t('vmActions.migrateSuccess'))
-
-    // Désélectionner la VM
-    if (onSelect) {
-      onSelect({ type: 'cluster', id: connId })
-    }
-
-    // Attendre puis rafraîchir
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    if (onRefresh) {
-      await onRefresh()
-    }
-  }, [selection, onRefresh, onSelect, toast, t])
-
-  // Handler pour le clonage de VM
-  const handleCloneVm = useCallback(async (params: { targetNode: string; newVmid: number; name: string; targetStorage?: string; format?: string; pool?: string; full: boolean }) => {
-    if (!selection || selection.type !== 'vm') throw new Error('No VM selected')
-    
-    const { connId, node, type, vmid } = parseVmId(selection.id)
-    
-    const res = await fetch(
-      `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/clone`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          newid: params.newVmid,
-          name: params.name || undefined,
-          target: params.targetNode !== node ? params.targetNode : undefined,
-          storage: params.targetStorage || undefined,
-          format: params.format || undefined,
-          pool: params.pool || undefined,
-          full: params.full
-        })
-      }
-    )
-    
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-
-      throw new Error(err?.error || `HTTP ${res.status}`)
-    }
-
-    const json = await res.json()
-    const upid = json.data
-    if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
-      trackTask({
-        upid,
-        connId,
-        node,
-        description: `${params.name || `VM ${vmid}`}: ${t('vmActions.clone')}`,
-        onSuccess: () => { onRefresh?.() },
-      })
-    } else {
-      toast.success(t('vmActions.cloneSuccess'))
-      onRefresh?.()
-    }
-  }, [selection, onRefresh, toast, t, trackTask])
-
-  // Handler pour ouvrir le dialog de migration depuis la table
-  const handleTableMigrate = useCallback((vm: any) => {
-    setTableMigrateVm({
-      connId: vm.connId,
-      node: vm.node,
-      type: vm.type,
-      vmid: String(vm.vmid),
-      name: vm.name || `VM ${vm.vmid}`,
-      status: vm.status || 'unknown',
-      isCluster: vm.isCluster ?? false
-    })
-  }, [])
-
-  // Handler pour la migration de VM depuis la table
-  const handleTableMigrateVm = useCallback(async (targetNode: string, online: boolean, targetStorage?: string, withLocalDisks?: boolean) => {
-    if (!tableMigrateVm) throw new Error('No VM selected for migration')
-    
-    const { connId, node, type, vmid } = tableMigrateVm
-    
-    const body: Record<string, any> = { target: targetNode, online }
-
-    if (targetStorage) {
-      body['targetstorage'] = targetStorage
-    }
-
-    if (withLocalDisks) {
-      body['withLocalDisks'] = true
-    }
-    
-    const res = await fetch(
-      `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/migrate`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }
-    )
-    
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-
-      throw new Error(err?.error || `HTTP ${res.status}`)
-    }
-
-    toast.success(t('vmActions.migrateSuccess'))
-
-    // Attendre un peu puis rafraîchir
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    if (onRefresh) {
-      await onRefresh()
-    }
-
-    setTableMigrateVm(null)
-  }, [tableMigrateVm, onRefresh, toast, t])
-
-  // Handler pour la migration cross-cluster depuis la table
-  const handleTableCrossClusterMigrate = useCallback(async (params: CrossClusterMigrateParams) => {
-    if (!tableMigrateVm) throw new Error('No VM selected for migration')
-    
-    const { connId, node, type, vmid } = tableMigrateVm
-    
-    const res = await fetch(
-      `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/remote-migrate`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetConnectionId: params.targetConnectionId,
-          targetNode: params.targetNode,
-          targetVmid: params.targetVmid,
-          targetStorage: params.targetStorage,
-          targetBridge: params.targetBridge,
-          online: params.online,
-          delete: params.deleteSource,
-          bwlimit: params.bwlimit
-        })
-      }
-    )
-    
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err?.error || `HTTP ${res.status}`)
-    }
-
-    toast.success(t('vmActions.migrateSuccess'))
-
-    // Attendre puis rafraîchir
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    if (onRefresh) {
-      await onRefresh()
-    }
-
-    setTableMigrateVm(null)
-  }, [tableMigrateVm, onRefresh, toast, t])
-
-  // Handler pour le clonage depuis le tableau
-  const handleTableCloneVm = useCallback(async (params: { targetNode: string; newVmid: number; name: string; targetStorage?: string; format?: string; pool?: string; full: boolean }) => {
-    if (!tableCloneVm) throw new Error('No VM selected for cloning')
-    
-    const { connId, node, type, vmid } = tableCloneVm
-    
-    const body: Record<string, any> = {
-      newid: params.newVmid,
-      name: params.name,
-      target: params.targetNode,
-      full: params.full ? 1 : 0
-    }
-    
-    if (params.targetStorage) {
-      body.storage = params.targetStorage
-    }
-
-    if (params.format) {
-      body.format = params.format
-    }
-
-    if (params.pool) {
-      body.pool = params.pool
-    }
-    
-    const res = await fetch(
-      `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/clone`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }
-    )
-    
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-
-      throw new Error(err?.error || `HTTP ${res.status}`)
-    }
-
-    const json = await res.json()
-    const upid = json.data
-    if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
-      trackTask({
-        upid,
-        connId,
-        node,
-        description: `${params.name || `VM ${vmid}`}: ${t('vmActions.clone')}`,
-        onSuccess: () => { onRefresh?.(); setTableCloneVm(null) },
-      })
-    } else {
-      toast.success(t('vmActions.cloneSuccess'))
-      onRefresh?.()
-      setTableCloneVm(null)
-    }
-  }, [tableCloneVm, onRefresh, toast, t, trackTask])
-
-  // États pour le bulk action dialog
-  const [bulkActionDialog, setBulkActionDialog] = useState<{
-    open: boolean
-    action: BulkAction | null
-    node: NodeRow | null
-    targetNode: string
-  }>({ open: false, action: null, node: null, targetNode: '' })
-
-  // Handler pour les actions bulk sur les nodes (depuis NodesTable)
-  const handleNodeBulkAction = useCallback((node: NodeRow, action: BulkAction) => {
-    setBulkActionDialog({ open: true, action, node, targetNode: '' })
-  }, [])
-
-  // Handler pour les actions bulk depuis la vue Tree (HostItem)
-  const handleHostBulkAction = useCallback((host: HostItem, action: BulkAction) => {
-    // Convertir HostItem vers un format compatible avec NodeRow
-    const nodeRow: NodeRow = {
-      id: host.key,
-      connId: host.connId,
-      node: host.node,
-      name: host.node,
-      status: 'online',
-      cpu: 0,
-      ram: 0,
-      storage: 0,
-      vms: host.vms.length,
-    }
-    setBulkActionDialog({ open: true, action, node: nodeRow, targetNode: '' })
-  }, [])
-
-  // Exécuter l'action bulk
-  const executeBulkAction = useCallback(async () => {
-    const { action, node, targetNode } = bulkActionDialog
-    if (!action || !node || !data?.allVms) return
-
-    // Récupérer les VMs du node
-    const nodeVms = (data.allVms as any[]).filter((vm: any) =>
-      vm.node === node.name && !vm.template
-    )
-
-    if (nodeVms.length === 0) {
-      toast.warning(t('common.noData'))
-      setBulkActionDialog({ open: false, action: null, node: null, targetNode: '' })
-      return
-    }
-
-    // Filtrer les VMs selon l'action
-    let vmsToProcess: any[] = []
-    let apiAction = ''
-    let description = ''
-
-    switch (action) {
-      case 'start-all':
-        vmsToProcess = nodeVms.filter((vm: any) => vm.status === 'stopped')
-        apiAction = 'start'
-        description = t('bulkActions.startingVms')
-        break
-      case 'shutdown-all':
-        vmsToProcess = nodeVms.filter((vm: any) => vm.status === 'running')
-        apiAction = 'shutdown'
-        description = t('bulkActions.stoppingVms')
-        break
-      case 'stop-all':
-        vmsToProcess = nodeVms.filter((vm: any) => vm.status === 'running')
-        apiAction = 'stop'
-        description = t('bulkActions.stoppingVms')
-        break
-      case 'migrate-all':
-        if (!targetNode) {
-          toast.error(t('bulkActions.selectTargetNode'))
-          return
-        }
-        vmsToProcess = nodeVms.filter((vm: any) => vm.status !== 'stopped' || true) // All VMs
-        apiAction = 'migrate'
-        description = t('bulkActions.migratingVms')
-        break
-    }
-
-    if (vmsToProcess.length === 0) {
-      toast.info(t('common.noData'))
-      setBulkActionDialog({ open: false, action: null, node: null, targetNode: '' })
-      return
-    }
-
-    setBulkActionDialog({ open: false, action: null, node: null, targetNode: '' })
-    toast.info(`${description} (${vmsToProcess.length} VMs)...`)
-
-    // Exécuter les actions en parallèle (max 5 à la fois)
-    const batchSize = 5
-    let successCount = 0
-    let errorCount = 0
-
-    for (let i = 0; i < vmsToProcess.length; i += batchSize) {
-      const batch = vmsToProcess.slice(i, i + batchSize)
-
-      await Promise.all(batch.map(async (vm: any) => {
-        try {
-          let url: string
-          let body: any = undefined
-
-          if (apiAction === 'migrate') {
-            url = `/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/migrate`
-            body = JSON.stringify({ target: targetNode, online: vm.status === 'running' })
-          } else {
-            url = `/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/${apiAction}`
-          }
-
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: body ? { 'Content-Type': 'application/json' } : undefined,
-            body,
-          })
-
-          if (res.ok) {
-            successCount++
-          } else {
-            errorCount++
-          }
-        } catch {
-          errorCount++
-        }
-      }))
-    }
-
-    // Afficher le résultat
-    if (errorCount === 0) {
-      toast.success(`${description} - ${successCount} VMs`)
-    } else if (successCount > 0) {
-      toast.warning(`${description} - ${successCount} OK, ${errorCount} erreurs`)
-    } else {
-      toast.error(`${description} - ${errorCount} erreurs`)
-    }
-
-    // Rafraîchir les données
-    if (onRefresh) {
-      setTimeout(() => onRefresh(), 2000)
-    }
-  }, [bulkActionDialog, data?.allVms, t, toast, onRefresh])
+  // Migration, clone, bulk action handlers → see useVmActions hook
 
   // États pour les sauvegardes
   // 0 = Résumé, 1 = Matériel, 2 = Options, 3 = Historique, 4 = Sauvegardes, 5 = Snapshots, 6 = Notes, 7 = Réplication, 8 = HA (si cluster), 9 = Firewall
@@ -3366,193 +2798,47 @@ return explorerFiles.filter((file: any) =>
 return textExts.includes(ext) || imageExts.includes(ext) || fileName.startsWith('.')
   }, [])
 
-  // Fonction pour charger les trends de plusieurs VMs en batch (groupées par connexion)
-  const loadVmTrendsBatch = useCallback(async (vms: VmRow[]): Promise<Record<string, TrendPoint[]>> => {
-    if (vms.length === 0) return {}
-    
-    // Grouper les VMs par connexion
-    const byConnection: Record<string, VmRow[]> = {}
 
-    vms.forEach(vm => {
-      if (!byConnection[vm.connId]) {
-        byConnection[vm.connId] = []
-      }
-
-      byConnection[vm.connId].push(vm)
-    })
-    
-    // Faire un appel par connexion (en parallèle)
-    const results: Record<string, TrendPoint[]> = {}
-    
-    await Promise.all(
-      Object.entries(byConnection).map(async ([connId, connVms]) => {
-        try {
-          const res = await fetch(
-            `/api/v1/connections/${encodeURIComponent(connId)}/guests/trends`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                items: connVms.map(vm => ({ type: vm.type, node: vm.node, vmid: vm.vmid })),
-                timeframe: 'day'  // day donne ~24h de données, on prendra les 3 dernières heures
-              }),
-              cache: 'no-store'
-            }
-          )
-          
-          if (!res.ok) return
-          
-          const json = await res.json()
-          const data = json?.data || {}
-          
-          // Mapper les résultats vers les IDs de VMs
-          connVms.forEach(vm => {
-            const key = `${vm.type}:${vm.node}:${vm.vmid}`
-            const points = data[key] || []
-
-
-            // Prendre les ~36 derniers points (~3h de données avec résolution 5min du timeframe day)
-            results[vm.id] = points.slice(-36)
-          })
-        } catch (e) {
-          console.error('Failed to batch load trends for connection', connId, e)
-        }
-      })
-    )
-    
-    return results
-  }, [])
-
+  // Reset non-data states when selection changes (data/loading/error/localTags are reset by useDetailData)
   useEffect(() => {
-    let alive = true
+    setSeries([])
+    setRrdError(null)
+    setExpandedVmsTable(false)  // Réinitialiser le mode expanded
 
-    async function run() {
-      setError(null)
-      setData(null)
-      setSeries([])
-      setRrdError(null)
-      setLocalTags([])
-      setExpandedVmsTable(false)  // Réinitialiser le mode expanded
-      
-      // Réinitialiser les états spécifiques aux VMs
-      setTasksLoaded(false)
-      setTasks([])
-      setTasksError(null)
-      setSnapshotsLoaded(false)
-      setSnapshots([])
-      setSnapshotsError(null)
-      setNotesLoaded(false)
-      setVmNotes('')
-      setNotesError(null)
-      setNotesEditing(false)
-      setBackups([])
-      setBackupsStats(null)
-      setBackupsError(null)
-      setBackupsWarnings([])
-      setBackupsPreloaded(false)
-      // Note: backupsLoadedForIdRef est géré dans l'effet de chargement des backups
-      setGuestInfo(null)
+    // Réinitialiser les états spécifiques aux VMs
+    setTasksLoaded(false)
+    setTasks([])
+    setTasksError(null)
+    setSnapshotsLoaded(false)
+    setSnapshots([])
+    setSnapshotsError(null)
+    setNotesLoaded(false)
+    setVmNotes('')
+    setNotesError(null)
+    setNotesEditing(false)
+    setBackups([])
+    setBackupsStats(null)
+    setBackupsError(null)
+    setBackupsWarnings([])
+    setBackupsPreloaded(false)
+    // Note: backupsLoadedForIdRef est géré dans l'effet de chargement des backups
+    setGuestInfo(null)
 
-      // Réinitialiser les états HA
-      setHaLoaded(false)
-      setHaConfig(null)
-      setHaGroups([])
-      setHaError(null)
-      setHaEditing(false)
+    // Réinitialiser les états HA
+    setHaLoaded(false)
+    setHaConfig(null)
+    setHaGroups([])
+    setHaError(null)
+    setHaEditing(false)
 
-      // Réinitialiser les états de réplication
-      setReplicationLoaded(false)
-      setReplicationJobs([])
-      setAvailableTargetNodes([])
-      setSourceCephAvailable(false)
-      setCephClusters([])
-      setCephReplicationJobs([])
-
-      if (!selection) return
-
-      setLoading(true)
-
-      try {
-        const payload = await fetchDetails(selection)
-
-        if (!alive) return
-        if (!payload) {
-          // root selection — no details to display
-          setLoading(false)
-          return
-        }
-        setData(payload)
-        setLocalTags(payload.tags || [])
-      } catch (e: any) {
-        if (!alive) return
-        setError(e?.message || String(e))
-      } finally {
-        if (!alive) return
-        setLoading(false)
-      }
-    }
-
-    run()
-
-    
-return () => {
-      alive = false
-    }
+    // Réinitialiser les états de réplication
+    setReplicationLoaded(false)
+    setReplicationJobs([])
+    setAvailableTargetNodes([])
+    setSourceCephAvailable(false)
+    setCephClusters([])
+    setCephReplicationJobs([])
   }, [selection?.type, selection?.id])
-
-  // Polling des métriques CPU/RAM/Storage toutes les 2s pour les VMs et nodes
-  useEffect(() => {
-    if (!selection || !data) return
-    const isVm = selection.type === 'vm'
-    const isNode = selection.type === 'node'
-    if (!isVm && !isNode) return
-
-    // Seulement pour les VMs running ou les nodes online
-    if (isVm && data.vmRealStatus !== 'running') return
-    if (isNode && data.status !== 'ok') return
-
-    let alive = true
-
-    const poll = async () => {
-      try {
-        if (isVm) {
-          const { connId, node, type, vmid } = parseVmId(selection.id)
-          const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/resources`, { cache: 'no-store' })
-          const resources = asArray<any>(safeJson(await res.json()))
-          const g = resources.find((x: any) => String(x.node) === String(node) && String(x.type) === String(type) && String(x.vmid) === String(vmid))
-          if (!g || !alive) return
-          setData(prev => prev ? {
-            ...prev,
-            metrics: {
-              cpu: { label: 'CPU', pct: cpuPct(g.cpu) },
-              ram: { label: 'RAM', pct: pct(Number(g.mem ?? 0), Number(g.maxmem ?? 0)), used: Number(g.mem ?? 0), max: Number(g.maxmem ?? 0) },
-              storage: { label: 'Storage', pct: pct(Number(g.disk ?? 0), Number(g.maxdisk ?? 0)), used: Number(g.disk ?? 0), max: Number(g.maxdisk ?? 0) },
-            },
-          } : prev)
-        } else {
-          const { connId, node } = parseNodeId(selection.id)
-          const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/resources`, { cache: 'no-store' })
-          const resources = asArray<any>(safeJson(await res.json()))
-          const n = resources.find((x: any) => x.type === 'node' && String(x.node) === String(node))
-          if (!n || !alive) return
-          setData(prev => prev ? {
-            ...prev,
-            metrics: {
-              ...prev.metrics,
-              cpu: { label: 'CPU', pct: cpuPct(n.cpu), used: cpuPct(n.cpu), max: 100 },
-              ram: { label: 'RAM', pct: pct(Number(n.mem ?? 0), Number(n.maxmem ?? 0)), used: Number(n.mem ?? 0), max: Number(n.maxmem ?? 0) },
-              storage: { label: 'Storage', pct: pct(Number(n.disk ?? 0), Number(n.maxdisk ?? 0)), used: Number(n.disk ?? 0), max: Number(n.maxdisk ?? 0) },
-            },
-          } : prev)
-        }
-      } catch {
-        // Silently ignore polling errors
-      }
-    }
-
-    const id = setInterval(poll, 2000)
-    return () => { alive = false; clearInterval(id) }
-  }, [selection?.type, selection?.id, data?.vmRealStatus, data?.status])
 
   // Recharger les données RRD PBS/Datastore quand le timeframe change
   useEffect(() => {
@@ -3683,22 +2969,6 @@ return () => {
   }, [selection?.type, selection?.id, tf]) // Retirer data?.metrics?.ram?.max des dépendances
 
   const progress = useMemo(() => (loading ? <LinearProgress /> : null), [loading])
-
-  const refreshData = useCallback(async () => {
-    if (!selection || refreshing) return
-    setRefreshing(true)
-    try {
-      const payload = await fetchDetails(selection)
-      if (payload) {
-        setData(payload)
-        setLocalTags(payload.tags || [])
-      }
-    } catch (e: any) {
-      console.error('Refresh error:', e)
-    } finally {
-      setRefreshing(false)
-    }
-  }, [selection, refreshing])
 
   const canShowRrd = selection && (selection.type === 'node' || selection.type === 'vm')
 
@@ -4318,274 +3588,6 @@ return (
     }
   }
 
-  // Exécuter une action sur la VM
-  const handleVmAction = async (action: string) => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, node, type, vmid } = parseVmId(selection.id)
-
-    // Actions nécessitant confirmation via dialog MUI
-    if (['shutdown', 'stop', 'suspend', 'reboot'].includes(action)) {
-      const actionLabels: Record<string, { title: string; message: string; icon: string }> = {
-        shutdown: { title: t('audit.actions.stop'), message: 'ACPI shutdown', icon: '⏻' },
-        stop: { title: t('audit.actions.stop'), message: t('common.warning'), icon: '⛔' },
-        suspend: { title: t('audit.actions.suspend'), message: t('audit.actions.suspend'), icon: '⏸️' },
-        reboot: { title: t('audit.actions.restart'), message: 'ACPI reboot', icon: '🔄' },
-      }
-      
-      const label = actionLabels[action]
-
-      setConfirmAction({
-        action,
-        title: label.title,
-        message: label.message,
-        vmName: data?.title || `VM ${vmid}`,
-        onConfirm: async () => {
-          setConfirmActionLoading(true)
-          onVmActionStart?.(connId, vmid)
-
-          try {
-            const url = `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/${action}`
-            const res = await fetch(url, { method: 'POST' })
-            const json = await res.json()
-
-            if (!res.ok || json.error) {
-              throw new Error(json?.error || `HTTP ${res.status}`)
-            }
-
-            // Optimistic update — reflect expected status immediately
-            const optimisticStatus: Record<string, string> = {
-              start: 'running', stop: 'stopped', shutdown: 'stopped',
-              reboot: 'running', reset: 'running', suspend: 'paused',
-              hibernate: 'stopped', resume: 'running',
-            }
-            if (optimisticStatus[action]) {
-              onOptimisticVmStatus?.(connId, vmid, optimisticStatus[action])
-            }
-
-            const refreshAll = () => {
-              fetchDetails(selection).then(payload => {
-                setData(payload)
-                setLocalTags(payload.tags || [])
-              })
-            }
-
-            // Track the task if we got an UPID
-            const upid = json.data
-            if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
-              trackTask({
-                upid,
-                connId,
-                node,
-                description: `${data?.title || `VM ${vmid}`}: ${t(`vmActions.${action}`)}`,
-                onSuccess: () => {
-                  refreshAll()
-                  fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
-                  setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
-                },
-                onError: () => {
-                  onVmActionEnd?.(connId, vmid)
-                },
-              })
-            } else {
-              toast.success(t(`vmActions.${action}Success`))
-              refreshAll()
-              fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
-              setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
-            }
-
-            setConfirmAction(null)
-          } catch (e: any) {
-            onVmActionEnd?.(connId, vmid)
-            const errorMsg = e?.message || e
-            toast.error(`${t('common.error')} (${action}): ${errorMsg}`)
-          } finally {
-            setConfirmActionLoading(false)
-          }
-        }
-      })
-
-return
-    }
-
-    // Actions sans confirmation (start, etc.)
-    setActionBusy(true)
-    onVmActionStart?.(connId, vmid)
-
-    try {
-      const url = `/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/${action}`
-      const res = await fetch(url, { method: 'POST' })
-      const json = await res.json()
-
-      if (!res.ok || json.error) {
-        throw new Error(json?.error || `HTTP ${res.status}`)
-      }
-
-      // Optimistic update — reflect expected status immediately
-      const optimisticStatus: Record<string, string> = {
-        start: 'running', stop: 'stopped', shutdown: 'stopped',
-        reboot: 'running', reset: 'running', suspend: 'paused',
-        hibernate: 'stopped', resume: 'running',
-      }
-      if (optimisticStatus[action]) {
-        onOptimisticVmStatus?.(connId, vmid, optimisticStatus[action])
-      }
-
-      const refreshAll = () => {
-        fetchDetails(selection).then(payload => {
-          setData(payload)
-          setLocalTags(payload.tags || [])
-        })
-      }
-
-      // Track the task if we got an UPID
-      const upid = json.data
-      if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
-        trackTask({
-          upid,
-          connId,
-          node,
-          description: `${data?.title || `VM ${vmid}`}: ${t(`vmActions.${action}`)}`,
-          onSuccess: () => {
-            refreshAll()
-            fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
-            setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
-          },
-          onError: () => {
-            onVmActionEnd?.(connId, vmid)
-          },
-        })
-      } else {
-        toast.success(t(`vmActions.${action}Success`))
-        refreshAll()
-        fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
-        setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
-      }
-    } catch (e: any) {
-      onVmActionEnd?.(connId, vmid)
-      const errorMsg = e?.message || e
-      toast.error(`${t('common.error')} (${action}): ${errorMsg}`)
-    } finally {
-      setActionBusy(false)
-    }
-  }
-
-  // Exécuter une action sur une VM depuis le tableau
-  const handleTableVmAction = useCallback(async (vm: VmRow, action: 'start' | 'shutdown' | 'stop' | 'pause' | 'console' | 'details' | 'clone' | 'reboot' | 'suspend') => {
-    // Si c'est l'action détails, naviguer vers la VM
-    if (action === 'details') {
-      onSelect?.({ type: 'vm', id: vm.id })
-      
-return
-    }
-
-    // Si c'est l'action console, ouvrir la console
-    if (action === 'console') {
-      const url = `/console/${encodeURIComponent(vm.type)}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}?connId=${encodeURIComponent(vm.connId)}`
-
-      window.open(url, '_blank')
-      
-return
-    }
-
-    // Si c'est l'action clone, ouvrir le dialog de clonage
-    if (action === 'clone') {
-      setTableCloneVm({
-        connId: vm.connId,
-        node: vm.node,
-        type: vm.type,
-        vmid: String(vm.vmid),
-        name: vm.name
-      })
-      
-return
-    }
-
-    // Mapper l'action pause vers suspend pour l'API
-    const apiAction = action === 'pause' ? 'suspend' : action
-
-    // Actions nécessitant confirmation via dialog MUI
-    if (['shutdown', 'stop', 'suspend', 'reboot'].includes(apiAction)) {
-      const actionLabels: Record<string, { title: string; message: string }> = {
-        shutdown: { title: t('audit.actions.stop'), message: 'ACPI shutdown' },
-        stop: { title: t('audit.actions.stop'), message: t('common.warning') },
-        suspend: { title: t('audit.actions.suspend'), message: t('audit.actions.suspend') },
-        reboot: { title: t('audit.actions.restart'), message: 'ACPI reboot' },
-      }
-      
-      const label = actionLabels[apiAction]
-
-      setConfirmAction({
-        action: apiAction,
-        title: label.title,
-        message: label.message,
-        vmName: vm.name,
-        onConfirm: async () => {
-          setConfirmActionLoading(true)
-
-          try {
-            const url = `/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/${apiAction}`
-            const res = await fetch(url, { method: 'POST' })
-            const json = await res.json()
-
-            if (!res.ok || json.error) {
-              throw new Error(json?.error || `HTTP ${res.status}`)
-            }
-
-            // Track the task if we got an UPID
-            const upid = json.data
-            if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
-              trackTask({
-                upid,
-                connId: vm.connId,
-                node: vm.node,
-                description: `${vm.name}: ${t(`vmActions.${apiAction}`)}`,
-              })
-            } else {
-              toast.success(t(`vmActions.${apiAction}Success`))
-            }
-
-            setConfirmAction(null)
-          } catch (e: any) {
-            const errorMsg = e?.message || e
-            toast.error(`${t('common.error')} (${apiAction}): ${errorMsg}`)
-          } finally {
-            setConfirmActionLoading(false)
-          }
-        }
-      })
-
-return
-    }
-
-    // Actions sans confirmation (start)
-    try {
-      const url = `/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/${apiAction}`
-      const res = await fetch(url, { method: 'POST' })
-      const json = await res.json()
-
-      if (!res.ok || json.error) {
-        throw new Error(json?.error || `HTTP ${res.status}`)
-      }
-
-      // Track the task if we got an UPID
-      const upid = json.data
-      if (upid && typeof upid === 'string' && upid.startsWith('UPID:')) {
-        trackTask({
-          upid,
-          connId: vm.connId,
-          node: vm.node,
-          description: `${vm.name}: ${t(`vmActions.${apiAction}`)}`,
-        })
-      } else {
-        toast.success(t(`vmActions.${apiAction}Success`))
-      }
-    } catch (e: any) {
-      const errorMsg = e?.message || e
-      toast.error(`${t('common.error')} (${apiAction}) ${vm.name}: ${errorMsg}`)
-    }
-  }, [onSelect, t, toast, trackTask])
-
   // Handler pour le clic sur une VM dans le tableau (pour afficher les détails)
   const handleVmClick = useCallback((vm: VmRow) => {
     // Ne pas ouvrir les détails pour les templates
@@ -4604,12 +3606,6 @@ return
   const handleNotImplemented = (action: string) => {
     alert(`${action}: ${t('common.notAvailable')}`)
   }
-
-  // Handlers
-  const onStart = () => handleVmAction('start')
-  const onShutdown = () => handleVmAction('shutdown')
-  const onStop = () => handleVmAction('stop')
-  const onPause = () => handleVmAction('suspend')
 
   const onUnlock = async () => {
     if (!selection || selection.type !== 'vm') return
