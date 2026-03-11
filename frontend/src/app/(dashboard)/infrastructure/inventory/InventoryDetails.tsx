@@ -5,6 +5,10 @@ import dynamic from 'next/dynamic'
 import { useLocale, useTranslations } from 'next-intl'
 
 import { useFavorites } from './hooks/useFavorites'
+import { useSnapshots } from './hooks/useSnapshots'
+import { useTasks } from './hooks/useTasks'
+import { useNotes } from './hooks/useNotes'
+import { useHA } from './hooks/useHA'
 import { formatBytes } from '@/utils/format'
 import { getDateLocale } from '@/lib/i18n/date'
 
@@ -2306,445 +2310,34 @@ return explorerFiles.filter((file: any) =>
   }, [explorerFiles, explorerSearch])
 
   // ==================== SNAPSHOTS ====================
-  const [snapshots, setSnapshots] = useState<any[]>([])
-  const [snapshotsLoading, setSnapshotsLoading] = useState(false)
-  const [snapshotsError, setSnapshotsError] = useState<string | null>(null)
-  const [snapshotsLoaded, setSnapshotsLoaded] = useState(false)
-  const [snapshotActionBusy, setSnapshotActionBusy] = useState(false)
-  const [showCreateSnapshot, setShowCreateSnapshot] = useState(false)
-  const [newSnapshotName, setNewSnapshotName] = useState('')
-  const [newSnapshotDesc, setNewSnapshotDesc] = useState('')
-  const [newSnapshotRam, setNewSnapshotRam] = useState(false)
-
-  const loadSnapshots = useCallback(async () => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, node, vmid } = parseVmId(selection.id)
-    const vmKey = `${connId}:${type}:${node}:${vmid}`
-    
-    setSnapshotsLoading(true)
-    setSnapshotsError(null)
-    
-    try {
-      const res = await fetch(
-        `/api/v1/guests/${encodeURIComponent(vmKey)}/snapshots`,
-        { cache: 'no-store' }
-      )
-
-      const json = await res.json()
-      
-      if (json.error) {
-        setSnapshotsError(json.error)
-      } else {
-        setSnapshots(json.data?.snapshots || [])
-        setSnapshotsLoaded(true)
-      }
-    } catch (e: any) {
-      setSnapshotsError(e.message || t('errors.loadingError'))
-    } finally {
-      setSnapshotsLoading(false)
-    }
-  }, [selection])
-
-  const createSnapshot = useCallback(async () => {
-    if (!selection || selection.type !== 'vm' || !newSnapshotName.trim()) return
-    
-    const { connId, type, node, vmid } = parseVmId(selection.id)
-    const vmKey = `${connId}:${type}:${node}:${vmid}`
-    
-    setSnapshotActionBusy(true)
-    
-    try {
-      const res = await fetch(
-        `/api/v1/guests/${encodeURIComponent(vmKey)}/snapshots`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: newSnapshotName.trim(),
-            description: newSnapshotDesc.trim(),
-            vmstate: newSnapshotRam,
-          }),
-        }
-      )
-
-      const json = await res.json()
-      
-      if (json.error) {
-        setSnapshotsError(json.error)
-        toast.error(json.error)
-      } else {
-        setShowCreateSnapshot(false)
-        setNewSnapshotName('')
-        setNewSnapshotDesc('')
-        setNewSnapshotRam(false)
-        toast.success(t('inventory.snapshotCreated'))
-
-        // Recharger après un délai
-        setTimeout(loadSnapshots, 2000)
-      }
-    } catch (e: any) {
-      const errorMsg = e.message || t('errors.addError')
-      setSnapshotsError(errorMsg)
-      toast.error(errorMsg)
-    } finally {
-      setSnapshotActionBusy(false)
-    }
-  }, [selection, newSnapshotName, newSnapshotDesc, newSnapshotRam, loadSnapshots, toast, t])
-
-  const deleteSnapshot = useCallback(async (snapname: string) => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, node, vmid } = parseVmId(selection.id)
-    const vmKey = `${connId}:${type}:${node}:${vmid}`
-    
-    setConfirmAction({
-      action: 'delete-snapshot',
-      title: t('inventory.deleteSnapshot'),
-      message: `${t('common.deleteConfirmation')} "${snapname}"`,
-      vmName: data?.title || `VM ${vmid}`,
-      onConfirm: async () => {
-        setConfirmActionLoading(true)
-        setSnapshotActionBusy(true)
-        
-        try {
-          const res = await fetch(
-            `/api/v1/guests/${encodeURIComponent(vmKey)}/snapshots?name=${encodeURIComponent(snapname)}`,
-            { method: 'DELETE' }
-          )
-
-          const json = await res.json()
-          
-          if (json.error) {
-            setSnapshotsError(json.error)
-            toast.error(json.error)
-          } else {
-            toast.success(t('inventory.snapshotDeleted'))
-            setTimeout(loadSnapshots, 2000)
-          }
-
-          setConfirmAction(null)
-        } catch (e: any) {
-          const errorMsg = e.message || t('errors.deleteError')
-          setSnapshotsError(errorMsg)
-          toast.error(errorMsg)
-        } finally {
-          setSnapshotActionBusy(false)
-          setConfirmActionLoading(false)
-        }
-      }
-    })
-  }, [selection, loadSnapshots, data?.title, toast, t])
-
-  const rollbackSnapshot = useCallback(async (snapname: string, hasVmstate?: boolean) => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, node, vmid } = parseVmId(selection.id)
-    const vmKey = `${connId}:${type}:${node}:${vmid}`
-    
-    setConfirmAction({
-      action: 'restore-snapshot',
-      title: t('audit.actions.restore'),
-      message: `${t('audit.actions.restore')} "${snapname}"?`,
-      vmName: data?.title || `VM ${vmid}`,
-      onConfirm: async () => {
-        setConfirmActionLoading(true)
-        setSnapshotActionBusy(true)
-        
-        try {
-          const res = await fetch(
-            `/api/v1/guests/${encodeURIComponent(vmKey)}/snapshots/${encodeURIComponent(snapname)}`,
-            { method: 'POST' }
-          )
-
-          const json = await res.json()
-          
-          if (json.error) {
-            setSnapshotsError(json.error)
-            toast.error(json.error)
-          } else {
-            toast.success(t('inventory.snapshotRestored'))
-            setConfirmAction(null)
-          }
-        } catch (e: any) {
-          const errorMsg = e.message || t('errors.updateError')
-          setSnapshotsError(errorMsg)
-          toast.error(errorMsg)
-        } finally {
-          setSnapshotActionBusy(false)
-          setConfirmActionLoading(false)
-        }
-      }
-    })
-  }, [selection, data?.title, toast, t])
+  const {
+    snapshots, snapshotsLoading, snapshotsError, snapshotsLoaded,
+    snapshotActionBusy, showCreateSnapshot, setShowCreateSnapshot,
+    newSnapshotName, setNewSnapshotName, newSnapshotDesc, setNewSnapshotDesc,
+    newSnapshotRam, setNewSnapshotRam,
+    loadSnapshots, createSnapshot, deleteSnapshot, rollbackSnapshot,
+    resetSnapshots,
+  } = useSnapshots({ selection, t, toast, data, setConfirmAction, setConfirmActionLoading })
 
   // ==================== TASKS (Historique des tâches) ====================
-  const [tasks, setTasks] = useState<any[]>([])
-  const [tasksLoading, setTasksLoading] = useState(false)
-  const [tasksError, setTasksError] = useState<string | null>(null)
-  const [tasksLoaded, setTasksLoaded] = useState(false)
-
-  const loadTasks = useCallback(async () => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, node, vmid } = parseVmId(selection.id)
-    const vmKey = `${connId}:${type}:${node}:${vmid}`
-    
-    setTasksLoading(true)
-    setTasksError(null)
-    
-    try {
-      const res = await fetch(
-        `/api/v1/guests/${encodeURIComponent(vmKey)}/tasks`,
-        { cache: 'no-store' }
-      )
-
-      const json = await res.json()
-      
-      if (json.error) {
-        setTasksError(json.error)
-      } else {
-        setTasks(json.data?.tasks || [])
-        setTasksLoaded(true)
-      }
-    } catch (e: any) {
-      setTasksError(e.message || t('errors.loadingError'))
-    } finally {
-      setTasksLoading(false)
-    }
-  }, [selection])
+  const {
+    tasks, tasksLoading, tasksError, tasksLoaded,
+    loadTasks, setTasksLoaded, resetTasks,
+  } = useTasks({ selection, detailTab, t })
 
   // ==================== NOTES ====================
-  const [vmNotes, setVmNotes] = useState('')
-  const [notesLoading, setNotesLoading] = useState(false)
-  const [notesSaving, setNotesSaving] = useState(false)
-  const [notesError, setNotesError] = useState<string | null>(null)
-  const [notesEditing, setNotesEditing] = useState(false)
-  const [notesLoaded, setNotesLoaded] = useState(false)
-
-  const loadNotes = useCallback(async () => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, node, vmid } = parseVmId(selection.id)
-    const vmKey = `${connId}:${type}:${node}:${vmid}`
-    
-    setNotesLoading(true)
-    setNotesError(null)
-    
-    try {
-      const res = await fetch(
-        `/api/v1/guests/${encodeURIComponent(vmKey)}/notes`,
-        { cache: 'no-store' }
-      )
-
-      const json = await res.json()
-      
-      if (json.error) {
-        setNotesError(json.error)
-      } else {
-        setVmNotes(json.data?.content || '')
-        setNotesLoaded(true)
-      }
-    } catch (e: any) {
-      setNotesError(e.message || t('errors.loadingError'))
-    } finally {
-      setNotesLoading(false)
-    }
-  }, [selection])
-
-  const saveNotes = useCallback(async () => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, node, vmid } = parseVmId(selection.id)
-    const vmKey = `${connId}:${type}:${node}:${vmid}`
-    
-    setNotesSaving(true)
-    setNotesError(null)
-    
-    try {
-      const res = await fetch(
-        `/api/v1/guests/${encodeURIComponent(vmKey)}/notes`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: vmNotes }),
-        }
-      )
-
-      const json = await res.json()
-      
-      if (json.error) {
-        setNotesError(json.error)
-      } else {
-        setNotesEditing(false)
-      }
-    } catch (e: any) {
-      setNotesError(e.message || t('errors.updateError'))
-    } finally {
-      setNotesSaving(false)
-    }
-  }, [selection, vmNotes])
+  const {
+    vmNotes, setVmNotes, notesLoading, notesSaving, notesError,
+    notesEditing, setNotesEditing, loadNotes, saveNotes, resetNotes,
+  } = useNotes({ selection, detailTab, t })
 
   // ==================== HIGH AVAILABILITY (HA) ====================
-  const [haConfig, setHaConfig] = useState<any>(null)
-  const [haGroups, setHaGroups] = useState<any[]>([])
-  const [haLoading, setHaLoading] = useState(false)
-  const [haSaving, setHaSaving] = useState(false)
-  const [haError, setHaError] = useState<string | null>(null)
-  const [haLoaded, setHaLoaded] = useState(false)
-  const [haEditing, setHaEditing] = useState(false)
-  
-  // Formulaire HA
-  const [haState, setHaState] = useState<string>('started')
-  const [haGroup, setHaGroup] = useState<string>('')
-  const [haMaxRestart, setHaMaxRestart] = useState<number>(1)
-  const [haMaxRelocate, setHaMaxRelocate] = useState<number>(1)
-  const [haComment, setHaComment] = useState<string>('')
-
-  const loadHaConfig = useCallback(async () => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, vmid } = parseVmId(selection.id)
-    const haSid = `${type === 'lxc' ? 'ct' : 'vm'}:${vmid}`
-    
-    setHaLoading(true)
-    setHaError(null)
-    
-    try {
-      // Charger la config HA et les groupes en parallèle
-      const [configRes, groupsRes] = await Promise.all([
-        fetch(`/api/v1/connections/${encodeURIComponent(connId)}/ha/${encodeURIComponent(haSid)}`, { cache: 'no-store' }),
-        fetch(`/api/v1/connections/${encodeURIComponent(connId)}/ha`, { cache: 'no-store' })
-      ])
-      
-      const configJson = await configRes.json()
-      const groupsJson = await groupsRes.json()
-      
-      if (configJson.error) {
-        setHaError(configJson.error)
-      } else {
-        setHaConfig(configJson.data)
-
-
-        // Remplir le formulaire si la config existe
-        if (configJson.data) {
-          setHaState(configJson.data.state || 'started')
-          setHaGroup(configJson.data.group || '')
-          setHaMaxRestart(configJson.data.max_restart ?? 1)
-          setHaMaxRelocate(configJson.data.max_relocate ?? 1)
-          setHaComment(configJson.data.comment || '')
-        } else {
-          // Reset le formulaire si pas de config
-          setHaState('started')
-          setHaGroup('')
-          setHaMaxRestart(1)
-          setHaMaxRelocate(1)
-          setHaComment('')
-        }
-      }
-      
-      if (groupsJson.data?.groups) {
-        setHaGroups(groupsJson.data.groups)
-      }
-      
-      setHaLoaded(true)
-    } catch (e: any) {
-      setHaError(e.message || t('errors.loadingError'))
-    } finally {
-      setHaLoading(false)
-    }
-  }, [selection])
-
-  const saveHaConfig = useCallback(async () => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, vmid } = parseVmId(selection.id)
-    const haSid = `${type === 'lxc' ? 'ct' : 'vm'}:${vmid}`
-    
-    setHaSaving(true)
-    setHaError(null)
-    
-    try {
-      const res = await fetch(
-        `/api/v1/connections/${encodeURIComponent(connId)}/ha/${encodeURIComponent(haSid)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            state: haState,
-            group: haGroup || undefined,
-            max_restart: haMaxRestart,
-            max_relocate: haMaxRelocate,
-            comment: haComment || undefined,
-          }),
-        }
-      )
-
-      const json = await res.json()
-      
-      if (json.error) {
-        setHaError(json.error)
-      } else {
-        setHaEditing(false)
-
-        // Recharger la config
-        loadHaConfig()
-      }
-    } catch (e: any) {
-      setHaError(e.message || t('errors.updateError'))
-    } finally {
-      setHaSaving(false)
-    }
-  }, [selection, haState, haGroup, haMaxRestart, haMaxRelocate, haComment, loadHaConfig])
-
-  const removeHaConfig = useCallback(async () => {
-    if (!selection || selection.type !== 'vm') return
-    
-    const { connId, type, vmid } = parseVmId(selection.id)
-    const haSid = `${type === 'lxc' ? 'ct' : 'vm'}:${vmid}`
-    
-    setConfirmAction({
-      action: 'disable-ha',
-      title: t('audit.actions.disable'),
-      message: t('common.deleteConfirmation'),
-      vmName: data?.title || `VM ${vmid}`,
-      onConfirm: async () => {
-        setConfirmActionLoading(true)
-        setHaSaving(true)
-        setHaError(null)
-        
-        try {
-          const res = await fetch(
-            `/api/v1/connections/${encodeURIComponent(connId)}/ha/${encodeURIComponent(haSid)}`,
-            { method: 'DELETE' }
-          )
-
-          const json = await res.json()
-          
-          if (json.error) {
-            setHaError(json.error)
-          } else {
-            setHaConfig(null)
-            setHaEditing(false)
-
-            // Reset formulaire
-            setHaState('started')
-            setHaGroup('')
-            setHaMaxRestart(1)
-            setHaMaxRelocate(1)
-            setHaComment('')
-          }
-
-          setConfirmAction(null)
-        } catch (e: any) {
-          setHaError(e.message || t('errors.deleteError'))
-        } finally {
-          setHaSaving(false)
-          setConfirmActionLoading(false)
-        }
-      }
-    })
-  }, [selection, data?.title])
+  const {
+    haConfig, haGroups, haLoading, haSaving, haError, haLoaded, haEditing,
+    setHaEditing, haState, setHaState, haGroup, setHaGroup,
+    haMaxRestart, setHaMaxRestart, haMaxRelocate, setHaMaxRelocate,
+    haComment, setHaComment, loadHaConfig, saveHaConfig, removeHaConfig, resetHA,
+  } = useHA({ selection, detailTab, t, data, setConfirmAction, setConfirmActionLoading })
 
   // ==================== PREVIEW ====================
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -2806,16 +2399,9 @@ return textExts.includes(ext) || imageExts.includes(ext) || fileName.startsWith(
     setExpandedVmsTable(false)  // Réinitialiser le mode expanded
 
     // Réinitialiser les états spécifiques aux VMs
-    setTasksLoaded(false)
-    setTasks([])
-    setTasksError(null)
-    setSnapshotsLoaded(false)
-    setSnapshots([])
-    setSnapshotsError(null)
-    setNotesLoaded(false)
-    setVmNotes('')
-    setNotesError(null)
-    setNotesEditing(false)
+    resetTasks()
+    resetSnapshots()
+    resetNotes()
     setBackups([])
     setBackupsStats(null)
     setBackupsError(null)
@@ -2825,11 +2411,7 @@ return textExts.includes(ext) || imageExts.includes(ext) || fileName.startsWith(
     setGuestInfo(null)
 
     // Réinitialiser les états HA
-    setHaLoaded(false)
-    setHaConfig(null)
-    setHaGroups([])
-    setHaError(null)
-    setHaEditing(false)
+    resetHA()
 
     // Réinitialiser les états de réplication
     setReplicationLoaded(false)
@@ -2997,12 +2579,7 @@ return () => {
     setBackupsPreloaded(true)
   }, [selection?.type, selection?.id, loadBackups])
 
-  // Charger les snapshots quand une VM est sélectionnée (pré-chargement pour le badge)
-  useEffect(() => {
-    if (selection?.type === 'vm' && !snapshotsLoaded && !snapshotsLoading) {
-      loadSnapshots()
-    }
-  }, [selection?.type, selection?.id, snapshotsLoaded, snapshotsLoading, loadSnapshots])
+  // Note: snapshot preloading is handled inside useSnapshots hook
 
   // Charger les infos guest (IP, uptime) quand une VM est sélectionnée
   useEffect(() => {
@@ -3046,27 +2623,6 @@ return
     
     loadGuestInfo()
   }, [selection?.type, selection?.id])
-
-  // Charger les tâches quand on sélectionne l'onglet Historique des tâches (index 3)
-  useEffect(() => {
-    if (detailTab === 3 && selection?.type === 'vm' && !tasksLoaded && !tasksLoading) {
-      loadTasks()
-    }
-  }, [detailTab, selection?.type, selection?.id, tasksLoaded, tasksLoading, loadTasks])
-
-  // Charger les notes quand on sélectionne l'onglet Résumé (0) ou Notes (6)
-  useEffect(() => {
-    if ((detailTab === 0 || detailTab === 6) && selection?.type === 'vm' && !notesLoaded && !notesLoading) {
-      loadNotes()
-    }
-  }, [detailTab, selection?.type, selection?.id, notesLoaded, notesLoading, loadNotes])
-
-  // Charger la config HA quand on sélectionne l'onglet HA (index 9)
-  useEffect(() => {
-    if (detailTab === 9 && selection?.type === 'vm' && !haLoaded && !haLoading) {
-      loadHaConfig()
-    }
-  }, [detailTab, selection?.type, selection?.id, haLoaded, haLoading, loadHaConfig])
 
   // Charger le lock status quand une VM est sélectionnée
   useEffect(() => {
