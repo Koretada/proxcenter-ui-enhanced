@@ -2263,7 +2263,11 @@
       "noLogsAvailable": "No logs available",
       "noMatchingLogs": "No logs matching filter",
       "autoUpdate": "Auto-update every 2s",
-      "logsTruncated": "Showing last {shown} of {total} log lines"
+      "logsTruncated": "Showing last {shown} of {total} log lines",
+      "stop": "Stop task",
+      "stopping": "Stopping...",
+      "taskStopped": "Task stop requested",
+      "confirmStop": "Are you sure you want to stop this task?"
     },
     "notifications": {
       "enabled": "Notifications enabled",

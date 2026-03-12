@@ -2268,7 +2268,11 @@
       "noLogsAvailable": "Aucun log disponible",
       "noMatchingLogs": "Aucun log correspondant au filtre",
       "autoUpdate": "Mise à jour automatique toutes les 2s",
-      "logsTruncated": "Affichage des {shown} dernières lignes sur {total} au total"
+      "logsTruncated": "Affichage des {shown} dernières lignes sur {total} au total",
+      "stop": "Arrêter la tâche",
+      "stopping": "Arrêt en cours...",
+      "taskStopped": "Arrêt de la tâche demandé",
+      "confirmStop": "Êtes-vous sûr de vouloir arrêter cette tâche ?"
     },
     "notifications": {
       "enabled": "Notifications activées",

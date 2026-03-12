@@ -81,6 +81,7 @@ export default function TaskDetailDialog({ open, task, onClose }) {
   const [logFilter, setLogFilter] = useState('all')
   const [autoScroll, setAutoScroll] = useState(true)
   const [snackbar, setSnackbar] = useState({ open: false, message: '' })
+  const [stopping, setStopping] = useState(false)
 
   const logsContainerRef = useRef(null)
   const logsEndRef = useRef(null)
@@ -115,6 +116,7 @@ export default function TaskDetailDialog({ open, task, onClose }) {
       setDetails(null)
       setError(null)
       setAutoScroll(true)
+      setStopping(false)
       prevLogsLengthRef.current = 0
     }
   }, [open, task?.id])
@@ -150,6 +152,30 @@ export default function TaskDetailDialog({ open, task, onClose }) {
       setSnackbar({ open: true, message: t('common.copied') })
     } catch (e) {
       setSnackbar({ open: true, message: t('common.error') })
+    }
+  }
+
+  // Stop task
+  const handleStopTask = async () => {
+    if (!task?.connectionId || !task?.node || !task?.id) return
+
+    setStopping(true)
+
+    try {
+      const res = await fetch(
+        `/api/v1/tasks/${encodeURIComponent(task.connectionId)}/${encodeURIComponent(task.node)}/${encodeURIComponent(task.id)}`,
+        { method: 'DELETE' }
+      )
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to stop task')
+      }
+
+      setSnackbar({ open: true, message: t('tasks.detail.taskStopped') })
+    } catch (e) {
+      setSnackbar({ open: true, message: e.message || t('common.error') })
+      setStopping(false)
     }
   }
 
@@ -276,6 +302,25 @@ return true
                 variant={isRunning ? 'outlined' : 'filled'}
               />
             </Box>
+            {isRunning && (
+              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
+                <Tooltip title={stopping ? t('tasks.detail.stopping') : t('tasks.detail.stop')}>
+                  <span>
+                    <IconButton
+                      onClick={handleStopTask}
+                      disabled={stopping}
+                      size="small"
+                      sx={{ color: 'error.main' }}
+                    >
+                      <i
+                        className={stopping ? 'ri-loader-4-line' : 'ri-stop-circle-line'}
+                        style={{ fontSize: 20, ...(stopping ? { animation: 'spin 1s linear infinite' } : {}) }}
+                      />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+            )}
           </Box>
 
           {/* Progress section */}

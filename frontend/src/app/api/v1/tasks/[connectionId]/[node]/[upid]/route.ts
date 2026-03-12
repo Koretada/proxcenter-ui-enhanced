@@ -483,9 +483,40 @@ return NextResponse.json({ error: `Failed to fetch task status: ${e.message}` },
     return NextResponse.json(response)
   } catch (error: any) {
     console.error('Error in task details API:', error)
-    
+
 return NextResponse.json(
       { error: error?.message || 'Server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ connectionId: string; node: string; upid: string }> }
+) {
+  try {
+    const { connectionId, node, upid } = await params
+    const decodedUpid = decodeURIComponent(upid)
+
+    const connection = await getConnectionById(connectionId)
+
+    if (!connection) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
+    }
+
+    await pveFetch(
+      connection,
+      `/nodes/${encodeURIComponent(node)}/tasks/${encodeURIComponent(decodedUpid)}`,
+      { method: 'DELETE' }
+    )
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Error stopping task:', error)
+
+    return NextResponse.json(
+      { error: error?.message || 'Failed to stop task' },
       { status: 500 }
     )
   }
