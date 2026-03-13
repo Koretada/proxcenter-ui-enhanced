@@ -480,11 +480,11 @@ export default function ConnectionDialog({
           </>
         )}
 
-        {!isPbs && !isExternalHypervisor && (
+        {!isPbs && !isXcpng && (
           <>
         <Divider sx={{ my: 3 }} />
 
-        {/* Section: Accès SSH (optionnel, PVE only) */}
+        {/* Section: SSH access (PVE + VMware/ESXi) */}
         <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           <i className="ri-terminal-line" />
           {t('settings.sshAccess')}

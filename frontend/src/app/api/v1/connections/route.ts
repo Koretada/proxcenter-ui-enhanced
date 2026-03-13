@@ -125,9 +125,15 @@ export async function POST(req: Request) {
     if (type === 'vmware' || type === 'xcpng') {
       // VMware/XCP-ng: store "user:password" in apiTokenEnc
       data.apiTokenEnc = encryptSecret(`${vmwareUser || (type === 'xcpng' ? 'admin@admin.net' : 'root')}:${vmwarePassword || ''}`)
-      data.sshEnabled = false
+      if (type === 'xcpng') {
+        data.sshEnabled = false
+      }
     } else {
       data.apiTokenEnc = encryptSecret(apiToken || '')
+    }
+
+    // SSH config (PVE + VMware)
+    if (type !== 'xcpng') {
       data.sshEnabled = sshEnabled
       data.sshPort = sshPort
       data.sshUser = sshUser

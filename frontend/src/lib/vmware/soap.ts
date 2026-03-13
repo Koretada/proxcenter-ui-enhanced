@@ -154,7 +154,7 @@ export async function soapPowerOffVm(session: SoapSession, vmid: string): Promis
 }
 
 /** Create a snapshot on a VM (makes base disks read-only and downloadable while VM runs) */
-export async function soapCreateSnapshot(session: SoapSession, vmid: string, name: string, description = ""): Promise<string> {
+export async function soapCreateSnapshot(session: SoapSession, vmid: string, name: string, description = "", quiesce = false): Promise<string> {
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
   <soapenv:Body>
@@ -163,7 +163,7 @@ export async function soapCreateSnapshot(session: SoapSession, vmid: string, nam
       <urn:name>${name}</urn:name>
       <urn:description>${description}</urn:description>
       <urn:memory>false</urn:memory>
-      <urn:quiesce>false</urn:quiesce>
+      <urn:quiesce>${quiesce}</urn:quiesce>
     </urn:CreateSnapshot_Task>
   </soapenv:Body>
 </soapenv:Envelope>`
@@ -247,6 +247,149 @@ export async function soapRemoveAllSnapshots(session: SoapSession, vmid: string)
     const status = await soapRequest(session.baseUrl, statusBody, session.cookie, session.insecureTLS)
     if (status.text.includes("success") || status.text.includes("error")) return
   }
+}
+
+// ── HttpNfcLease (Export VM) — for downloading disks when snapshots are active ──
+
+export interface NfcLeaseDeviceUrl {
+  key: string
+  url: string
+  fileSize: number
+  disk: boolean
+  targetId: string
+}
+
+/** Initiate a VM export via HttpNfcLease — returns the lease MOR */
+export async function soapExportVm(session: SoapSession, vmid: string): Promise<string> {
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:ExportVm>
+      <urn:_this type="VirtualMachine">${vmid}</urn:_this>
+    </urn:ExportVm>
+  </soapenv:Body>
+</soapenv:Envelope>`
+
+  const result = await soapRequest(session.baseUrl, body, session.cookie, session.insecureTLS)
+  if (result.text.includes("faultstring")) {
+    const fault = result.text.match(/<faultstring>([\s\S]*?)<\/faultstring>/)?.[1] || result.text.substring(0, 500)
+    throw new Error(`ExportVm failed: ${fault}`)
+  }
+  const leaseMor = result.text.match(/<returnval type="HttpNfcLease">([^<]+)<\/returnval>/)?.[1]
+  if (!leaseMor) throw new Error("ExportVm did not return an NFC lease")
+  return leaseMor
+}
+
+/** Wait for an NFC lease to become ready and return device download URLs */
+export async function soapWaitForNfcLease(session: SoapSession, leaseMor: string): Promise<NfcLeaseDeviceUrl[]> {
+  const host = session.baseUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "")
+
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+    const body = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:RetrievePropertiesEx>
+      <urn:_this type="PropertyCollector">ha-property-collector</urn:_this>
+      <urn:specSet>
+        <urn:propSet>
+          <urn:type>HttpNfcLease</urn:type>
+          <urn:pathSet>state</urn:pathSet>
+          <urn:pathSet>info</urn:pathSet>
+          <urn:pathSet>error</urn:pathSet>
+        </urn:propSet>
+        <urn:objectSet>
+          <urn:obj type="HttpNfcLease">${leaseMor}</urn:obj>
+          <urn:skip>false</urn:skip>
+        </urn:objectSet>
+      </urn:specSet>
+      <urn:options/>
+    </urn:RetrievePropertiesEx>
+  </soapenv:Body>
+</soapenv:Envelope>`
+
+    const result = await soapRequest(session.baseUrl, body, session.cookie, session.insecureTLS)
+    const stateMatch = result.text.match(/<name>state<\/name>\s*<val[^>]*>([^<]+)<\/val>/)
+    const state = stateMatch?.[1] || ""
+
+    if (state === "error") {
+      const errorMsg = result.text.match(/<localizedMessage>([^<]*)<\/localizedMessage>/)?.[1] || "Unknown lease error"
+      throw new Error(`NFC lease error: ${errorMsg}`)
+    }
+
+    if (state === "ready") {
+      // Parse deviceUrl entries from info
+      const devices: NfcLeaseDeviceUrl[] = []
+      const infoXml = result.text
+      const deviceRegex = /<deviceUrl>([\s\S]*?)<\/deviceUrl>/g
+      let match
+      while ((match = deviceRegex.exec(infoXml)) !== null) {
+        const d = match[1]
+        const url = d.match(/<url>([^<]*)<\/url>/)?.[1] || ""
+        const key = d.match(/<key>([^<]*)<\/key>/)?.[1] || ""
+        const fileSize = parseInt(d.match(/<fileSize>([^<]*)<\/fileSize>/)?.[1] || "0", 10)
+        const disk = d.includes("<disk>true</disk>")
+        const targetId = d.match(/<targetId>([^<]*)<\/targetId>/)?.[1] || ""
+
+        if (url) {
+          // ESXi returns URLs with * as hostname — replace with actual host
+          devices.push({
+            key,
+            url: url.replace(/https:\/\/\*\//, `https://${host}/`),
+            fileSize,
+            disk,
+            targetId,
+          })
+        }
+      }
+      return devices
+    }
+    // state === "initializing" — keep polling
+  }
+  throw new Error("NFC lease did not become ready within 60s")
+}
+
+/** Send progress keepalive to prevent NFC lease timeout (default lease timeout is 5 min) */
+export async function soapNfcLeaseProgress(session: SoapSession, leaseMor: string, percent: number): Promise<void> {
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:HttpNfcLeaseProgress>
+      <urn:_this type="HttpNfcLease">${leaseMor}</urn:_this>
+      <urn:percent>${Math.min(99, Math.max(0, Math.round(percent)))}</urn:percent>
+    </urn:HttpNfcLeaseProgress>
+  </soapenv:Body>
+</soapenv:Envelope>`
+  await soapRequest(session.baseUrl, body, session.cookie, session.insecureTLS).catch(() => {})
+}
+
+/** Complete an NFC lease (signals successful download) */
+export async function soapNfcLeaseComplete(session: SoapSession, leaseMor: string): Promise<void> {
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:HttpNfcLeaseComplete>
+      <urn:_this type="HttpNfcLease">${leaseMor}</urn:_this>
+    </urn:HttpNfcLeaseComplete>
+  </soapenv:Body>
+</soapenv:Envelope>`
+  await soapRequest(session.baseUrl, body, session.cookie, session.insecureTLS).catch(() => {})
+}
+
+/** Abort an NFC lease (on error/cancellation) */
+export async function soapNfcLeaseAbort(session: SoapSession, leaseMor: string, reason = "Migration aborted"): Promise<void> {
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:vim25">
+  <soapenv:Body>
+    <urn:HttpNfcLeaseAbort>
+      <urn:_this type="HttpNfcLease">${leaseMor}</urn:_this>
+      <urn:fault>
+        <faultMessage>${reason}</faultMessage>
+      </urn:fault>
+    </urn:HttpNfcLeaseAbort>
+  </soapenv:Body>
+</soapenv:Envelope>`
+  await soapRequest(session.baseUrl, body, session.cookie, session.insecureTLS).catch(() => {})
 }
 
 export interface EsxiDiskInfo {

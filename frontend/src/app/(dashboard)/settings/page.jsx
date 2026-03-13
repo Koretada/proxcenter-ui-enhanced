@@ -293,8 +293,8 @@ function ConnectionsTab() {
       // VMware/XCP-ng: username + password
       ...(isExtHypervisor && { vmwareUser: formData.vmwareUser?.trim() || (addConnType === 'xcpng' ? 'admin@admin.net' : 'root') }),
       ...(isExtHypervisor && formData.vmwarePassword && { vmwarePassword: formData.vmwarePassword }),
-      // SSH fields (PVE only)
-      ...(!isExtHypervisor && {
+      // SSH fields (PVE + VMware — not XCP-ng)
+      ...(addConnType !== 'xcpng' && {
         sshEnabled: formData.sshEnabled,
         sshPort: formData.sshPort,
         sshUser: formData.sshUser,
@@ -676,18 +676,15 @@ function ConnectionsTab() {
         )
       },
       {
-        field: 'locationLabel',
-        headerName: t('settings.location'),
-        width: 140,
+        field: 'sshEnabled',
+        headerName: t('settings.sshHeader'),
+        width: 80,
         renderCell: params => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: '100%' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
             {params.value ? (
-              <>
-                <i className='ri-map-pin-2-line' style={{ fontSize: 14, opacity: 0.6 }} />
-                <Typography variant='body2' noWrap>{params.value}</Typography>
-              </>
+              <Chip size='small' label={t('common.yes')} color='success' variant='outlined' icon={<i className='ri-terminal-line' style={{ fontSize: 14 }} />} />
             ) : (
-              <Typography variant='caption' sx={{ opacity: 0.3 }}>—</Typography>
+              <Typography variant='caption' sx={{ opacity: 0.4 }}>{t('common.no')}</Typography>
             )}
           </Box>
         )

@@ -19,9 +19,9 @@ import { getConnectionById } from "@/lib/connections/getConnection"
 import { pveFetch } from "@/lib/proxmox/client"
 import { isFileBasedStorage } from "@/lib/proxmox/storage"
 import { executeSSH } from "@/lib/ssh/exec"
-import { soapLogin, soapLogout, soapGetVmConfig, parseVmConfig, buildVmdkDownloadUrl, buildVmdkDescriptorUrl, extractProp, soapCreateSnapshot, soapRemoveAllSnapshots, soapPowerOffVm } from "@/lib/vmware/soap"
+import { soapLogin, soapLogout, soapGetVmConfig, parseVmConfig, buildVmdkDownloadUrl, buildVmdkDescriptorUrl, extractProp, soapCreateSnapshot, soapRemoveAllSnapshots, soapPowerOffVm, soapExportVm, soapWaitForNfcLease, soapNfcLeaseProgress, soapNfcLeaseComplete, soapNfcLeaseAbort } from "@/lib/vmware/soap"
 import { mapEsxiToPveConfig, isWindowsVm } from "./configMapper"
-import type { SoapSession, EsxiVmConfig, EsxiDiskInfo } from "@/lib/vmware/soap"
+import type { SoapSession, EsxiVmConfig, EsxiDiskInfo, NfcLeaseDeviceUrl } from "@/lib/vmware/soap"
 
 type MigrationStatus = "pending" | "preflight" | "creating_vm" | "transferring" | "configuring" | "completed" | "failed" | "cancelled"
 
@@ -153,10 +153,13 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
     await updateJob(jobId, "preflight")
     await appendLog(jobId, "Starting pre-flight checks...")
 
-    // Get ESXi connection
+    // Get ESXi connection (include SSH fields for live migration via dd)
     const esxiConn = await prisma.connection.findUnique({
       where: { id: config.sourceConnectionId },
-      select: { id: true, name: true, baseUrl: true, apiTokenEnc: true, insecureTLS: true, type: true },
+      select: {
+        id: true, name: true, baseUrl: true, apiTokenEnc: true, insecureTLS: true, type: true,
+        sshEnabled: true, sshPort: true, sshUser: true, sshAuthMethod: true, sshKeyEnc: true, sshPassEnc: true,
+      },
     })
     if (!esxiConn || esxiConn.type !== "vmware") {
       throw new Error("ESXi connection not found")
@@ -198,9 +201,12 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
     // Handle VM power state based on migration type
     const isLive = config.migrationType === "live"
 
+    // Check if ESXi SSH is available (used as fallback if HTTPS download fails)
+    const esxiSshAvailable = esxiConn.sshEnabled && (esxiConn.sshKeyEnc || esxiConn.sshPassEnc)
+
     if (vmConfig.powerState === "poweredOn") {
       if (isLive) {
-        await appendLog(jobId, "VM is running — live migration will use a snapshot to download disks without downtime", "info")
+        await appendLog(jobId, "VM is running — live migration will clone disks on ESXi via vmkfstools, then transfer (minimal downtime)", "info")
       } else {
         // Cold migration: VM must be off
         await appendLog(jobId, "VM is powered on — powering off for offline migration...", "warn")
@@ -208,8 +214,8 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
       }
     }
 
-    // Check snapshots
-    if (vmConfig.snapshotCount > 0) {
+    // Check snapshots (in live mode, existing snapshots are handled later — we remove them before creating ours)
+    if (vmConfig.snapshotCount > 0 && !isLive) {
       await appendLog(jobId, `Warning: VM has ${vmConfig.snapshotCount} snapshot(s). Disk data will be from current state.`, "warn")
     }
 
@@ -298,21 +304,19 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
     const importFormat = isFileBased ? "qcow2" : "raw"
 
     // Helper: download a single disk from ESXi via curl on PVE node
-    async function downloadDisk(i: number, disk: EsxiDiskInfo) {
+    // overrideUrl: used by NFC lease in live mode (datastore browser returns 500 when snapshot active)
+    async function downloadDisk(i: number, disk: EsxiDiskInfo, overrideUrl?: string) {
       const diskSizeGB = (disk.capacityBytes / 1073741824).toFixed(1)
       await appendLog(jobId, `[Disk ${i + 1}/${vmConfig.disks.length}] Downloading "${disk.label}" (${diskSizeGB} GB, ${disk.thinProvisioned ? "thin" : "thick"})...`)
 
-      // Try flat VMDK first (standard split format), then descriptor (monolithic thick)
-      const flatUrl = buildVmdkDownloadUrl(esxiUrl, disk)
-      const descriptorUrl = buildVmdkDescriptorUrl(esxiUrl, disk)
       const tmpFile = `/tmp/proxcenter-mig-${jobId}-disk${i}`
       const soapCookie = soapSession!.cookie
 
       // Strip double quotes from cookie value to avoid shell quoting issues
       // ESXi returns: vmware_soap_session="abc123" — quotes are decorative, not required
       const safeCookie = soapCookie.replace(/"/g, '')
-      const vmdkUrl = flatUrl
-      await appendLog(jobId, `Download URL: ${vmdkUrl.replace(/\?.*/, '?...')}`, "info")
+      const vmdkUrl = overrideUrl || buildVmdkDownloadUrl(esxiUrl, disk)
+      await appendLog(jobId, `Download URL: ${vmdkUrl.replace(/\?.*/, '?...')}${overrideUrl ? ' (NFC lease)' : ''}`, "info")
 
       await updateJob(jobId, "transferring", {
         currentStep: `downloading_disk_${i + 1}`,
@@ -425,6 +429,305 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
       await appendLog(jobId, `Download complete: ${(downloadedBytes / 1073741824).toFixed(1)} GB in ${downloadTime.toFixed(0)}s (${downloadSpeed})`, "success")
     }
 
+    // Helper: build ESXi SSH prefix (sshpass + legacy algorithms for ESXi BusyBox SSH)
+    // Returns { setupCmd, sshPrefix, cleanupCmd } to be used in shell scripts on PVE node
+    function buildEsxiSshPrefix(tmpPrefix: string) {
+      const esxiHost = esxiUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "")
+      const esxiSshPort = esxiConn.sshPort || 22
+      const esxiSshUser = esxiConn.sshUser || "root"
+      const esxiPass = esxiConn.sshPassEnc ? decryptSecret(esxiConn.sshPassEnc) : ""
+      const esxiSshOpts = `-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -o HostKeyAlgorithms=+ssh-rsa,ssh-ed25519 -o KexAlgorithms=+diffie-hellman-group14-sha1,diffie-hellman-group14-sha256 -o PreferredAuthentications=keyboard-interactive,password`
+
+      let setupCmd = ""
+      let sshPrefix = ""
+      let cleanupCmd = ""
+
+      if (esxiConn.sshAuthMethod === "key" && esxiConn.sshKeyEnc) {
+        const esxiKey = decryptSecret(esxiConn.sshKeyEnc)
+        const keyFile = `${tmpPrefix}.esxi-key`
+        setupCmd = `cat > "${keyFile}" << 'KEYEOF'\n${esxiKey}\nKEYEOF\nchmod 600 "${keyFile}"`
+        sshPrefix = `ssh ${esxiSshOpts} -i "${keyFile}"`
+        cleanupCmd = `rm -f "${keyFile}"`
+      } else if (esxiPass) {
+        const safePass = esxiPass.replace(/'/g, "'\\''")
+        setupCmd = `export SSHPASS='${safePass}'`
+        sshPrefix = `sshpass -e ssh ${esxiSshOpts}`
+        cleanupCmd = ""
+      }
+
+      return { esxiHost, esxiSshPort, esxiSshUser, esxiSshOpts, setupCmd, sshPrefix, cleanupCmd }
+    }
+
+    // Helper: execute a command on ESXi via SSH from PVE node (background + polling, no timeout issues)
+    async function executeOnEsxi(command: string, timeoutMs = 3600000): Promise<string> {
+      const tmpPrefix = `/tmp/proxcenter-mig-${jobId}-esxicmd`
+      const { esxiHost, esxiSshPort, esxiSshUser, setupCmd, sshPrefix, cleanupCmd } = buildEsxiSshPrefix(tmpPrefix)
+      const script = `${tmpPrefix}.sh`
+      const outFile = `${tmpPrefix}.out`
+      const errFile = `${tmpPrefix}.stderr`
+      const exitFile = `${tmpPrefix}.exit`
+
+      const sshCmd = `${sshPrefix} -p ${esxiSshPort} ${esxiSshUser}@${esxiHost} "${command.replace(/"/g, '\\"')}" >"${outFile}" 2>"${errFile}"`
+
+      await executeSSH(config.targetConnectionId, nodeIp,
+        `cat > "${script}" << 'ESXIEOF'\n${setupCmd}\n${sshCmd}\nEXIT_CODE=$?\n${cleanupCmd}\necho $EXIT_CODE > "${exitFile}"\nESXIEOF`
+      )
+
+      // Run in background
+      const startResult = await executeSSH(config.targetConnectionId, nodeIp,
+        `nohup bash "${script}" > /dev/null 2>&1 & echo $!`
+      )
+      if (!startResult.success || !startResult.output?.trim()) {
+        throw new Error(`Failed to start ESXi command: ${startResult.error}`)
+      }
+      const pid = startResult.output.trim()
+
+      // Poll for completion
+      const startTime = Date.now()
+      while (true) {
+        if (isCancelled(jobId)) {
+          await executeSSH(config.targetConnectionId, nodeIp, `kill ${pid} 2>/dev/null; rm -f "${script}" "${outFile}" "${errFile}" "${exitFile}" "${tmpPrefix}.esxi-key"`)
+          throw new Error("Migration cancelled")
+        }
+        if (Date.now() - startTime > timeoutMs) {
+          await executeSSH(config.targetConnectionId, nodeIp, `kill ${pid} 2>/dev/null; rm -f "${script}" "${outFile}" "${errFile}" "${exitFile}" "${tmpPrefix}.esxi-key"`)
+          throw new Error(`ESXi command timed out after ${Math.round(timeoutMs / 60000)}m`)
+        }
+
+        await new Promise(r => setTimeout(r, 3000))
+
+        const exitCheck = await executeSSH(config.targetConnectionId, nodeIp, `cat "${exitFile}" 2>/dev/null || echo RUNNING`)
+        if (exitCheck.output?.trim() === "RUNNING") continue
+
+        const exitCode = parseInt(exitCheck.output?.trim() || "1", 10)
+        const outputContent = await executeSSH(config.targetConnectionId, nodeIp, `cat "${outFile}" 2>/dev/null`)
+        const output = outputContent.output?.trim() || ""
+
+        if (exitCode !== 0) {
+          const stderrContent = await executeSSH(config.targetConnectionId, nodeIp, `cat "${errFile}" 2>/dev/null | head -c 500`)
+          await executeSSH(config.targetConnectionId, nodeIp, `rm -f "${script}" "${outFile}" "${errFile}" "${exitFile}" "${tmpPrefix}.esxi-key"`)
+          const errMsg = stderrContent.output?.trim() || output
+          throw new Error(`ESXi command failed (exit ${exitCode}): ${errMsg}`)
+        }
+
+        await executeSSH(config.targetConnectionId, nodeIp, `rm -f "${script}" "${outFile}" "${errFile}" "${exitFile}" "${tmpPrefix}.esxi-key"`)
+        return output
+      }
+    }
+
+    // Helper: download a disk from ESXi via vmkfstools clone + SSH dd pipe (for live migration)
+    // Flow: 1) vmkfstools -i on ESXi to clone VMDK (works on locked disks via VMFS API)
+    //       2) SSH dd to pipe the clone (unlocked) from ESXi to PVE node
+    //       3) Cleanup clone on ESXi
+    async function downloadDiskViaSsh(i: number, disk: EsxiDiskInfo, needsClone = false) {
+      const diskSizeGB = (disk.capacityBytes / 1073741824).toFixed(1)
+      const tmpFile = `/tmp/proxcenter-mig-${jobId}-disk${i}`
+      const { esxiHost, esxiSshPort, esxiSshUser, setupCmd, sshPrefix, cleanupCmd } = buildEsxiSshPrefix(tmpFile)
+
+      // Build the VMFS path
+      const flatPath = disk.relativePath.replace(/\.vmdk$/, "-flat.vmdk")
+      const vmfsPath = `/vmfs/volumes/${disk.datastoreName}/${flatPath}`
+      // Clone path on ESXi datastore (temporary, cleaned up after download)
+      const cloneName = `.proxcenter-clone-${jobId}-disk${i}`
+      const cloneVmdkPath = `/vmfs/volumes/${disk.datastoreName}/${cloneName}.vmdk`
+      const cloneFlatPath = `/vmfs/volumes/${disk.datastoreName}/${cloneName}-flat.vmdk`
+
+      let downloadPath = vmfsPath
+      let cloneCreated = false
+
+      if (needsClone) {
+        // Step 1: Clone VMDK on ESXi using vmkfstools (works on locked/running VMDKs after snapshot)
+        await appendLog(jobId, `[Disk ${i + 1}/${vmConfig.disks.length}] Cloning "${disk.label}" on ESXi via vmkfstools (${diskSizeGB} GB)...`)
+        await updateJob(jobId, "transferring", {
+          currentStep: `cloning_disk_${i + 1}`,
+          currentDisk: i,
+          bytesTransferred: BigInt(0),
+          totalBytes: BigInt(disk.capacityBytes),
+        })
+
+        try {
+          const descriptorPath = `/vmfs/volumes/${disk.datastoreName}/${disk.relativePath}`
+
+          // Run vmkfstools clone in background on ESXi (via PVE → ESXi SSH)
+          const cloneTmpPrefix = `/tmp/proxcenter-mig-${jobId}-clone${i}`
+          const { esxiHost: clHost, esxiSshPort: clPort, esxiSshUser: clUser, setupCmd: clSetup, sshPrefix: clSshPrefix, cleanupCmd: clCleanup } = buildEsxiSshPrefix(cloneTmpPrefix)
+          const cloneScript = `${cloneTmpPrefix}.sh`
+          const cloneExitFile = `${cloneTmpPrefix}.exit`
+          const cloneErrFile = `${cloneTmpPrefix}.stderr`
+          const cloneOutFile = `${cloneTmpPrefix}.out`
+
+          const cloneSshCmd = `${clSshPrefix} -p ${clPort} ${clUser}@${clHost} "vmkfstools -i '${descriptorPath}' '${cloneVmdkPath}' -d thin" >"${cloneOutFile}" 2>"${cloneErrFile}"`
+
+          await executeSSH(config.targetConnectionId, nodeIp,
+            `cat > "${cloneScript}" << 'CLEOF'\n${clSetup}\n${cloneSshCmd}\nEXIT_CODE=$?\n${clCleanup}\necho $EXIT_CODE > "${cloneExitFile}"\nCLEOF`
+          )
+
+          const startClone = await executeSSH(config.targetConnectionId, nodeIp,
+            `nohup bash "${cloneScript}" > /dev/null 2>&1 & echo $!`
+          )
+          if (!startClone.success || !startClone.output?.trim()) {
+            throw new Error(`Failed to start vmkfstools: ${startClone.error}`)
+          }
+
+          // Poll for clone completion with progress tracking via clone file size on ESXi
+          const cloneStartTime = Date.now()
+          while (true) {
+            if (isCancelled(jobId)) throw new Error("Migration cancelled")
+            if (Date.now() - cloneStartTime > 3600000) throw new Error("vmkfstools clone timed out (1h)")
+
+            await new Promise(r => setTimeout(r, 5000))
+
+            // Check clone file size on ESXi for progress (via nested SSH with sshpass setup)
+            try {
+              const sizeCheck = await executeSSH(config.targetConnectionId, nodeIp,
+                `${clSetup} && ${clSshPrefix} -p ${clPort} ${clUser}@${clHost} "stat -c %s '${cloneFlatPath}' 2>/dev/null || echo 0" 2>/dev/null`
+              )
+              const clonedBytes = parseInt(sizeCheck.output?.trim() || "0", 10) || 0
+              if (clonedBytes > 0) {
+                const cloneProgress = Math.min(Math.round((clonedBytes / disk.capacityBytes) * 100), 99)
+                const elapsed = (Date.now() - cloneStartTime) / 1000
+                const speed = elapsed > 0 ? clonedBytes / elapsed : 0
+                const speedStr = speed > 1048576 ? `${(speed / 1048576).toFixed(1)} MB/s` : `${(speed / 1024).toFixed(0)} KB/s`
+                await updateJob(jobId, "transferring", {
+                  currentStep: `cloning_disk_${i + 1}`,
+                  bytesTransferred: BigInt(clonedBytes),
+                  totalBytes: BigInt(disk.capacityBytes),
+                  transferSpeed: `Cloning: ${speedStr}`,
+                  progress: Math.round(cloneProgress * 0.3),
+                })
+              }
+            } catch {
+              // Progress check failed — non-critical, continue polling
+            }
+
+            const exitCheck = await executeSSH(config.targetConnectionId, nodeIp, `cat "${cloneExitFile}" 2>/dev/null || echo RUNNING`)
+            if (exitCheck.output?.trim() === "RUNNING") continue
+
+            const exitCode = parseInt(exitCheck.output?.trim() || "1", 10)
+            if (exitCode !== 0) {
+              const stderrContent = await executeSSH(config.targetConnectionId, nodeIp, `cat "${cloneErrFile}" 2>/dev/null | head -c 500`)
+              const errMsg = stderrContent.output?.trim() || "(no output)"
+              await executeSSH(config.targetConnectionId, nodeIp, `rm -f "${cloneScript}" "${cloneExitFile}" "${cloneErrFile}" "${cloneOutFile}" "${cloneTmpPrefix}.esxi-key"`)
+              throw new Error(`vmkfstools failed (exit ${exitCode}): ${errMsg}`)
+            }
+
+            await executeSSH(config.targetConnectionId, nodeIp, `rm -f "${cloneScript}" "${cloneExitFile}" "${cloneErrFile}" "${cloneOutFile}" "${cloneTmpPrefix}.esxi-key"`)
+            break
+          }
+
+          cloneCreated = true
+          downloadPath = cloneFlatPath
+          const cloneTime = Math.round((Date.now() - cloneStartTime) / 1000)
+          await appendLog(jobId, `Clone created on ESXi datastore (${cloneTime}s)`, "success")
+        } catch (cloneErr: any) {
+          throw new Error(`vmkfstools clone failed: ${cloneErr.message}`)
+        }
+      }
+
+      // Step 2: Download via SSH dd pipe (clone is unlocked, or VM is off so original is unlocked)
+      await appendLog(jobId, `[Disk ${i + 1}/${vmConfig.disks.length}] Downloading "${disk.label}" via SSH dd (${diskSizeGB} GB)...`)
+      await appendLog(jobId, `Source path: ${downloadPath}`, "info")
+
+      await updateJob(jobId, "transferring", {
+        currentStep: `downloading_disk_${i + 1}`,
+        currentDisk: i,
+        bytesTransferred: BigInt(0),
+        totalBytes: BigInt(disk.capacityBytes),
+      })
+
+      const pidFile = `${tmpFile}.pid`
+      const dlScript = `${tmpFile}.dl.sh`
+      const errFile = `${tmpFile}.stderr`
+      const sshCmd = `${sshPrefix} -p ${esxiSshPort} ${esxiSshUser}@${esxiHost} "dd if='${downloadPath}' bs=4M" > "${tmpFile}.vmdk" 2>"${errFile}"`
+
+      await executeSSH(config.targetConnectionId, nodeIp,
+        `cat > "${dlScript}" << 'DLEOF'\n${setupCmd}\n${sshCmd}\nEXIT_CODE=$?\n${cleanupCmd}\necho $EXIT_CODE > "${pidFile}.exit"\nDLEOF`
+      )
+
+      const startDl = await executeSSH(
+        config.targetConnectionId, nodeIp,
+        `nohup bash "${dlScript}" > /dev/null 2>&1 & echo $!`
+      )
+      if (!startDl.success || !startDl.output?.trim()) {
+        if (cloneCreated) await executeOnEsxi(`vmkfstools -U '${cloneVmdkPath}'`).catch(() => {})
+        throw new Error(`Failed to start SSH download: ${startDl.error}`)
+      }
+      const ddPid = startDl.output.trim()
+      await executeSSH(config.targetConnectionId, nodeIp, `echo ${ddPid} > "${pidFile}"`)
+
+      const totalBytes = disk.capacityBytes
+      let downloadedBytes = 0
+      let downloadSpeed = ""
+      let downloadTime = 0
+      const startTime = Date.now()
+
+      try {
+        while (true) {
+          if (isCancelled(jobId)) {
+            await executeSSH(config.targetConnectionId, nodeIp, `kill ${ddPid} 2>/dev/null; rm -f "${tmpFile}.vmdk" "${pidFile}" "${pidFile}.exit" "${dlScript}" "${tmpFile}.esxi-key" "${errFile}"`)
+            throw new Error("Migration cancelled")
+          }
+
+          await new Promise(r => setTimeout(r, 3000))
+
+          const exitCheck = await executeSSH(config.targetConnectionId, nodeIp, `cat "${pidFile}.exit" 2>/dev/null || echo RUNNING`)
+          const isRunning = exitCheck.output?.trim() === "RUNNING"
+
+          const sizeResult = await executeSSH(config.targetConnectionId, nodeIp, `stat -c %s "${tmpFile}.vmdk" 2>/dev/null || echo 0`)
+          const currentSize = parseInt(sizeResult.output?.trim() || "0", 10) || 0
+          downloadedBytes = currentSize
+
+          const elapsed = (Date.now() - startTime) / 1000
+          const speedBps = elapsed > 0 ? currentSize / elapsed : 0
+          downloadSpeed = speedBps > 1048576 ? `${(speedBps / 1048576).toFixed(1)} MB/s` : `${(speedBps / 1024).toFixed(0)} KB/s`
+
+          const diskProgress = totalBytes > 0 ? Math.min(Math.round((currentSize / totalBytes) * 100), 99) : 0
+          const overallProgress = Math.round((i / vmConfig.disks.length) * 100 + (diskProgress / vmConfig.disks.length))
+
+          await updateJob(jobId, "transferring", {
+            bytesTransferred: BigInt(currentSize),
+            transferSpeed: downloadSpeed,
+            progress: Math.round(overallProgress * 0.7),
+          })
+
+          if (!isRunning) {
+            const exitCode = parseInt(exitCheck.output?.trim() || "1", 10)
+            downloadTime = elapsed
+
+            if (exitCode !== 0) {
+              const stderrContent = await executeSSH(config.targetConnectionId, nodeIp, `cat "${errFile}" 2>/dev/null | head -c 500`)
+              const errMsg = stderrContent.output?.trim() || "(no stderr output)"
+              await executeSSH(config.targetConnectionId, nodeIp, `rm -f "${tmpFile}.vmdk" "${pidFile}" "${pidFile}.exit" "${dlScript}" "${tmpFile}.esxi-key" "${errFile}"`)
+              throw new Error(`SSH dd download failed (exit ${exitCode}): ${errMsg}`)
+            }
+
+            const fileSizeCheck = await executeSSH(config.targetConnectionId, nodeIp, `stat -c %s "${tmpFile}.vmdk" 2>/dev/null || echo 0`)
+            const actualSize = parseInt(fileSizeCheck.output?.trim() || "0", 10)
+            if (actualSize < 1048576) {
+              await executeSSH(config.targetConnectionId, nodeIp, `rm -f "${tmpFile}.vmdk" "${pidFile}" "${pidFile}.exit" "${dlScript}" "${tmpFile}.esxi-key"`)
+              throw new Error(`SSH dd produced a ${actualSize}-byte file (expected ~${diskSizeGB} GB)`)
+            }
+
+            await executeSSH(config.targetConnectionId, nodeIp, `rm -f "${pidFile}" "${pidFile}.exit" "${dlScript}" "${tmpFile}.esxi-key" "${errFile}"`)
+            break
+          }
+        }
+      } finally {
+        // Step 3: Always cleanup the clone on ESXi
+        if (cloneCreated) {
+          await executeOnEsxi(`vmkfstools -U '${cloneVmdkPath}'`).catch((e) => {
+            appendLog(jobId, `Warning: failed to cleanup ESXi clone: ${e.message}`, "warn")
+          })
+        }
+      }
+
+      await updateJob(jobId, "transferring", {
+        bytesTransferred: BigInt(downloadedBytes),
+        transferSpeed: downloadSpeed,
+      })
+      await appendLog(jobId, `SSH download complete: ${(downloadedBytes / 1073741824).toFixed(1)} GB in ${downloadTime.toFixed(0)}s (${downloadSpeed})`, "success")
+    }
+
     // Helper: convert + import + attach a single disk
     async function convertAndImportDisk(i: number) {
       const tmpFile = `/tmp/proxcenter-mig-${jobId}-disk${i}`
@@ -514,36 +817,49 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
     }
 
     if (isLive) {
-      // ── Live mode: snapshot → download (VM runs) → remove snapshot → power off → convert/import ──
+      // ── Live mode: vmkfstools clone on ESXi → SSH dd to PVE → power off → convert/import ──
+      // ESXi locks -flat.vmdk files (VMFS lock) when VM runs — both HTTPS /folder/ (HTTP 500)
+      // and dd (Device or resource busy) fail. vmkfstools -i uses the VMFS API to clone even
+      // locked disks. We clone to a temp file on the ESXi datastore, then SSH dd the clone
+      // (which is unlocked) to the PVE node. This gives crash-consistent copy with downtime
+      // limited to convert + import + boot.
 
-      // Phase 1: Create snapshot so base disks become read-only and downloadable
-      await appendLog(jobId, "Creating temporary snapshot to enable disk download while VM runs...", "info")
+      if (!esxiSshAvailable) {
+        throw new Error("Live migration requires SSH to be configured on the ESXi connection. ESXi locks VMDK files while VMs run — SSH is needed to run vmkfstools clone on the host.")
+      }
+
+      // Phase 0: Create snapshot — makes base VMDK read-only so vmkfstools can clone it
+      await appendLog(jobId, "Creating snapshot on ESXi (base disk becomes read-only)...", "info")
       try {
-        await soapCreateSnapshot(soapSession!, config.sourceVmId, "proxcenter-migration", "Temporary snapshot for ProxCenter migration")
-        await appendLog(jobId, "Snapshot created — base disks now accessible", "success")
+        await soapCreateSnapshot(soapSession!, config.sourceVmId, "proxcenter-live-mig", "ProxCenter live migration — do not delete manually")
+        await appendLog(jobId, "Snapshot created", "success")
       } catch (snapErr: any) {
-        throw new Error(`Live migration requires ESXi snapshot support. ${snapErr?.message || snapErr}`)
+        throw new Error(`Failed to create ESXi snapshot (required for live migration): ${snapErr.message}`)
       }
 
-      // Phase 2: Download all disks (VM still running — no downtime)
-      for (let i = 0; i < vmConfig.disks.length; i++) {
-        await updateJob(jobId, "transferring", { currentDisk: i })
-        await downloadDisk(i, vmConfig.disks[i])
-        if (isCancelled(jobId)) throw new Error("Migration cancelled")
-      }
+      await appendLog(jobId, "Cloning disks on ESXi via vmkfstools (VM stays running)...", "info")
 
-      // Phase 3: Remove snapshot + power off source VM
-      await appendLog(jobId, "All disks downloaded — cleaning up snapshot and powering off source VM...", "warn")
+      // Phase 1: Clone + download all disks while VM runs
       try {
-        await soapRemoveAllSnapshots(soapSession!, config.sourceVmId)
-        await appendLog(jobId, "Migration snapshot removed", "info")
-      } catch {
-        await appendLog(jobId, "Warning: could not remove migration snapshot — please remove it manually", "warn")
+        for (let i = 0; i < vmConfig.disks.length; i++) {
+          await updateJob(jobId, "transferring", { currentDisk: i })
+          await downloadDiskViaSsh(i, vmConfig.disks[i], true)
+          if (isCancelled(jobId)) throw new Error("Migration cancelled")
+        }
+      } finally {
+        // Always remove snapshot after cloning (even on failure)
+        await appendLog(jobId, "Removing ESXi snapshot...", "info")
+        await soapRemoveAllSnapshots(soapSession!, config.sourceVmId).catch((e: any) => {
+          appendLog(jobId, `Warning: failed to remove snapshot: ${e.message}`, "warn")
+        })
       }
 
+      // Phase 2: Power off source VM (downtime starts here)
+      const downtimeStart = Date.now()
+      await appendLog(jobId, "All disks downloaded — powering off source VM (downtime starts now)...", "warn")
       await powerOffSourceVm(jobId, soapSession!, config.sourceVmId)
 
-      // Phase 4: Convert and import all disks
+      // Phase 3: Convert and import all disks
       await appendLog(jobId, "Converting and importing disks to Proxmox...")
       for (let i = 0; i < vmConfig.disks.length; i++) {
         const progressBase = 70 + Math.round((i / vmConfig.disks.length) * 25)
@@ -551,6 +867,11 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
         await convertAndImportDisk(i)
         if (isCancelled(jobId)) throw new Error("Migration cancelled")
       }
+
+      const downtimeSec = Math.round((Date.now() - downtimeStart) / 1000)
+      const downtimeMin = Math.floor(downtimeSec / 60)
+      const downtimeRemSec = downtimeSec % 60
+      await appendLog(jobId, `Source VM downtime: ${downtimeMin > 0 ? `${downtimeMin}m ${downtimeRemSec}s` : `${downtimeSec}s`}`, "info")
     } else {
       // ── Offline mode: VM already powered off → sequential download → convert → import ──
       for (let i = 0; i < vmConfig.disks.length; i++) {
@@ -618,6 +939,16 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
     const errorMsg = err?.message || String(err)
     await updateJob(jobId, "failed", { error: errorMsg })
     await appendLog(jobId, `Migration failed: ${errorMsg}`, "error")
+
+    // Cleanup: remove temp files on Proxmox node
+    try {
+      const nodeIp = await getNodeIp(config.targetConnectionId, config.targetNode,
+        (await getConnectionById(config.targetConnectionId)).baseUrl)
+      await executeSSH(config.targetConnectionId, nodeIp,
+        `rm -f /tmp/proxcenter-mig-${jobId}-disk*.vmdk /tmp/proxcenter-mig-${jobId}-disk*.qcow2 /tmp/proxcenter-mig-${jobId}-disk*.raw /tmp/proxcenter-mig-${jobId}-disk*.pid* /tmp/proxcenter-mig-${jobId}-disk*.stats /tmp/proxcenter-mig-${jobId}-disk*.dl.sh`)
+    } catch {
+      // Best effort cleanup
+    }
 
     // Cleanup: if we created a VM, try to destroy it
     if (targetVmid && config.targetConnectionId) {
