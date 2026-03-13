@@ -437,9 +437,20 @@ return NextResponse.json({ error: `Failed to fetch task status: ${e.message}` },
     let progressData: { progress: number; message: string; speed: string; eta: string }
     
     if (status?.status === 'stopped') {
+      const exit = status?.exitstatus || ''
+      let message: string
+
+      if (exit === 'OK') {
+        message = 'Completed successfully'
+      } else if (exit.includes('received interrupt') || exit.includes('interrupted by user')) {
+        message = 'Task stopped by user'
+      } else {
+        message = `Failed: ${exit || 'unknown error'}`
+      }
+
       progressData = {
         progress: 100,
-        message: status?.exitstatus === 'OK' ? 'Completed successfully' : `Failed: ${status?.exitstatus || 'unknown error'}`,
+        message,
         speed: '',
         eta: ''
       }

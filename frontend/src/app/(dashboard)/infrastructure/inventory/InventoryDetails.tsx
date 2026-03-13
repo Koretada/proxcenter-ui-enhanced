@@ -468,7 +468,7 @@ export default function InventoryDetails({
   const [migNetworkBridge, setMigNetworkBridge] = useState('')
   const [migBridges, setMigBridges] = useState<any[]>([])
   const [migStartAfter, setMigStartAfter] = useState(false)
-  const [migType, setMigType] = useState<'cold' | 'near-live' | 'live'>('cold')
+  const [migType, setMigType] = useState<'cold' | 'live'>('cold')
   const [migPveConnections, setMigPveConnections] = useState<any[]>([])
   const [migNodes, setMigNodes] = useState<any[]>([])
   const [migStorages, setMigStorages] = useState<any[]>([])
@@ -4759,58 +4759,51 @@ return
                     </Typography>
                     <Stack spacing={1}>
                       {([
-                        { value: 'cold' as const, icon: 'ri-shut-down-line', color: 'info.main', labelKey: 'migrationTypeCold', descKey: 'migrationTypeColdDesc', requiresLicense: false },
-                        { value: 'near-live' as const, icon: 'ri-speed-line', color: 'warning.main', labelKey: 'migrationTypeNearLive', descKey: 'migrationTypeNearLiveDesc', requiresLicense: false },
-                        { value: 'live' as const, icon: 'ri-flashlight-line', color: 'success.main', labelKey: 'migrationTypeLive', descKey: 'migrationTypeLiveDesc', requiresLicense: false },
+                        { value: 'cold' as const, icon: 'ri-shut-down-line', color: 'info.main', labelKey: 'migrationTypeCold', descKey: 'migrationTypeColdDesc' },
+                        { value: 'live' as const, icon: 'ri-flashlight-line', color: 'success.main', labelKey: 'migrationTypeLive', descKey: 'migrationTypeLiveDesc' },
                       ]).map(opt => {
-                        const disabled = opt.requiresLicense && !esxiMigrateVm?.licenseFull
                         return (
                         <Box
                           key={opt.value}
-                          onClick={() => !disabled && setMigType(opt.value)}
+                          onClick={() => setMigType(opt.value)}
                           sx={{
                             p: 1.5,
                             borderRadius: 1.5,
                             border: '2px solid',
-                            borderColor: disabled ? 'divider' : migType === opt.value ? `${opt.color}` : 'divider',
-                            bgcolor: disabled
-                              ? theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.03)'
-                              : migType === opt.value
-                                ? theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)'
-                                : 'transparent',
-                            cursor: disabled ? 'not-allowed' : 'pointer',
-                            opacity: disabled ? 0.5 : 1,
+                            borderColor: migType === opt.value ? `${opt.color}` : 'divider',
+                            bgcolor: migType === opt.value
+                              ? theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)'
+                              : 'transparent',
+                            cursor: 'pointer',
                             transition: 'all 0.15s',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 1.5,
-                            ...(!disabled && { '&:hover': { borderColor: `${opt.color}`, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' } }),
+                            '&:hover': { borderColor: `${opt.color}`, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' },
                           }}
                         >
                           <Box sx={{
                             width: 36, height: 36, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            bgcolor: !disabled && migType === opt.value ? `${opt.color}` : 'action.hover',
-                            color: !disabled && migType === opt.value ? '#fff' : 'text.secondary',
+                            bgcolor: migType === opt.value ? `${opt.color}` : 'action.hover',
+                            color: migType === opt.value ? '#fff' : 'text.secondary',
                             transition: 'all 0.15s',
                           }}>
-                            <i className={disabled ? 'ri-lock-line' : opt.icon} style={{ fontSize: 18 }} />
+                            <i className={opt.icon} style={{ fontSize: 18 }} />
                           </Box>
                           <Box sx={{ flex: 1 }}>
-                            <Typography variant="body2" fontWeight={600} sx={{ color: disabled ? 'text.disabled' : 'text.primary' }}>
+                            <Typography variant="body2" fontWeight={600} sx={{ color: 'text.primary' }}>
                               {t(`inventoryPage.esxiMigration.${opt.labelKey}`)}
                             </Typography>
-                            <Typography variant="caption" color={disabled ? 'text.disabled' : 'text.secondary'} sx={{ lineHeight: 1.3 }}>
-                              {disabled
-                                ? t('inventoryPage.esxiMigration.requiresLicensedEsxi')
-                                : t(`inventoryPage.esxiMigration.${opt.descKey}`)}
+                            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
+                              {t(`inventoryPage.esxiMigration.${opt.descKey}`)}
                             </Typography>
                           </Box>
                           <Box sx={{
                             width: 18, height: 18, borderRadius: '50%', border: '2px solid',
-                            borderColor: disabled ? 'action.disabled' : migType === opt.value ? `${opt.color}` : 'divider',
+                            borderColor: migType === opt.value ? `${opt.color}` : 'divider',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>
-                            {!disabled && migType === opt.value && (
+                            {migType === opt.value && (
                               <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: `${opt.color}` }} />
                             )}
                           </Box>
@@ -4842,7 +4835,6 @@ return
                 <i className="ri-information-line" style={{ fontSize: 18, color: theme.palette.primary.main }} />
                 <Typography variant="caption" color="primary">
                   {migType === 'cold' && t('inventoryPage.esxiMigration.coldMigrationInfo')}
-                  {migType === 'near-live' && t('inventoryPage.esxiMigration.nearLiveMigrationInfo')}
                   {migType === 'live' && t('inventoryPage.esxiMigration.liveMigrationInfo')}
                 </Typography>
               </Box>

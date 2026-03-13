@@ -30,6 +30,7 @@ export async function POST(req: Request) {
       targetStorage,
       networkBridge = "vmbr0",
       startAfterMigration = false,
+      migrationType = "cold",
     } = body
 
     if (!sourceConnectionId || !sourceVmId || !targetConnectionId || !targetNode || !targetStorage) {
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
         targetConnectionId,
         targetNode,
         targetStorage,
-        config: JSON.stringify({ sourceConnectionId, sourceVmId, targetConnectionId, targetNode, targetStorage, networkBridge, startAfterMigration, sourceType }),
+        config: JSON.stringify({ sourceConnectionId, sourceVmId, targetConnectionId, targetNode, targetStorage, networkBridge, startAfterMigration, migrationType, sourceType }),
         status: "pending",
         currentStep: "pending",
         startedAt: new Date(),
@@ -76,6 +77,7 @@ export async function POST(req: Request) {
       targetStorage,
       networkBridge,
       startAfterMigration,
+      migrationType: migrationType as "cold" | "live",
     }
 
     // Run appropriate pipeline in background after response

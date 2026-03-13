@@ -33,7 +33,7 @@ interface MigrationConfig {
   targetStorage: string
   networkBridge: string
   startAfterMigration: boolean
-  migrationType?: "cold" | "near-live" | "live"
+  migrationType?: "cold" | "live"
 }
 
 interface LogEntry {
@@ -235,16 +235,15 @@ export async function runXcpngMigrationPipeline(jobId: string, config: Migration
     })
 
     // Handle VM power state based on migration type
-    const isWarm = config.migrationType === "near-live" || config.migrationType === "live"
+    const isLive = config.migrationType === "live"
 
     if (vmConfig.powerState === "Running" || vmConfig.powerState === "running") {
-      if (isWarm) {
-        await appendLog(jobId, "VM is running — disks will be downloaded while VM is online (near-live migration)", "info")
-        await appendLog(jobId, "The VM will be shut down after disk transfer for final cutover", "info")
+      if (isLive) {
+        await appendLog(jobId, "VM is running — live migration will create a snapshot to download disks without downtime", "info")
       } else {
         throw new Error(
-          "VM is powered on. Please power off the VM in Xen Orchestra before migration. " +
-          "Cold migration requires the VM to be shut down."
+          "VM is powered on. Please power off the VM before migration. " +
+          "Offline migration requires the VM to be shut down."
         )
       }
     }
@@ -399,7 +398,7 @@ export async function runXcpngMigrationPipeline(jobId: string, config: Migration
         await updateJob(jobId, "transferring", {
           bytesTransferred: BigInt(currentSize),
           transferSpeed: downloadSpeed,
-          progress: isWarm ? Math.round(overallProgress * 0.7) : overallProgress,
+          progress: isLive ? Math.round(overallProgress * 0.7) : overallProgress,
         })
 
         if (!isRunning) {
@@ -520,7 +519,7 @@ export async function runXcpngMigrationPipeline(jobId: string, config: Migration
       }
     }
 
-    if (isWarm) {
+    if (isLive) {
       // ── Near-live mode: download all disks while VM runs, then shut down, then convert/import ──
 
       // Phase 1: Download all disks (VM still running — no downtime yet)

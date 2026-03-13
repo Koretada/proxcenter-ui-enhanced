@@ -33,7 +33,7 @@ interface MigrationConfig {
   targetStorage: string
   networkBridge: string
   startAfterMigration: boolean
-  migrationType?: "cold" | "near-live" | "live"
+  migrationType?: "cold" | "live"
 }
 
 interface LogEntry {
@@ -196,24 +196,15 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
     })
 
     // Handle VM power state based on migration type
-    const isWarm = config.migrationType === "near-live" || config.migrationType === "live"
+    const isLive = config.migrationType === "live"
 
     if (vmConfig.powerState === "poweredOn") {
-      if (isWarm) {
-        await appendLog(jobId, "VM is running — disks will be downloaded while VM is online (near-live migration)", "info")
-        await appendLog(jobId, "The VM will be powered off after disk transfer for final cutover", "info")
+      if (isLive) {
+        await appendLog(jobId, "VM is running — live migration will use a snapshot to download disks without downtime", "info")
       } else {
-        await appendLog(jobId, "VM is powered on — attempting to power off for cold migration...", "warn")
-        try {
-          await soapSession && await import("@/lib/vmware/soap").then(m => m.soapPowerOffVm(soapSession!, config.sourceVmId))
-          await appendLog(jobId, "VM powered off", "success")
-        } catch (e: any) {
-          const msg = e?.message || String(e)
-          if (msg.includes("license") || msg.includes("prohibits")) {
-            throw new Error("VM is powered on and ESXi license does not allow API power operations. Please power off the VM manually in the ESXi interface before retrying.")
-          }
-          throw e
-        }
+        // Cold migration: VM must be off
+        await appendLog(jobId, "VM is powered on — powering off for offline migration...", "warn")
+        await powerOffSourceVm(jobId, soapSession!, config.sourceVmId)
       }
     }
 
@@ -379,7 +370,7 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
         await updateJob(jobId, "transferring", {
           bytesTransferred: BigInt(currentSize),
           transferSpeed: downloadSpeed,
-          progress: isWarm ? Math.round(overallProgress * 0.7) : overallProgress,
+          progress: isLive ? Math.round(overallProgress * 0.7) : overallProgress,
         })
 
         if (!isRunning) {
@@ -522,51 +513,38 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
       }
     }
 
-    if (isWarm) {
-      // ── Near-live mode: snapshot → download (VM still runs) → power off → convert/import ──
+    if (isLive) {
+      // ── Live mode: snapshot → download (VM runs) → remove snapshot → power off → convert/import ──
 
       // Phase 1: Create snapshot so base disks become read-only and downloadable
       await appendLog(jobId, "Creating temporary snapshot to enable disk download while VM runs...", "info")
-      let snapshotCreated = false
       try {
         await soapCreateSnapshot(soapSession!, config.sourceVmId, "proxcenter-migration", "Temporary snapshot for ProxCenter migration")
-        snapshotCreated = true
         await appendLog(jobId, "Snapshot created — base disks now accessible", "success")
       } catch (snapErr: any) {
-        const msg = snapErr?.message || String(snapErr)
-        if (msg.includes("license") || msg.includes("prohibits") || msg.includes("restricted")) {
-          await appendLog(jobId, "ESXi free license does not support snapshots — near-live migration unavailable. Falling back to cold migration (VM must be powered off first).", "warn")
-          await powerOffSourceVm(jobId, soapSession!, config.sourceVmId)
-        } else {
-          throw snapErr
-        }
+        throw new Error(`Live migration requires ESXi snapshot support. ${snapErr?.message || snapErr}`)
       }
 
-      // Phase 2: Download all disks (VM still running — no downtime yet, unless we powered off above)
+      // Phase 2: Download all disks (VM still running — no downtime)
       for (let i = 0; i < vmConfig.disks.length; i++) {
         await updateJob(jobId, "transferring", { currentDisk: i })
         await downloadDisk(i, vmConfig.disks[i])
         if (isCancelled(jobId)) throw new Error("Migration cancelled")
       }
 
-      // Phase 3: Remove snapshot (if created) + power off source VM (downtime starts here)
-      if (snapshotCreated) {
-        await appendLog(jobId, "All disks downloaded — cleaning up snapshot and powering off source VM...", "warn")
-        try {
-          await soapRemoveAllSnapshots(soapSession!, config.sourceVmId)
-          await appendLog(jobId, "Migration snapshot removed", "info")
-        } catch {
-          await appendLog(jobId, "Warning: could not remove migration snapshot — please remove it manually", "warn")
-        }
-
-        // Power off for final cutover
-        await powerOffSourceVm(jobId, soapSession!, config.sourceVmId)
-      } else {
-        await appendLog(jobId, "All disks downloaded.", "info")
+      // Phase 3: Remove snapshot + power off source VM
+      await appendLog(jobId, "All disks downloaded — cleaning up snapshot and powering off source VM...", "warn")
+      try {
+        await soapRemoveAllSnapshots(soapSession!, config.sourceVmId)
+        await appendLog(jobId, "Migration snapshot removed", "info")
+      } catch {
+        await appendLog(jobId, "Warning: could not remove migration snapshot — please remove it manually", "warn")
       }
 
-      // Phase 4: Convert and import all disks (downtime continues)
-      await appendLog(jobId, "Converting and importing disks to Proxmox (downtime phase)...")
+      await powerOffSourceVm(jobId, soapSession!, config.sourceVmId)
+
+      // Phase 4: Convert and import all disks
+      await appendLog(jobId, "Converting and importing disks to Proxmox...")
       for (let i = 0; i < vmConfig.disks.length; i++) {
         const progressBase = 70 + Math.round((i / vmConfig.disks.length) * 25)
         await updateJob(jobId, "transferring", { currentDisk: i, progress: progressBase })
@@ -574,7 +552,7 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
         if (isCancelled(jobId)) throw new Error("Migration cancelled")
       }
     } else {
-      // ── Cold mode: sequential download → convert → import per disk ──
+      // ── Offline mode: VM already powered off → sequential download → convert → import ──
       for (let i = 0; i < vmConfig.disks.length; i++) {
         await updateJob(jobId, "transferring", { currentDisk: i, progress: Math.round((i / vmConfig.disks.length) * 100) })
         await downloadDisk(i, vmConfig.disks[i])

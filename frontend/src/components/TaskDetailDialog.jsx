@@ -39,6 +39,7 @@ function getStatusColor(status) {
   if (!status || status === 'running') return 'primary'
   if (status === 'OK') return 'success'
   if (status.includes && status.includes('WARNINGS')) return 'warning'
+  if (status.includes && (status.includes('received interrupt') || status.includes('interrupted by user'))) return 'warning'
 
 return 'error'
 }
@@ -47,6 +48,7 @@ function getStatusLabel(status, t) {
   if (!status || status === 'running') return t('tasks.status.running')
   if (status === 'OK') return t('tasks.status.completed')
   if (status === 'stopped') return t('tasks.status.stopped')
+  if (status.includes && (status.includes('received interrupt') || status.includes('interrupted by user'))) return t('tasks.status.stopped')
   return status
 }
 
