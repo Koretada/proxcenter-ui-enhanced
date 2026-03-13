@@ -3569,6 +3569,8 @@
     "migrationExecuted": "Cette migration a été exécutée.",
     "recommendationRejected": "Cette recommandation a été rejetée.",
     "recommendationStale": "Cette recommandation n'est plus valide. La VM a été déplacée ou n'est plus sur le nœud source attendu.",
+    "dismissRecommendation": "Supprimer cette recommandation",
+    "recommendationDismissed": "Recommandation obsolète supprimée",
     "evaluate": "Évaluer",
     "clustersTab": "Clusters",
     "recommendationsTab": "Recommandations",

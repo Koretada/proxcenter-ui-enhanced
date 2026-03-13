@@ -2489,9 +2489,34 @@ return next
               <Alert severity="warning">{t('drsPage.recommendationRejected')}</Alert>
             )}
             {selectedRec.status === 'stale' && (
-              <Alert severity="error" icon={<WarningAmberIcon />}>
-                {t('drsPage.recommendationStale')}
-              </Alert>
+              <Box>
+                <Alert severity="error" icon={<WarningAmberIcon />} sx={{ mb: 2 }}>
+                  {t('drsPage.recommendationStale')}
+                </Alert>
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  fullWidth
+                  startIcon={<i className="ri-delete-bin-line" />}
+                  disabled={actionLoading === `dismiss-${selectedRec.id}`}
+                  onClick={async () => {
+                    try {
+                      setActionLoading(`dismiss-${selectedRec.id}`)
+                      await apiAction(`/api/v1/orchestrator/drs/recommendations/${selectedRec.id}/reject`, 'POST')
+                      setDrawerOpen(false)
+                      setSelectedRec(null)
+                      await mutateRecs()
+                      setSnackbar({ open: true, message: t('drsPage.recommendationDismissed'), severity: 'success' })
+                    } catch (e) {
+                      console.error('Error dismissing stale recommendation:', e)
+                    } finally {
+                      setActionLoading(null)
+                    }
+                  }}
+                >
+                  {t('drsPage.dismissRecommendation')}
+                </Button>
+              </Box>
             )}
           </Stack>
         )}
