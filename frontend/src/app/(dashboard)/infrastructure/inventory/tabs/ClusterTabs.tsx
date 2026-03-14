@@ -51,6 +51,7 @@ import ClusterFirewallTab from '@/components/ClusterFirewallTab'
 import BackupJobsPanel from '../BackupJobsPanel'
 import CveTab from '@/components/CveTab'
 import ChangeTrackingTab from './ChangeTrackingTab'
+import ComplianceTab from '@/components/ComplianceTab'
 import SnapshotsTab from '@/components/SnapshotsTab'
 import RollingUpdateWizard from '@/components/RollingUpdateWizard'
 
@@ -458,6 +459,30 @@ export default function ClusterTabs(props: any) {
                       <i className="ri-git-commit-line" style={{ fontSize: 16 }} />
                       {t('inventory.tabChangeTracking')}
                       {!hasFeature(Features.CHANGE_TRACKING) && (
+                        <Chip
+                          size="small"
+                          label="Enterprise"
+                          sx={{
+                            height: 18,
+                            fontSize: '0.6rem',
+                            fontWeight: 600,
+                            bgcolor: 'primary.main',
+                            color: 'primary.contrastText',
+                            ml: 0.5,
+                            '& .MuiChip-label': { px: 0.75 }
+                          }}
+                        />
+                      )}
+                    </Box>
+                  }
+                />
+                <Tab
+                  disabled={!hasFeature(Features.COMPLIANCE)}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, opacity: hasFeature(Features.COMPLIANCE) ? 1 : 0.4 }}>
+                      <i className="ri-shield-check-line" style={{ fontSize: 16 }} />
+                      {t('inventory.tabCompliance')}
+                      {!hasFeature(Features.COMPLIANCE) && (
                         <Chip
                           size="small"
                           label="Enterprise"
@@ -3277,6 +3302,13 @@ export default function ClusterTabs(props: any) {
                 {/* Onglet Change Tracking - Index 13 */}
                 {clusterTab === 13 && (
                   <ChangeTrackingTab
+                    connectionId={selection?.id || ''}
+                  />
+                )}
+
+                {/* Onglet Compliance - Index 14 */}
+                {clusterTab === 14 && (
+                  <ComplianceTab
                     connectionId={selection?.id || ''}
                   />
                 )}

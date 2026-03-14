@@ -10,6 +10,10 @@ import {
   type HardeningData, type CheckConfig,
 } from '@/lib/compliance/hardening'
 import { getProfile, getProfileChecks, getActiveProfile } from '@/lib/compliance/profiles'
+import { buildSSHAuditCommand, parseSSHAuditOutput, type SSHNodeData, type SSHHardeningData } from '@/lib/compliance/ssh-checks'
+import { executeSSH } from '@/lib/ssh/exec'
+import { getNodeIp } from '@/lib/ssh/node-ip'
+import { prisma } from '@/lib/db/prisma'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,6 +40,7 @@ export async function GET(
 
     const { searchParams } = new URL(req.url)
     const profileId = searchParams.get('profileId')
+    const nodeFilter = searchParams.get('node') // If set, only check this specific node
 
     // Parallel fetch: cluster-level data
     const [firewallOptions, version, nodesRaw, usersRaw, resourcesRaw, backupJobsRaw, haResourcesRaw, replicationRaw, poolsRaw] = await Promise.all([
@@ -50,9 +55,17 @@ export async function GET(
       pveFetch<any>(conn, '/pools').catch(() => []),
     ])
 
-    const nodes: Array<{ node: string; status?: string }> = Array.isArray(nodesRaw) ? nodesRaw : []
+    const allNodes: Array<{ node: string; status?: string }> = Array.isArray(nodesRaw) ? nodesRaw : []
+    // When filtering by node, only keep that specific node
+    const nodes = nodeFilter
+      ? allNodes.filter(n => n.node === nodeFilter)
+      : allNodes
     const users = Array.isArray(usersRaw) ? usersRaw : []
-    const resources = Array.isArray(resourcesRaw) ? resourcesRaw : []
+    const allResources = Array.isArray(resourcesRaw) ? resourcesRaw : []
+    // When filtering by node, only keep resources on that node
+    const resources = nodeFilter
+      ? allResources.filter((r: any) => r.node === nodeFilter)
+      : allResources
     const backupJobs = Array.isArray(backupJobsRaw) ? backupJobsRaw : []
     const haResources = Array.isArray(haResourcesRaw) ? haResourcesRaw : []
     const replicationJobs = Array.isArray(replicationRaw) ? replicationRaw : []
@@ -80,7 +93,47 @@ export async function GET(
       nodeDetails[n.node] = { subscription, aptRepos, certificates: Array.isArray(certificates) ? certificates : [], firewall: nodeFirewall }
     }))
 
-    // VM data: firewall + config (all VMs, concurrency-controlled)
+    // SSH-based CIS checks: run in parallel with VM data gathering
+    let sshData: SSHHardeningData | undefined
+    const sshPromise = (async () => {
+      try {
+        const connection = await prisma.connection.findUnique({
+          where: { id: connectionId },
+          select: { sshEnabled: true },
+        })
+        if (!connection?.sshEnabled) return
+
+        const sshCommand = buildSSHAuditCommand()
+        const sshNodes: SSHNodeData[] = []
+
+        // Only SSH into the filtered node(s)
+        await Promise.all(nodes.map(async (n: any) => {
+          try {
+            const nodeIp = await getNodeIp(conn, n.node)
+            const result = await executeSSH(connectionId, nodeIp, sshCommand)
+            if (result.success && result.output) {
+              sshNodes.push({
+                node: n.node,
+                available: true,
+                sections: parseSSHAuditOutput(result.output),
+              })
+            } else {
+              sshNodes.push({ node: n.node, available: false, sections: {}, error: result.error })
+            }
+          } catch (e: any) {
+            sshNodes.push({ node: n.node, available: false, sections: {}, error: e.message })
+          }
+        }))
+
+        if (sshNodes.length > 0) {
+          sshData = { nodes: sshNodes }
+        }
+      } catch (e: any) {
+        console.warn('[compliance] SSH audit failed:', e.message)
+      }
+    })()
+
+    // VM data: firewall + config (only VMs in scope, concurrency-controlled)
     const vms = resources.filter((r: any) => r.type === 'qemu' || r.type === 'lxc')
     const vmFirewalls: Record<string, any> = {}
     const vmSecurityGroups: Record<string, boolean> = {}
@@ -106,6 +159,12 @@ export async function GET(
       if (config) vmConfigs[key] = config
     })
 
+    // Wait for SSH audit to complete
+    await sshPromise
+
+    const sshAvailable = sshData ? sshData.nodes.filter(n => n.available).length : 0
+    const sshTotal = sshData ? sshData.nodes.length : 0
+
     const hardeningData: HardeningData = {
       firewallOptions,
       version,
@@ -121,6 +180,7 @@ export async function GET(
       replicationJobs,
       pools,
       vmConfigs,
+      sshData,
     }
 
     // Determine check config: explicit profileId > active profile > all checks
@@ -155,33 +215,46 @@ export async function GET(
       }
     }
 
+    // Categories to keep when filtering by node (exclude cluster-wide and access checks)
+    const nodeCategories = ['node', 'vm', 'os', 'ssh', 'network', 'services', 'filesystem', 'logging']
+    const filterForNode = (checks: any[]) =>
+      nodeFilter ? checks.filter((c: any) => nodeCategories.includes(c.category)) : checks
+
     // Run checks
     if (checkConfig) {
-      const weightedChecks = runChecksWithProfile(hardeningData, checkConfig)
+      // When filtering by node, exclude cluster/access check configs too
+      const filteredConfig = nodeFilter
+        ? checkConfig.filter(c => !c.category || nodeCategories.includes(c.category))
+        : checkConfig
+      const weightedChecks = filterForNode(runChecksWithProfile(hardeningData, filteredConfig))
       const summary = computeWeightedScore(weightedChecks)
 
       return NextResponse.json({
         connectionId,
         connectionName: conn.name,
+        node: nodeFilter || null,
         score: summary.score,
         checks: weightedChecks,
         summary,
         profileId: activeProfileId,
+        sshStatus: { available: sshAvailable, total: sshTotal, enabled: !!sshData },
         scannedAt: new Date().toISOString(),
       })
     }
 
-    // Default: all 25 checks, no weighting
-    const checks = runAllChecks(hardeningData)
+    // Default: all checks (PVE + SSH), no weighting
+    const checks = filterForNode(runAllChecks(hardeningData))
     const summary = computeScore(checks)
 
     return NextResponse.json({
       connectionId,
       connectionName: conn.name,
+      node: nodeFilter || null,
       score: summary.score,
       checks,
       summary,
       profileId: null,
+      sshStatus: { available: sshAvailable, total: sshTotal, enabled: !!sshData },
       scannedAt: new Date().toISOString(),
     })
   } catch (e: any) {

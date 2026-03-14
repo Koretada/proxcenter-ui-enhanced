@@ -52,6 +52,7 @@ import ChangeTrackingTab from './ChangeTrackingTab'
 import { useLicense, Features } from '@/contexts/LicenseContext'
 import SnapshotsTab from '@/components/SnapshotsTab'
 import NodeFirewallTab from '@/components/NodeFirewallTab'
+import ComplianceTab from '@/components/ComplianceTab'
 
 import type { InventorySelection, DetailsPayload, RrdTimeframe, SeriesPoint, Status } from '../types'
 import { formatBps, formatTime, formatUptime, parseMarkdown, parseNodeId, parseVmId, cpuPct, pct, buildSeriesFromRrd, fetchRrd, tagColor } from '../helpers'
@@ -202,6 +203,7 @@ export default function NodeTabs(props: any) {
 
   const { hasFeature } = useLicense()
   const changeTrackingAvailable = hasFeature(Features.CHANGE_TRACKING)
+  const complianceAvailable = hasFeature(Features.COMPLIANCE)
 
   // Ceph OSD Flags state for Node Ceph OSD sub-tab
   const [nodeCephOsdFlags, setNodeCephOsdFlags] = useState<string[]>([])
@@ -419,6 +421,30 @@ export default function NodeTabs(props: any) {
                       <i className="ri-git-commit-line" style={{ fontSize: 16 }} />
                       {t('inventory.tabChangeTracking')}
                       {!changeTrackingAvailable && (
+                        <Chip
+                          size="small"
+                          label="Enterprise"
+                          sx={{
+                            height: 18,
+                            fontSize: '0.6rem',
+                            fontWeight: 600,
+                            bgcolor: 'primary.main',
+                            color: 'primary.contrastText',
+                            ml: 0.5,
+                            '& .MuiChip-label': { px: 0.75 }
+                          }}
+                        />
+                      )}
+                    </Box>
+                  }
+                />
+                <Tab
+                  disabled={!complianceAvailable}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, opacity: complianceAvailable ? 1 : 0.4 }}>
+                      <i className="ri-shield-check-line" style={{ fontSize: 16 }} />
+                      {t('inventory.tabCompliance')}
+                      {!complianceAvailable && (
                         <Chip
                           size="small"
                           label="Enterprise"
@@ -3289,6 +3315,14 @@ export default function NodeTabs(props: any) {
                 {/* Onglet Change Tracking - Index 12 pour cluster, Index 13 pour standalone */}
                 {((nodeTab === 12 && data.clusterName) || (nodeTab === 13 && !data.clusterName)) && (
                   <ChangeTrackingTab
+                    connectionId={parseNodeId(selection?.id || '').connId}
+                    node={parseNodeId(selection?.id || '').node}
+                  />
+                )}
+
+                {/* Onglet Compliance - Index 13 pour cluster, Index 14 pour standalone */}
+                {((nodeTab === 13 && data.clusterName) || (nodeTab === 14 && !data.clusterName)) && (
+                  <ComplianceTab
                     connectionId={parseNodeId(selection?.id || '').connId}
                     node={parseNodeId(selection?.id || '').node}
                   />

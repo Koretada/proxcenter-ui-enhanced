@@ -529,6 +529,9 @@
       "aes": "Activate AES instruction set for HW acceleration."
     },
     "noDiskInserted": "No disk inserted",
+    "otherHardware": "Other Hardware",
+    "addHardware": "Add Hardware",
+    "noOtherHardware": "No additional hardware configured (EFI, TPM, USB, PCI, Serial...)",
     "unused": "Unused",
     "saveMemoryChanges": "Save memory changes",
     "deleteSnapshot": "Delete snapshot",
@@ -876,6 +879,7 @@
     "tabStorage": "Storage",
     "tabFirewall": "Firewall",
     "tabChangeTracking": "Changes",
+    "tabCompliance": "Compliance",
     "tabRollingUpdate": "Rolling Update",
     "tabNetwork": "Network",
     "tabCertificates": "Certificates",
@@ -4924,7 +4928,13 @@
       "cluster": "Cluster",
       "node": "Node",
       "access": "Access",
-      "vm": "VM"
+      "vm": "VM",
+      "os": "OS Hardening",
+      "ssh": "SSH",
+      "network": "Network",
+      "services": "Services",
+      "filesystem": "Filesystem",
+      "logging": "Logging"
     },
     "severities": {
       "critical": "Critical",
@@ -4965,7 +4975,9 @@
     "controlRef": "Control Ref",
     "activate": "Activate",
     "activeProfile": "Active Profile",
-    "allChecks": "All Checks (25)",
+    "allChecks": "All Checks",
+    "sshNotConfigured": "SSH not configured — enable for OS-level checks",
+    "nodesReachable": "nodes reachable",
     "selectProfile": "Select profile",
     "createProfile": "Create Profile",
     "editProfile": "Edit Profile",
@@ -4982,7 +4994,8 @@
     "profilesDeactivated": "All profiles deactivated",
     "deactivateAll": "Deactivate all",
     "confirmDeleteProfile": "Are you sure you want to delete this profile?",
-    "noProfiles": "No profiles yet. Create one to customize which checks are run and their weights."
+    "noProfiles": "No profiles yet. Create one to customize which checks are run and their weights.",
+    "recommendation": "Recommendation"
   },
   "changes": {
     "title": "Change Tracking",

@@ -154,7 +154,12 @@ export async function PUT(
                         /^unused\d+$/.test(key) ||   // unused disks
                         /^hostpci\d+$/.test(key) ||  // PCI passthrough
                         /^usb\d+$/.test(key) ||      // USB passthrough
-                        /^ipconfig\d+$/.test(key)    // Cloud-Init IP configs
+                        /^ipconfig\d+$/.test(key) || // Cloud-Init IP configs
+                        /^efidisk\d+$/.test(key) ||  // EFI disk
+                        /^tpmstate\d+$/.test(key) || // TPM state
+                        /^serial\d+$/.test(key) ||   // Serial ports
+                        /^audio\d+$/.test(key) ||    // Audio device
+                        key === 'rng0'               // VirtIO RNG
 
       if (isAllowed && value !== undefined && value !== null) {
         // PVE requires sshkeys to be URL-encoded inside the value (double-encoding)
@@ -191,7 +196,7 @@ export async function PUT(
       category: type === 'lxc' ? 'containers' : 'vms',
       resourceType: type,
       resourceId: vmid,
-      details: { node, connectionId: id, fields: Object.keys(body).filter(k => allowedFields.has(k) || /^net\d+$/.test(k) || /^(scsi|virtio|ide|sata)\d+$/.test(k)) },
+      details: { node, connectionId: id, fields: Object.keys(body).filter(k => allowedFields.has(k) || /^net\d+$/.test(k) || /^(scsi|virtio|ide|sata)\d+$/.test(k) || /^efidisk\d+$/.test(k) || /^tpmstate\d+$/.test(k) || /^serial\d+$/.test(k) || /^hostpci\d+$/.test(k) || /^usb\d+$/.test(k) || /^audio\d+$/.test(k) || k === 'rng0') },
     })
 
     return NextResponse.json({ data: result, success: true })

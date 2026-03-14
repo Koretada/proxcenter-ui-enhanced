@@ -619,21 +619,33 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
   if (sel.type === 'vm') {
     const { connId, node, type, vmid } = parseVmId(sel.id)
 
-    const [resourcesR, nodesR, configR] = await Promise.all([
+    const [resourcesR, nodesR, configR, nodeStatusR] = await Promise.all([
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/resources`, { cache: 'no-store' }),
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes`, { cache: 'no-store' }),
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/guests/${type}/${encodeURIComponent(node)}/${encodeURIComponent(vmid)}/config`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/status`, { cache: 'no-store' }).catch(() => null),
     ])
 
     const resources = asArray<any>(safeJson(await resourcesR.json()))
     const nodes = asArray<any>(safeJson(await nodesR.json()))
 
+    let nodeStatusData: any = null
+    if (nodeStatusR && nodeStatusR.ok) {
+      try {
+        const json = await nodeStatusR.json()
+        nodeStatusData = json?.data || json
+      } catch {}
+    }
+
     const isCluster = nodes.length > 1
 
     const hostNode = nodes.find((n: any) => n.node === node)
+    const nodeCpuInfo = nodeStatusData?.cpuinfo || {}
     const nodeCapacity = {
       maxCpu: hostNode?.maxcpu || 128,
       maxMem: hostNode?.maxmem || 128 * 1024 * 1024 * 1024,
+      hostSockets: nodeCpuInfo.sockets || undefined,
+      hostCoresPerSocket: nodeCpuInfo.cores || undefined,
     }
 
     const g = resources.find(
@@ -652,6 +664,7 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
     let memoryInfo: any = {}
     let disksInfo: any[] = []
     let networkInfo: any[] = []
+    let otherHardwareInfo: any[] = []
     let optionsInfo: any = {}
     let cloudInitConfig: any = null
     let name = g.name || `VM ${vmid}`
@@ -768,6 +781,72 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
           }
         })
 
+        // Parse other hardware: EFI disk, TPM, USB, PCI passthrough, serial ports
+        Object.keys(config).forEach(key => {
+          const val = String(config[key])
+          if (/^efidisk\d+$/.test(key)) {
+            const storagePart = val.split(',')[0].split(':')
+            const sizeMatch = val.match(/size=(\d+[KMG]?)/)
+            otherHardwareInfo.push({
+              id: key,
+              type: 'efidisk',
+              label: 'EFI Disk',
+              rawValue: val,
+              storage: storagePart[0] || 'unknown',
+              size: sizeMatch ? sizeMatch[1] : '128K',
+            })
+          } else if (/^tpmstate\d+$/.test(key)) {
+            const storagePart = val.split(',')[0].split(':')
+            const versionMatch = val.match(/version=v(\d+\.\d+)/)
+            otherHardwareInfo.push({
+              id: key,
+              type: 'tpmstate',
+              label: `TPM${versionMatch ? ` v${versionMatch[1]}` : ''}`,
+              rawValue: val,
+              storage: storagePart[0] || 'unknown',
+            })
+          } else if (/^usb\d+$/.test(key)) {
+            const hostMatch = val.match(/host=([^,]+)/)
+            otherHardwareInfo.push({
+              id: key,
+              type: 'usb',
+              label: `USB Device`,
+              rawValue: val,
+            })
+          } else if (/^hostpci\d+$/.test(key)) {
+            const deviceMatch = val.match(/^([^,]+)/)
+            otherHardwareInfo.push({
+              id: key,
+              type: 'pci',
+              label: `PCI Device`,
+              rawValue: val,
+            })
+          } else if (/^serial\d+$/.test(key)) {
+            otherHardwareInfo.push({
+              id: key,
+              type: 'serial',
+              label: `Serial Port`,
+              rawValue: val,
+            })
+          } else if (/^audio\d+$/.test(key)) {
+            const deviceMatch = val.match(/device=([^,]+)/)
+            const driverMatch = val.match(/driver=([^,]+)/)
+            otherHardwareInfo.push({
+              id: key,
+              type: 'audio',
+              label: `Audio${deviceMatch ? ` (${deviceMatch[1]})` : ''}`,
+              rawValue: val,
+            })
+          } else if (key === 'rng0') {
+            otherHardwareInfo.push({
+              id: key,
+              type: 'rng' as any,
+              label: 'VirtIO RNG',
+              rawValue: val,
+            })
+          }
+        })
+
         optionsInfo = {
           scsihw: config.scsihw || 'virtio-scsi-single',
           onboot: config.onboot === 1 || config.onboot === true,
@@ -854,6 +933,7 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
       memoryInfo,
       disksInfo,
       networkInfo,
+      otherHardwareInfo,
       optionsInfo,
       cloudInitConfig,
       nodeCapacity,

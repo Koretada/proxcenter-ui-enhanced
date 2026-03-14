@@ -82,6 +82,7 @@ const AddNetworkDialog = dynamic(() => import('@/components/HardwareModals').the
 const EditDiskDialog = dynamic(() => import('@/components/HardwareModals').then(mod => ({ default: mod.EditDiskDialog })), { ssr: false })
 const EditNetworkDialog = dynamic(() => import('@/components/HardwareModals').then(mod => ({ default: mod.EditNetworkDialog })), { ssr: false })
 const EditScsiControllerDialog = dynamic(() => import('@/components/HardwareModals').then(mod => ({ default: mod.EditScsiControllerDialog })), { ssr: false })
+const AddOtherHardwareDialog = dynamic(() => import('@/components/HardwareModals').then(mod => ({ default: mod.AddOtherHardwareDialog })), { ssr: false })
 const CloneVmDialog = dynamic(() => import('@/components/HardwareModals').then(mod => ({ default: mod.CloneVmDialog })), { ssr: false })
 import { MigrateVmDialog, CrossClusterMigrateParams } from '@/components/MigrateVmDialog'
 import VmFirewallTab from '@/components/VmFirewallTab'
@@ -523,6 +524,8 @@ export default function InventoryDetails({
   const setAddDiskDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'addDisk' : 'none'), [])
   const setAddNetworkDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'addNetwork' : 'none'), [])
   const setEditScsiControllerDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'editScsiController' : 'none'), [])
+  const addOtherHardwareDialogOpen = activeDialog === 'addOtherHardware'
+  const setAddOtherHardwareDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'addOtherHardware' : 'none'), [])
   const setEditDiskDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'editDisk' : 'none'), [])
   const setEditNetworkDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'editNetwork' : 'none'), [])
   const setMigrateDialogOpen = useCallback((v: boolean) => setActiveDialog(v ? 'migrate' : 'none'), [])
@@ -3005,7 +3008,7 @@ return vm?.isCluster ?? false
                 replicationTargetNode, rollbackSnapshot, rrdError, rrdLoading, saveCpuConfig,
                 saveHaConfig, saveMemoryConfig, saveNotes, savingCpu, savingMemory,
                 savingReplication, selectedBackup, selectedCephCluster, selectedPveStorage, selectedVmIsCluster,
-                selection, series, setAddCephReplicationDialogOpen, setAddDiskDialogOpen, setAddNetworkDialogOpen,
+                selection, series, setAddCephReplicationDialogOpen, setAddDiskDialogOpen, setAddNetworkDialogOpen, setAddOtherHardwareDialogOpen,
                 setAddReplicationDialogOpen, setBackupCompress, setBackupMode, setBackupNote, setBackupStorage,
                 setBackupStorages, setBalloon, setBalloonEnabled, setCephClusters, setCephReplicationSchedule,
                 setCpuCores, setCpuFlags, setCpuLimit, setCpuLimitEnabled, setCpuSockets, setCpuType,
@@ -4618,7 +4621,21 @@ return vm?.isCluster ?? false
               node={node}
               network={selectedNetwork}
             />
-            
+
+            <AddOtherHardwareDialog
+              open={addOtherHardwareDialogOpen}
+              onClose={() => setAddOtherHardwareDialogOpen(false)}
+              onSave={handleSaveDisk}
+              connId={connId}
+              node={node}
+              vmid={vmid}
+              existingHardware={[
+                ...(data?.disksInfo?.map((d: any) => d.id) || []),
+                ...(data?.otherHardwareInfo?.map((h: any) => h.id) || []),
+                ...(data?.cloudInitConfig?.drive ? ['cloudinit'] : []),
+              ]}
+            />
+
             {/* Dialog de migration */}
             <MigrateVmDialog
               open={migrateDialogOpen}

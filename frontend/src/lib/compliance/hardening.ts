@@ -3,7 +3,7 @@
 
 export type Severity = 'critical' | 'high' | 'medium' | 'low'
 export type CheckStatus = 'pass' | 'fail' | 'warning' | 'skip'
-export type CheckCategory = 'cluster' | 'node' | 'access' | 'vm'
+export type CheckCategory = 'cluster' | 'node' | 'access' | 'vm' | 'os' | 'ssh' | 'network' | 'services' | 'filesystem' | 'logging'
 
 export interface HardeningCheck {
   id: string
@@ -16,6 +16,8 @@ export interface HardeningCheck {
   entity?: string
   details?: string
 }
+
+import { type SSHHardeningData, SSH_CHECK_FUNCTIONS, runAllSSHChecks } from './ssh-checks'
 
 export interface HardeningData {
   firewallOptions?: { enable?: number; policy_in?: string; policy_out?: string }
@@ -38,6 +40,7 @@ export interface HardeningData {
   replicationJobs?: Array<{ id?: string; target?: string; schedule?: string; disable?: number }>
   pools?: Array<{ poolid?: string; members?: Array<{ id: string; type: string }> }>
   vmConfigs?: Record<string, Record<string, any>>
+  sshData?: SSHHardeningData
 }
 
 const LATEST_PVE_MAJOR = 8
@@ -802,8 +805,13 @@ function checkNodeFirewallLogging(data: HardeningData): HardeningCheck {
   }
 }
 
+// Helper: SSH skip placeholder when SSH is unavailable
+function sshSkip(id: string, name: string, category: CheckCategory, severity: Severity, maxPoints: number): HardeningCheck {
+  return { id, name, category, severity, maxPoints, status: 'skip', earned: 0, entity: 'SSH', details: 'SSH not configured — enable SSH in connection settings for OS-level checks' }
+}
+
 // Map of check ID -> check function for dynamic lookup
-const CHECK_FUNCTIONS: Record<string, (data: HardeningData) => HardeningCheck> = {
+const PVE_CHECK_FUNCTIONS: Record<string, (data: HardeningData) => HardeningCheck> = {
   cluster_fw_enabled: checkClusterFirewall,
   cluster_policy_in: checkPolicyIn,
   cluster_policy_out: checkPolicyOut,
@@ -831,8 +839,66 @@ const CHECK_FUNCTIONS: Record<string, (data: HardeningData) => HardeningCheck> =
   node_firewall_logging: checkNodeFirewallLogging,
 }
 
+// SSH check metadata for skip placeholders
+const SSH_CHECK_META: Array<{ id: string; name: string; category: CheckCategory; severity: Severity; maxPoints: number }> = [
+  { id: 'os_kernel_modules', name: 'Dangerous kernel modules disabled', category: 'os', severity: 'medium', maxPoints: 10 },
+  { id: 'os_coredumps_disabled', name: 'Core dumps disabled', category: 'os', severity: 'medium', maxPoints: 10 },
+  { id: 'os_mount_options', name: 'Secure mount options on /dev/shm, /tmp', category: 'os', severity: 'medium', maxPoints: 10 },
+  { id: 'os_auto_updates', name: 'Automatic security updates', category: 'os', severity: 'medium', maxPoints: 10 },
+  { id: 'os_cpu_microcode', name: 'CPU microcode installed', category: 'os', severity: 'low', maxPoints: 5 },
+  { id: 'os_disk_encryption', name: 'Disk encryption (LUKS/ZFS)', category: 'os', severity: 'low', maxPoints: 5 },
+  { id: 'os_sysctl_hardening', name: 'Kernel security parameters', category: 'os', severity: 'medium', maxPoints: 10 },
+  { id: 'access_pam_faillock', name: 'Account lockout (PAM faillock)', category: 'os', severity: 'medium', maxPoints: 10 },
+  { id: 'access_password_aging', name: 'Password aging policy', category: 'os', severity: 'medium', maxPoints: 10 },
+  { id: 'access_pw_quality', name: 'Password quality enforcement', category: 'os', severity: 'medium', maxPoints: 10 },
+  { id: 'access_shell_timeout', name: 'Shell idle timeout (TMOUT)', category: 'os', severity: 'low', maxPoints: 5 },
+  { id: 'access_login_banner', name: 'Login warning banner', category: 'os', severity: 'low', maxPoints: 5 },
+  { id: 'ssh_strong_ciphers', name: 'SSH strong ciphers only', category: 'ssh', severity: 'high', maxPoints: 15 },
+  { id: 'ssh_strong_kex', name: 'SSH strong key exchange', category: 'ssh', severity: 'high', maxPoints: 15 },
+  { id: 'ssh_strong_macs', name: 'SSH strong MACs', category: 'ssh', severity: 'medium', maxPoints: 10 },
+  { id: 'ssh_root_login', name: 'SSH root login restricted', category: 'ssh', severity: 'high', maxPoints: 15 },
+  { id: 'ssh_max_auth_tries', name: 'SSH MaxAuthTries <= 4', category: 'ssh', severity: 'medium', maxPoints: 10 },
+  { id: 'ssh_empty_passwords', name: 'SSH empty passwords disabled', category: 'ssh', severity: 'critical', maxPoints: 20 },
+  { id: 'ssh_idle_timeout', name: 'SSH idle timeout configured', category: 'ssh', severity: 'medium', maxPoints: 10 },
+  { id: 'ssh_file_perms', name: 'SSH file permissions', category: 'ssh', severity: 'high', maxPoints: 15 },
+  { id: 'net_ip_forward', name: 'IP forwarding disabled', category: 'network', severity: 'medium', maxPoints: 10 },
+  { id: 'net_icmp_redirects', name: 'ICMP redirects disabled', category: 'network', severity: 'medium', maxPoints: 10 },
+  { id: 'net_source_routing', name: 'Source routing disabled', category: 'network', severity: 'medium', maxPoints: 10 },
+  { id: 'net_syn_cookies', name: 'TCP SYN cookies enabled', category: 'network', severity: 'medium', maxPoints: 10 },
+  { id: 'net_rp_filter', name: 'Reverse path filtering enabled', category: 'network', severity: 'medium', maxPoints: 10 },
+  { id: 'svc_unnecessary_disabled', name: 'Unnecessary services disabled', category: 'services', severity: 'low', maxPoints: 5 },
+  { id: 'svc_apparmor', name: 'AppArmor enabled', category: 'services', severity: 'medium', maxPoints: 10 },
+  { id: 'svc_auditd', name: 'Audit daemon installed and running', category: 'services', severity: 'medium', maxPoints: 10 },
+  { id: 'svc_ntp_sync', name: 'NTP time synchronization', category: 'services', severity: 'medium', maxPoints: 10 },
+  { id: 'svc_fail2ban', name: 'Fail2Ban installed and running', category: 'services', severity: 'medium', maxPoints: 10 },
+  { id: 'fs_permissions', name: 'Critical file permissions', category: 'filesystem', severity: 'high', maxPoints: 15 },
+  { id: 'fs_suid_audit', name: 'SUID/SGID files audit', category: 'filesystem', severity: 'medium', maxPoints: 10 },
+  { id: 'fs_world_writable', name: 'No world-writable files', category: 'filesystem', severity: 'medium', maxPoints: 10 },
+  { id: 'fs_integrity', name: 'File integrity monitoring', category: 'filesystem', severity: 'medium', maxPoints: 10 },
+  { id: 'log_journald_persistent', name: 'Journald persistent storage', category: 'logging', severity: 'medium', maxPoints: 10 },
+  { id: 'log_syslog_forwarding', name: 'Syslog remote forwarding', category: 'logging', severity: 'medium', maxPoints: 10 },
+  { id: 'log_file_permissions', name: 'Log file permissions', category: 'logging', severity: 'low', maxPoints: 5 },
+]
+
+// Unified CHECK_FUNCTIONS: PVE checks + SSH check wrappers
+const CHECK_FUNCTIONS: Record<string, (data: HardeningData) => HardeningCheck> = {
+  ...PVE_CHECK_FUNCTIONS,
+  ...Object.fromEntries(
+    SSH_CHECK_META.map(m => [
+      m.id,
+      (data: HardeningData) => {
+        if (!data.sshData || data.sshData.nodes.length === 0) {
+          return sshSkip(m.id, m.name, m.category, m.severity, m.maxPoints)
+        }
+        const fn = SSH_CHECK_FUNCTIONS[m.id]
+        return fn ? fn(data.sshData) : sshSkip(m.id, m.name, m.category, m.severity, m.maxPoints)
+      },
+    ])
+  ),
+}
+
 export function runAllChecks(data: HardeningData): HardeningCheck[] {
-  return [
+  const pveChecks = [
     checkClusterFirewall(data),
     checkPolicyIn(data),
     checkPolicyOut(data),
@@ -859,6 +925,13 @@ export function runAllChecks(data: HardeningData): HardeningCheck[] {
     checkLeastPrivilegeUsers(data),
     checkNodeFirewallLogging(data),
   ]
+
+  // SSH checks: run real checks if SSH data available, otherwise skip placeholders
+  const sshChecks = data.sshData && data.sshData.nodes.length > 0
+    ? runAllSSHChecks(data.sshData)
+    : SSH_CHECK_META.map(m => sshSkip(m.id, m.name, m.category, m.severity, m.maxPoints))
+
+  return [...pveChecks, ...sshChecks]
 }
 
 export interface CheckConfig {

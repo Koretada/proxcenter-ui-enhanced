@@ -529,6 +529,9 @@
       "aes": "Active le jeu d'instructions AES pour l'accélération matérielle."
     },
     "noDiskInserted": "Aucun disque inséré",
+    "otherHardware": "Autre matériel",
+    "addHardware": "Ajouter du matériel",
+    "noOtherHardware": "Aucun matériel supplémentaire configuré (EFI, TPM, USB, PCI, Série...)",
     "unused": "Inutilisé",
     "saveMemoryChanges": "Sauvegarder les modifications RAM",
     "deleteSnapshot": "Supprimer le snapshot",
@@ -905,6 +908,7 @@
     "tabStorage": "Stockage",
     "tabFirewall": "Firewall",
     "tabChangeTracking": "Changements",
+    "tabCompliance": "Conformité",
     "tabRollingUpdate": "Mise à jour progressive",
     "tabNetwork": "Réseau",
     "tabCertificates": "Certificats",
@@ -4930,7 +4934,13 @@
       "cluster": "Cluster",
       "node": "Nœud",
       "access": "Accès",
-      "vm": "VM"
+      "vm": "VM",
+      "os": "Durcissement OS",
+      "ssh": "SSH",
+      "network": "Réseau",
+      "services": "Services",
+      "filesystem": "Système de fichiers",
+      "logging": "Journalisation"
     },
     "severities": {
       "critical": "Critique",
@@ -4971,7 +4981,9 @@
     "controlRef": "Réf. contrôle",
     "activate": "Activer",
     "activeProfile": "Profil actif",
-    "allChecks": "Tous les checks (25)",
+    "allChecks": "Tous les checks",
+    "sshNotConfigured": "SSH non configuré — activer pour les checks OS",
+    "nodesReachable": "nœuds accessibles",
     "selectProfile": "Sélectionner un profil",
     "createProfile": "Créer un profil",
     "editProfile": "Modifier le profil",
@@ -4988,7 +5000,8 @@
     "profilesDeactivated": "Tous les profils désactivés",
     "deactivateAll": "Tout désactiver",
     "confirmDeleteProfile": "Êtes-vous sûr de vouloir supprimer ce profil ?",
-    "noProfiles": "Aucun profil. Créez-en un pour personnaliser les vérifications exécutées et leur pondération."
+    "noProfiles": "Aucun profil. Créez-en un pour personnaliser les vérifications exécutées et leur pondération.",
+    "recommendation": "Recommandation"
   },
   "changes": {
     "title": "Suivi des changements",

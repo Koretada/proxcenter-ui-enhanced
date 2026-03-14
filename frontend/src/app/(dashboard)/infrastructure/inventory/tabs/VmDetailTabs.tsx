@@ -75,6 +75,13 @@ export default function VmDetailTabs(props: any) {
   const t = useTranslations()
   const locale = useLocale()
   const [cpuFlagsOpen, setCpuFlagsOpen] = useState(false)
+  const [hwSections, setHwSections] = useState<Set<string>>(new Set(['cpu', 'memory', 'disks', 'network', 'other']))
+  const toggleHwSection = (section: string) => setHwSections(prev => {
+    const next = new Set(prev)
+    if (next.has(section)) next.delete(section)
+    else next.add(section)
+    return next
+  })
   const [expandedVmBackupGroups, setExpandedVmBackupGroups] = useState<Set<string>>(new Set())
   const [bootOrderOpen, setBootOrderOpen] = useState(false)
   const [bootDevices, setBootDevices] = useState<Array<{ id: string; enabled: boolean }>>([])
@@ -185,6 +192,7 @@ export default function VmDetailTabs(props: any) {
     setAddCephReplicationDialogOpen,
     setAddDiskDialogOpen,
     setAddNetworkDialogOpen,
+    setAddOtherHardwareDialogOpen,
     setAddReplicationDialogOpen,
     setBackupCompress,
     setBackupMode,
@@ -538,16 +546,31 @@ export default function VmDetailTabs(props: any) {
                       <CircularProgress />
                     </Box>
                   ) : (
-                    <Stack spacing={2}>
-                      {/* Ligne 1: CPU et RAM côte à côte */}
-                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
+                    <Stack spacing={1}>
+                      {/* CPU et RAM côte à côte */}
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 1 }}>
                         {/* CPU */}
-                        <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <Card variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                          <Box
+                            onClick={() => toggleHwSection('cpu')}
+                            sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              px: 2, py: 1.5, cursor: 'pointer',
+                              bgcolor: 'action.hover',
+                              '&:hover': { bgcolor: 'action.selected' },
+                              borderBottom: hwSections.has('cpu') ? '1px solid' : 'none',
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Typography variant="subtitle1" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <i className="ri-cpu-line" style={{ fontSize: 20 }} />
                               {t('inventory.processor')}
+                              <Chip label={`${data?.cpuInfo?.sockets || cpuSockets}S / ${data?.cpuInfo?.cores || cpuCores}C`} size="small" sx={{ height: 22, fontSize: 11 }} />
                             </Typography>
+                            <i className={hwSections.has('cpu') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                          </Box>
+                          <Collapse in={hwSections.has('cpu')}>
+                          <CardContent>
                           
                           {/* Avertissement si config CPU en attente de reboot */}
                           {data?.cpuInfo?.pending && (
@@ -569,69 +592,72 @@ export default function VmDetailTabs(props: any) {
                             </Alert>
                           )}
                           
-                          {/* Sockets Slider */}
-                          <Box sx={{ mb: 3 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                              <Typography variant="body2" fontWeight={600}>{t('inventory.sockets')}</Typography>
-                              <TextField
-                                size="small"
-                                type="number"
-                                value={cpuSockets}
-                                onChange={(e) => setCpuSockets(Number(e.target.value))}
-                                sx={{ width: 100 }}
-                                inputProps={{ min: 1, max: 4 }}
-                              />
-                            </Box>
-                            <Slider
-                              value={cpuSockets}
-                              onChange={(_, val) => setCpuSockets(val as number)}
-                              min={1}
-                              max={4}
-                              step={1}
-                              marks={[
-                                { value: 1, label: '1' },
-                                { value: 2, label: '2' },
-                                { value: 3, label: '3' },
-                                { value: 4, label: '4' },
-                              ]}
-                              valueLabelDisplay="auto"
-                            />
-                          </Box>
-
-                          {/* Cores Slider */}
-                          <Box sx={{ mb: 3 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                              <Typography variant="body2" fontWeight={600}>{t('inventory.coresPerSocket')}</Typography>
-                              <TextField
-                                size="small"
-                                type="number"
-                                value={cpuCores}
-                                onChange={(e) => setCpuCores(Math.max(1, Number(e.target.value)))}
-                                sx={{ width: 100 }}
-                                inputProps={{ min: 1 }}
-                              />
-                            </Box>
+                          {/* Sockets & Cores côte à côte */}
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 3 }}>
+                            {/* Sockets */}
                             {(() => {
-                              const hostCores = data.nodeCapacity?.maxCpu || 32
-                              const sliderMax = Math.min(hostCores, 64)
-                              const marks = [
-                                { value: 1, label: '1' },
-                                ...(sliderMax >= 8 ? [{ value: Math.floor(sliderMax / 4), label: String(Math.floor(sliderMax / 4)) }] : []),
-                                ...(sliderMax >= 16 ? [{ value: Math.floor(sliderMax / 2), label: String(Math.floor(sliderMax / 2)) }] : []),
-                                { value: sliderMax, label: String(sliderMax) },
-                              ]
+                              const maxSockets = data.nodeCapacity?.hostSockets || 4
+                              const marks = Array.from({ length: maxSockets }, (_, i) => ({ value: i + 1, label: String(i + 1) }))
                               return (
-                                <Slider
-                                  value={Math.min(cpuCores, sliderMax)}
-                                  onChange={(_, val) => setCpuCores(val as number)}
-                                  min={1}
-                                  max={sliderMax}
-                                  step={1}
-                                  marks={marks}
-                                  valueLabelDisplay="auto"
+                            <Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <Typography variant="body2" fontWeight={600}>{t('inventory.sockets')}</Typography>
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  value={cpuSockets}
+                                  onChange={(e) => setCpuSockets(Number(e.target.value))}
+                                  sx={{ width: 70 }}
+                                  inputProps={{ min: 1, max: maxSockets }}
                                 />
+                              </Box>
+                              <Slider
+                                value={Math.min(cpuSockets, maxSockets)}
+                                onChange={(_, val) => setCpuSockets(val as number)}
+                                min={1}
+                                max={maxSockets}
+                                step={1}
+                                marks={marks}
+                                valueLabelDisplay="auto"
+                              />
+                            </Box>
                               )
                             })()}
+                            {/* Cores */}
+                            <Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <Typography variant="body2" fontWeight={600}>{t('inventory.coresPerSocket')}</Typography>
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  value={cpuCores}
+                                  onChange={(e) => setCpuCores(Math.max(1, Number(e.target.value)))}
+                                  sx={{ width: 70 }}
+                                  inputProps={{ min: 1 }}
+                                />
+                              </Box>
+                              {(() => {
+                                const hostCores = data.nodeCapacity?.maxCpu || 32
+                                const sliderMax = Math.min(hostCores, 64)
+                                const marks = [
+                                  { value: 1, label: '1' },
+                                  ...(sliderMax >= 8 ? [{ value: Math.floor(sliderMax / 4), label: String(Math.floor(sliderMax / 4)) }] : []),
+                                  ...(sliderMax >= 16 ? [{ value: Math.floor(sliderMax / 2), label: String(Math.floor(sliderMax / 2)) }] : []),
+                                  { value: sliderMax, label: String(sliderMax) },
+                                ]
+                                return (
+                                  <Slider
+                                    value={Math.min(cpuCores, sliderMax)}
+                                    onChange={(_, val) => setCpuCores(val as number)}
+                                    min={1}
+                                    max={sliderMax}
+                                    step={1}
+                                    marks={marks}
+                                    valueLabelDisplay="auto"
+                                  />
+                                )
+                              })()}
+                            </Box>
                           </Box>
 
                           {/* CPU Type */}
@@ -870,15 +896,31 @@ export default function VmDetailTabs(props: any) {
                             {savingCpu ? t('common.saving') : t('inventory.saveCpuChanges')}
                           </Button>
                         </CardContent>
+                          </Collapse>
                       </Card>
 
                         {/* Mémoire */}
-                        <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <Card variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                          <Box
+                            onClick={() => toggleHwSection('memory')}
+                            sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              px: 2, py: 1.5, cursor: 'pointer',
+                              bgcolor: 'action.hover',
+                              '&:hover': { bgcolor: 'action.selected' },
+                              borderBottom: hwSections.has('memory') ? '1px solid' : 'none',
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Typography variant="subtitle1" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <i className="ri-database-2-line" style={{ fontSize: 20 }} />
                               {t('inventory.memory')}
+                              <Chip label={`${((data?.memoryInfo?.memory || memory) / 1024).toFixed(0)} GB`} size="small" sx={{ height: 22, fontSize: 11 }} />
                             </Typography>
+                            <i className={hwSections.has('memory') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                          </Box>
+                          <Collapse in={hwSections.has('memory')}>
+                          <CardContent>
                           
                           {/* Avertissement si config RAM en attente de reboot */}
                           {data?.memoryInfo?.pending && (
@@ -900,7 +942,7 @@ export default function VmDetailTabs(props: any) {
                           
                           {/* RAM Slider */}
                           <Box sx={{ mb: 3 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                               <Typography variant="body2" fontWeight={600}>{t('inventoryPage.memory')}</Typography>
                               <TextField
                                 size="small"
@@ -952,7 +994,7 @@ export default function VmDetailTabs(props: any) {
                             />
                             {balloonEnabled && (
                               <Box sx={{ mt: 2 }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                                   <Typography variant="body2" fontWeight={600}>{t('inventory.minMemoryBalloon')}</Typography>
                                   <TextField
                                     size="small"
@@ -999,40 +1041,46 @@ export default function VmDetailTabs(props: any) {
                             {savingMemory ? t('common.saving') : t('inventory.saveMemoryChanges')}
                           </Button>
                         </CardContent>
+                          </Collapse>
                       </Card>
                       </Box>
 
-                      {/* Ligne 2: Disques et Réseau côte à côte */}
-                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
+                      {/* Disques et Réseau côte à côte */}
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 1 }}>
                         {/* Disques */}
-                        <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                          <CardContent>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <i className="ri-hard-drive-line" style={{ fontSize: 20 }} />
-                                {t('inventory.disks')} ({data.disksInfo?.length || 0})
-                              </Typography>
-                              <Stack direction="row" spacing={1}>
-                                <MuiTooltip title={t('inventory.editScsiController')}>
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() => setEditScsiControllerDialogOpen(true)}
-                                    startIcon={<i className="ri-settings-3-line" />}
-                                  >
-                                    {data.optionsInfo?.scsihw || 'virtio-scsi-single'}
-                                  </Button>
+                        <Card variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                          <Box
+                            onClick={() => toggleHwSection('disks')}
+                            sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              px: 2, py: 1.5, cursor: 'pointer',
+                              bgcolor: 'action.hover',
+                              '&:hover': { bgcolor: 'action.selected' },
+                              borderBottom: hwSections.has('disks') ? '1px solid' : 'none',
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Typography variant="subtitle1" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <i className="ri-hard-drive-line" style={{ fontSize: 20 }} />
+                              {t('inventory.disks')}
+                              <Chip label={data.disksInfo?.length || 0} size="small" sx={{ height: 22, fontSize: 11 }} />
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <MuiTooltip title={data.optionsInfo?.scsihw || 'virtio-scsi-single'}>
+                                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); setEditScsiControllerDialogOpen(true) }}>
+                                    <i className="ri-settings-3-line" style={{ fontSize: 16 }} />
+                                  </IconButton>
                                 </MuiTooltip>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                startIcon={<AddIcon />}
-                                onClick={() => setAddDiskDialogOpen(true)}
-                              >
-                                {t('common.add')}
-                              </Button>
-                            </Stack>
+                                <MuiTooltip title={t('common.add')}>
+                                  <IconButton size="small" color="primary" onClick={(e) => { e.stopPropagation(); setAddDiskDialogOpen(true) }}>
+                                    <i className="ri-add-line" style={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </MuiTooltip>
+                              <i className={hwSections.has('disks') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                            </Box>
                           </Box>
+                          <Collapse in={hwSections.has('disks')}>
+                          <CardContent>
                           {data.disksInfo && data.disksInfo.length > 0 ? (
                             <List dense>
                               {data.disksInfo.map((disk: any, idx: number) => (
@@ -1090,25 +1138,38 @@ export default function VmDetailTabs(props: any) {
                             <Alert severity="info">{t('common.noData')}</Alert>
                           )}
                         </CardContent>
+                          </Collapse>
                         </Card>
 
                         {/* Interfaces réseau */}
-                        <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                          <CardContent>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <i className="ri-global-line" style={{ fontSize: 20 }} />
-                                {t('inventory.tabs.network')} ({data.networkInfo?.length || 0})
-                              </Typography>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                startIcon={<AddIcon />}
-                                onClick={() => setAddNetworkDialogOpen(true)}
-                              >
-                                {t('common.add')}
-                              </Button>
+                        <Card variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                          <Box
+                            onClick={() => toggleHwSection('network')}
+                            sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              px: 2, py: 1.5, cursor: 'pointer',
+                              bgcolor: 'action.hover',
+                              '&:hover': { bgcolor: 'action.selected' },
+                              borderBottom: hwSections.has('network') ? '1px solid' : 'none',
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Typography variant="subtitle1" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <i className="ri-global-line" style={{ fontSize: 20 }} />
+                              {t('inventory.tabs.network')}
+                              <Chip label={data.networkInfo?.length || 0} size="small" sx={{ height: 22, fontSize: 11 }} />
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <MuiTooltip title={t('common.add')}>
+                                  <IconButton size="small" color="primary" onClick={(e) => { e.stopPropagation(); setAddNetworkDialogOpen(true) }}>
+                                    <i className="ri-add-line" style={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </MuiTooltip>
+                              <i className={hwSections.has('network') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
                             </Box>
+                          </Box>
+                          <Collapse in={hwSections.has('network')}>
+                          <CardContent>
                             {data.networkInfo && data.networkInfo.length > 0 ? (
                               <List dense>
                                 {data.networkInfo.map((net: any, idx: number) => (
@@ -1179,8 +1240,94 @@ export default function VmDetailTabs(props: any) {
                             <Alert severity="info">{t('common.noData')}</Alert>
                           )}
                         </CardContent>
+                          </Collapse>
                       </Card>
                       </Box>
+
+                      {/* Other Hardware (EFI, TPM, USB, PCI, Serial, Audio, RNG) */}
+                      <Card variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                          <Box
+                            onClick={() => toggleHwSection('other')}
+                            sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              px: 2, py: 1.5, cursor: 'pointer',
+                              bgcolor: 'action.hover',
+                              '&:hover': { bgcolor: 'action.selected' },
+                              borderBottom: hwSections.has('other') ? '1px solid' : 'none',
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Typography variant="subtitle1" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <i className="ri-settings-3-line" style={{ fontSize: 20 }} />
+                              {t('inventory.otherHardware')}
+                              <Chip label={data.otherHardwareInfo?.length || 0} size="small" sx={{ height: 22, fontSize: 11 }} />
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <MuiTooltip title={t('common.add')}>
+                                  <IconButton size="small" color="primary" onClick={(e) => { e.stopPropagation(); setAddOtherHardwareDialogOpen(true) }}>
+                                    <i className="ri-add-line" style={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </MuiTooltip>
+                            <i className={hwSections.has('other') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                            </Box>
+                          </Box>
+                          <Collapse in={hwSections.has('other')}>
+                        <CardContent>
+                          {data.otherHardwareInfo && data.otherHardwareInfo.length > 0 ? (
+                            <List dense>
+                              {data.otherHardwareInfo.map((hw: any, idx: number) => {
+                                const iconMap: Record<string, string> = {
+                                  efidisk: 'ri-shield-keyhole-line',
+                                  tpmstate: 'ri-key-2-line',
+                                  usb: 'ri-usb-line',
+                                  pci: 'ri-cpu-line',
+                                  serial: 'ri-terminal-line',
+                                  audio: 'ri-volume-up-line',
+                                  rng: 'ri-shuffle-line',
+                                }
+                                return (
+                                  <ListItem
+                                    key={idx}
+                                    sx={{
+                                      bgcolor: 'action.hover',
+                                      borderRadius: 1,
+                                      mb: 1,
+                                      '&:last-child': { mb: 0 }
+                                    }}
+                                  >
+                                    <ListItemIcon sx={{ minWidth: 40 }}>
+                                      <i className={iconMap[hw.type] || 'ri-settings-3-line'} style={{ fontSize: 24, opacity: 0.7 }} />
+                                    </ListItemIcon>
+                                    <ListItemText
+                                      primary={
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Typography variant="body2" fontWeight={600}>
+                                            {hw.id}
+                                          </Typography>
+                                          <Chip label={hw.label} size="small" sx={{ height: 20, fontSize: 11 }} />
+                                          {hw.storage && (
+                                            <Chip label={hw.storage} size="small" variant="outlined" sx={{ height: 20, fontSize: 11 }} />
+                                          )}
+                                        </Box>
+                                      }
+                                      secondary={
+                                        <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                                          {hw.rawValue}
+                                        </Typography>
+                                      }
+                                    />
+                                  </ListItem>
+                                )
+                              })}
+                            </List>
+                          ) : (
+                            <Typography variant="body2" sx={{ opacity: 0.5, fontStyle: 'italic' }}>
+                              {t('inventory.noOtherHardware')}
+                            </Typography>
+                          )}
+                        </CardContent>
+                          </Collapse>
+                      </Card>
                     </Stack>
                   )}
                 </Box>

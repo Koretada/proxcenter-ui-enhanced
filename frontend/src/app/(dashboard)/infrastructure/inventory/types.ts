@@ -97,6 +97,15 @@ export type DetailsPayload = {
     rate?: number
   }>
 
+  otherHardwareInfo?: Array<{
+    id: string
+    type: 'efidisk' | 'tpmstate' | 'usb' | 'pci' | 'serial' | 'audio' | 'rng'
+    label: string
+    rawValue: string
+    storage?: string
+    size?: string
+  }>
+
   cloudInitConfig?: {
     ciuser?: string
     cipassword?: string
@@ -133,6 +142,8 @@ export type DetailsPayload = {
   nodeCapacity?: {
     maxCpu: number
     maxMem: number
+    hostSockets?: number
+    hostCoresPerSocket?: number
   }
   hostInfo?: {
     uptime?: number
@@ -465,6 +476,7 @@ export type ActiveDialog =
   | 'createLxc'
   | 'addDisk'
   | 'addNetwork'
+  | 'addOtherHardware'
   | 'editScsiController'
   | 'editDisk'
   | 'editNetwork'

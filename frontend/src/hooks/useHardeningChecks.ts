@@ -2,12 +2,14 @@ import { useSWRFetch } from './useSWRFetch'
 
 export function useHardeningChecks(
   connectionId?: string | null,
-  profileId?: string | null
+  profileId?: string | null,
+  node?: string | null
 ) {
   let url: string | null = null
   if (connectionId) {
     const params = new URLSearchParams()
     if (profileId) params.set('profileId', profileId)
+    if (node) params.set('node', node)
     const qs = params.toString()
     url = `/api/v1/compliance/hardening/${connectionId}${qs ? `?${qs}` : ''}`
   }
