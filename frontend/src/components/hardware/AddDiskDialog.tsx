@@ -53,7 +53,13 @@ export function AddDiskDialog({ open, onClose, onSave, connId, node, vmid, exist
 
   // Disk config
   const [busType, setBusType] = useState<'scsi' | 'virtio' | 'sata' | 'ide'>('scsi')
-  const [deviceType, setDeviceType] = useState<'disk' | 'cdrom'>('disk')
+  const [deviceType, setDeviceType] = useState<'disk' | 'cdrom' | 'efi' | 'tpm'>('disk')
+
+  // EFI Disk
+  const [efiPreEnrolledKeys, setEfiPreEnrolledKeys] = useState(true)
+
+  // TPM
+  const [tpmVersion, setTpmVersion] = useState('v2.0')
   const [busIndex, setBusIndex] = useState(0)
   const [storage, setStorage] = useState('')
   const [diskSize, setDiskSize] = useState(32)
@@ -179,6 +185,25 @@ return match ? parseInt(match[1]) : -1
     setError(null)
 
     try {
+      // EFI Disk
+      if (deviceType === 'efi') {
+        if (!storage) { setError('Please select a storage'); setSaving(false); return }
+        const parts = [`${storage}:1`]
+        if (efiPreEnrolledKeys) parts.push('pre-enrolled-keys=1')
+        parts.push('efitype=4m', 'size=128K')
+        await onSave({ efidisk0: parts.join(',') })
+        onClose()
+        return
+      }
+
+      // TPM State
+      if (deviceType === 'tpm') {
+        if (!storage) { setError('Please select a storage'); setSaving(false); return }
+        await onSave({ tpmstate0: `${storage}:1,version=${tpmVersion}` })
+        onClose()
+        return
+      }
+
       const diskId = busType === 'virtio' ? `virtio${busIndex}` : `${busType}${busIndex}`
 
       // CDROM device
@@ -242,11 +267,11 @@ return match ? parseInt(match[1]) : -1
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <i className={deviceType === 'cdrom' ? "ri-disc-line" : "ri-hard-drive-2-line"} style={{ fontSize: 24 }} />
-        {deviceType === 'cdrom' ? 'Ajouter: CD/DVD Drive' : 'Ajouter: Disque dur'}
+        <i className={deviceType === 'cdrom' ? "ri-disc-line" : deviceType === 'efi' ? "ri-shield-keyhole-line" : deviceType === 'tpm' ? "ri-key-2-line" : "ri-hard-drive-2-line"} style={{ fontSize: 24 }} />
+        {deviceType === 'cdrom' ? 'CD/DVD Drive' : deviceType === 'efi' ? 'EFI Disk' : deviceType === 'tpm' ? 'TPM State' : t('inventory.disks')}
       </DialogTitle>
 
-      {deviceType !== 'cdrom' && (
+      {deviceType === 'disk' && (
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 3, borderBottom: 1, borderColor: 'divider' }}>
           <Tab label="Disk" />
           <Tab label="Bandwidth" />
@@ -256,10 +281,93 @@ return match ? parseInt(match[1]) : -1
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        {(tab === 0 || deviceType === 'cdrom') && (
+        {(tab === 0 || deviceType === 'cdrom' || deviceType === 'efi' || deviceType === 'tpm') && (
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {/* Bus/Device + Device Type */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: (busType === 'ide' || busType === 'sata') ? '1fr 1fr auto' : '1fr auto', gap: 2 }}>
+            {/* Device Type selector */}
+            <FormControl fullWidth size="small">
+              <InputLabel>{t('common.type')}</InputLabel>
+              <Select value={deviceType} onChange={(e) => setDeviceType(e.target.value as any)} label={t('common.type')}>
+                <MenuItem value="disk">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <i className="ri-hard-drive-2-line" style={{ fontSize: 18 }} /> Hard Disk
+                  </Box>
+                </MenuItem>
+                <MenuItem value="cdrom">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <i className="ri-disc-line" style={{ fontSize: 18 }} /> CD/DVD
+                  </Box>
+                </MenuItem>
+                <MenuItem value="efi" disabled={existingDisks.some(d => d.startsWith('efidisk'))}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <i className="ri-shield-keyhole-line" style={{ fontSize: 18 }} /> EFI Disk {existingDisks.some(d => d.startsWith('efidisk')) && '(exists)'}
+                  </Box>
+                </MenuItem>
+                <MenuItem value="tpm" disabled={existingDisks.some(d => d.startsWith('tpmstate'))}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <i className="ri-key-2-line" style={{ fontSize: 18 }} /> TPM State {existingDisks.some(d => d.startsWith('tpmstate')) && '(exists)'}
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* EFI Disk config */}
+            {deviceType === 'efi' && (
+              <>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Storage</InputLabel>
+                  <Select value={storage} onChange={(e) => setStorage(e.target.value)} label="Storage" disabled={storagesLoading}>
+                    {storages.map((s) => (
+                      <MenuItem key={s.storage} value={s.storage}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}>
+                          <span>{s.storage}</span>
+                          <Typography variant="caption" sx={{ opacity: 0.7 }}>{s.type} • {formatBytes(s.avail)} free</Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControlLabel
+                  control={<Checkbox checked={efiPreEnrolledKeys} onChange={(e) => setEfiPreEnrolledKeys(e.target.checked)} />}
+                  label="Pre-Enroll Keys (Microsoft & UEFI CA)"
+                />
+                <Alert severity="info" sx={{ fontSize: 13 }}>
+                  EFI disk is required for OVMF (UEFI) firmware. A 4MB disk will be allocated.
+                </Alert>
+              </>
+            )}
+
+            {/* TPM State config */}
+            {deviceType === 'tpm' && (
+              <>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Storage</InputLabel>
+                  <Select value={storage} onChange={(e) => setStorage(e.target.value)} label="Storage" disabled={storagesLoading}>
+                    {storages.map((s) => (
+                      <MenuItem key={s.storage} value={s.storage}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}>
+                          <span>{s.storage}</span>
+                          <Typography variant="caption" sx={{ opacity: 0.7 }}>{s.type} • {formatBytes(s.avail)} free</Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel>TPM Version</InputLabel>
+                  <Select value={tpmVersion} onChange={(e) => setTpmVersion(e.target.value)} label="TPM Version">
+                    <MenuItem value="v2.0">v2.0 (recommended)</MenuItem>
+                    <MenuItem value="v1.2">v1.2</MenuItem>
+                  </Select>
+                </FormControl>
+                <Alert severity="info" sx={{ fontSize: 13 }}>
+                  TPM (Trusted Platform Module) is required for Windows 11 and BitLocker.
+                </Alert>
+              </>
+            )}
+
+            {/* Bus/Device + Index (disk & cdrom only) */}
+            {(deviceType === 'disk' || deviceType === 'cdrom') && (
+            <Box sx={{ display: 'grid', gridTemplateColumns: (busType === 'ide' || busType === 'sata') ? '1fr auto' : '1fr auto', gap: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Bus/Device</InputLabel>
                 <Select value={busType} onChange={(e) => setBusType(e.target.value as any)} label="Bus/Device">
@@ -269,15 +377,6 @@ return match ? parseInt(match[1]) : -1
                   <MenuItem value="ide">IDE</MenuItem>
                 </Select>
               </FormControl>
-              {(busType === 'ide' || busType === 'sata') && (
-                <FormControl fullWidth size="small">
-                  <InputLabel>Type</InputLabel>
-                  <Select value={deviceType} onChange={(e) => setDeviceType(e.target.value as any)} label="Type">
-                    <MenuItem value="disk">Disk</MenuItem>
-                    <MenuItem value="cdrom">CD/DVD</MenuItem>
-                  </Select>
-                </FormControl>
-              )}
               <TextField
                 size="small"
                 type="number"
@@ -287,6 +386,7 @@ return match ? parseInt(match[1]) : -1
                 inputProps={{ min: 0, max: 30 }}
               />
             </Box>
+            )}
 
             {/* CDROM config */}
             {deviceType === 'cdrom' && (
@@ -495,7 +595,7 @@ return match ? parseInt(match[1]) : -1
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={saving}>{t('common.cancel')}</Button>
-        <Button variant="contained" onClick={handleSave} disabled={saving || (deviceType === 'disk' && !storage) || (deviceType === 'cdrom' && cdromMode === 'iso' && (!isoStorage || !isoImage))}>
+        <Button variant="contained" onClick={handleSave} disabled={saving || (deviceType === 'disk' && !storage) || ((deviceType === 'efi' || deviceType === 'tpm') && !storage) || (deviceType === 'cdrom' && cdromMode === 'iso' && (!isoStorage || !isoImage))}>
           {saving ? <CircularProgress size={20} /> : t('common.add')}
         </Button>
       </DialogActions>

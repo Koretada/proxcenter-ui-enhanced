@@ -26,7 +26,7 @@ import {
 import { formatBytes } from '@/utils/format'
 import type { Storage } from './utils'
 
-type HardwareType = 'efidisk' | 'tpmstate' | 'usb' | 'pci' | 'serial' | 'cloudinit' | 'audio' | 'rng'
+type HardwareType = 'usb' | 'pci' | 'serial' | 'cloudinit' | 'audio' | 'rng'
 
 type AddOtherHardwareDialogProps = {
   open: boolean
@@ -36,29 +36,19 @@ type AddOtherHardwareDialogProps = {
   node: string
   vmid: string
   existingHardware: string[]
-  vmBios?: string
 }
 
 export function AddOtherHardwareDialog({
-  open, onClose, onSave, connId, node, vmid, existingHardware, vmBios,
+  open, onClose, onSave, connId, node, vmid, existingHardware,
 }: AddOtherHardwareDialogProps) {
   const t = useTranslations()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hwType, setHwType] = useState<HardwareType>('efidisk')
+  const [hwType, setHwType] = useState<HardwareType>('usb')
 
   // Storages
   const [storages, setStorages] = useState<Storage[]>([])
   const [storagesLoading, setStoragesLoading] = useState(false)
-
-  // EFI Disk
-  const [efiStorage, setEfiStorage] = useState('')
-  const [efiPreEnrolledKeys, setEfiPreEnrolledKeys] = useState(true)
-  const [efiSize, setEfiSize] = useState('128K')
-
-  // TPM
-  const [tpmStorage, setTpmStorage] = useState('')
-  const [tpmVersion, setTpmVersion] = useState('v2.0')
 
   // USB
   const [usbType, setUsbType] = useState<'spice' | 'device'>('spice')
@@ -94,8 +84,6 @@ export function AddOtherHardwareDialog({
   const [devicesLoading, setDevicesLoading] = useState(false)
 
   // Determine what's already present
-  const hasEfi = existingHardware.some(h => h.startsWith('efidisk'))
-  const hasTpm = existingHardware.some(h => h.startsWith('tpmstate'))
   const hasCloudInit = existingHardware.some(h => h === 'cloudinit')
   const hasAudio = existingHardware.some(h => h.startsWith('audio'))
   const hasRng = existingHardware.some(h => h === 'rng0')
@@ -112,8 +100,6 @@ export function AddOtherHardwareDialog({
         )
         setStorages(list)
         if (list.length > 0) {
-          if (!efiStorage) setEfiStorage(list[0].storage)
-          if (!tpmStorage) setTpmStorage(list[0].storage)
           if (!ciStorage) setCiStorage(list[0].storage)
         }
       })
@@ -165,20 +151,6 @@ export function AddOtherHardwareDialog({
       let config: Record<string, string> = {}
 
       switch (hwType) {
-        case 'efidisk': {
-          if (!efiStorage) throw new Error('Please select a storage')
-          const parts = [`${efiStorage}:1`]
-          if (efiPreEnrolledKeys) parts.push('pre-enrolled-keys=1')
-          parts.push(`efitype=4m`)
-          parts.push(`size=${efiSize}`)
-          config = { efidisk0: parts.join(',') }
-          break
-        }
-        case 'tpmstate': {
-          if (!tpmStorage) throw new Error('Please select a storage')
-          config = { tpmstate0: `${tpmStorage}:1,version=${tpmVersion}` }
-          break
-        }
         case 'usb': {
           const idx = nextIndex('usb', 4)
           if (idx < 0) throw new Error('Maximum USB devices reached (5)')
@@ -284,18 +256,6 @@ export function AddOtherHardwareDialog({
           <FormControl fullWidth size="small">
             <InputLabel>{t('common.type')}</InputLabel>
             <Select value={hwType} onChange={e => setHwType(e.target.value as HardwareType)} label={t('common.type')}>
-              <MenuItem value="efidisk" disabled={hasEfi}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <i className="ri-shield-keyhole-line" style={{ fontSize: 18 }} />
-                  EFI Disk {hasEfi && '(already exists)'}
-                </Box>
-              </MenuItem>
-              <MenuItem value="tpmstate" disabled={hasTpm}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <i className="ri-key-2-line" style={{ fontSize: 18 }} />
-                  TPM State {hasTpm && '(already exists)'}
-                </Box>
-              </MenuItem>
               <MenuItem value="usb">
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <i className="ri-usb-line" style={{ fontSize: 18 }} />
@@ -334,37 +294,6 @@ export function AddOtherHardwareDialog({
               </MenuItem>
             </Select>
           </FormControl>
-
-          {/* EFI Disk config */}
-          {hwType === 'efidisk' && (
-            <Stack spacing={2}>
-              {renderStorageSelect(efiStorage, setEfiStorage)}
-              <FormControlLabel
-                control={<Checkbox checked={efiPreEnrolledKeys} onChange={e => setEfiPreEnrolledKeys(e.target.checked)} />}
-                label="Pre-Enroll Keys (Microsoft & UEFI CA)"
-              />
-              <Alert severity="info" sx={{ fontSize: 13 }}>
-                EFI disk is required for OVMF (UEFI) firmware. Size: 128K (4MB allocated).
-              </Alert>
-            </Stack>
-          )}
-
-          {/* TPM config */}
-          {hwType === 'tpmstate' && (
-            <Stack spacing={2}>
-              {renderStorageSelect(tpmStorage, setTpmStorage)}
-              <FormControl fullWidth size="small">
-                <InputLabel>TPM Version</InputLabel>
-                <Select value={tpmVersion} onChange={e => setTpmVersion(e.target.value)} label="TPM Version">
-                  <MenuItem value="v2.0">v2.0 (recommended)</MenuItem>
-                  <MenuItem value="v1.2">v1.2</MenuItem>
-                </Select>
-              </FormControl>
-              <Alert severity="info" sx={{ fontSize: 13 }}>
-                TPM (Trusted Platform Module) is required for Windows 11 and BitLocker.
-              </Alert>
-            </Stack>
-          )}
 
           {/* USB config */}
           {hwType === 'usb' && (
