@@ -695,7 +695,14 @@
       "vmIdMin": "L'ID VM doit être >= 100",
       "vmIdMax": "L'ID VM doit être <= 999999999",
       "vmIdInUse": "L'ID VM {id} est déjà utilisé",
-      "generateVmId": "Générer le prochain ID disponible"
+      "generateVmId": "Générer le prochain ID disponible",
+      "advancedOptions": "Options avancées",
+      "addNic": "Ajouter une NIC",
+      "bootShutdown": "Démarrage & Arrêt",
+      "osPresets": "Presets rapides",
+      "installMedia": "Média d'installation",
+      "hardware": "Matériel",
+      "uefiHint": "UEFI nécessite une machine q35 et un disque EFI sera ajouté automatiquement."
     },
     "createLxc": {
       "title": "Créer : Conteneur LXC",
@@ -769,7 +776,9 @@
       "dhcp": "DHCP",
       "static": "Statique",
       "manual": "Manuel",
-      "slaac": "SLAAC"
+      "slaac": "SLAAC",
+      "security": "Sécurité",
+      "passwordSet": "Mot de passe défini"
     },
     "cluster": "cluster",
     "clustersCount": "{count} clusters",

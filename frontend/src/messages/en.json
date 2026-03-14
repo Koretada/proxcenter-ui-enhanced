@@ -695,7 +695,14 @@
       "vmIdMin": "VM ID must be >= 100",
       "vmIdMax": "VM ID must be <= 999999999",
       "vmIdInUse": "VM ID {id} is already in use",
-      "generateVmId": "Generate next available ID"
+      "generateVmId": "Generate next available ID",
+      "advancedOptions": "Advanced Options",
+      "addNic": "Add NIC",
+      "bootShutdown": "Boot & Shutdown",
+      "osPresets": "Quick presets",
+      "installMedia": "Installation media",
+      "hardware": "Hardware",
+      "uefiHint": "UEFI requires a q35 machine type and an EFI disk will be added automatically."
     },
     "createLxc": {
       "title": "Create: LXC Container",
@@ -769,7 +776,9 @@
       "dhcp": "DHCP",
       "static": "Static",
       "manual": "Manual",
-      "slaac": "SLAAC"
+      "slaac": "SLAAC",
+      "security": "Security",
+      "passwordSet": "Password set"
     },
     "cpuUsage": "CPU Usage",
     "memoryUsage": "Memory Usage",

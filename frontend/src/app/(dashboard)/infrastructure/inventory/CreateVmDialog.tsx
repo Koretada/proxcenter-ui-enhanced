@@ -10,6 +10,7 @@ import {
   Card,
   Chip,
   CircularProgress,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -33,6 +34,7 @@ import {
   Typography,
   useTheme,
 } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 
 import { AllVmItem } from './InventoryTree'
 
@@ -60,6 +62,28 @@ const createDefaultDisk = (): DiskConfig => ({
   ioThread: true,
   ssd: false,
   backup: true,
+})
+
+type NicConfig = {
+  bridge: string
+  model: string
+  vlanTag: string
+  macAddress: string
+  firewall: boolean
+  disconnect: boolean
+  rateLimit: string
+  mtu: string
+}
+
+const createDefaultNic = (): NicConfig => ({
+  bridge: 'vmbr0',
+  model: 'virtio',
+  vlanTag: '',
+  macAddress: 'auto',
+  firewall: true,
+  disconnect: false,
+  rateLimit: '',
+  mtu: '1500',
 })
 
 function CreateVmDialog({
@@ -126,6 +150,7 @@ function CreateVmDialog({
   
   // Formulaire - Disks (array-based)
   const [disks, setDisks] = useState<DiskConfig[]>([createDefaultDisk()])
+  const [expandedDisks, setExpandedDisks] = useState<Set<number>>(new Set([0]))
   
   // Formulaire - CPU
   const [cpuSockets, setCpuSockets] = useState(1)
@@ -140,16 +165,16 @@ function CreateVmDialog({
   const [minMemory, setMinMemory] = useState(2048)
   const [ballooning, setBallooning] = useState(true)
   
-  // Formulaire - Network
+  // UI collapse states
+  const [bootSectionExpanded, setBootSectionExpanded] = useState(false)
+  const [cpuAdvancedExpanded, setCpuAdvancedExpanded] = useState(false)
+  const [memAdvancedExpanded, setMemAdvancedExpanded] = useState(false)
+  const [selectedOsPreset, setSelectedOsPreset] = useState<string | null>(null)
+
+  // Formulaire - Network (array-based)
   const [noNetwork, setNoNetwork] = useState(false)
-  const [networkBridge, setNetworkBridge] = useState('vmbr0')
-  const [networkModel, setNetworkModel] = useState('virtio')
-  const [vlanTag, setVlanTag] = useState('')
-  const [macAddress, setMacAddress] = useState('auto')
-  const [firewall, setFirewall] = useState(true)
-  const [networkDisconnect, setNetworkDisconnect] = useState(false)
-  const [rateLimit, setRateLimit] = useState('')
-  const [mtu, setMtu] = useState('1500')
+  const [nics, setNics] = useState<NicConfig[]>([createDefaultNic()])
+  const [expandedNics, setExpandedNics] = useState<Set<number>>(new Set([0]))
 
   // Load next VMID from the Proxmox cluster API
   const loadNextVmid = async (connId: string) => {
@@ -187,8 +212,10 @@ function CreateVmDialog({
           iface.type === 'bridge' || iface.type === 'OVSBridge'
         )
         setBridges(bridgeList)
-        if (bridgeList.length > 0 && !bridgeList.some((b: any) => b.iface === networkBridge)) {
-          setNetworkBridge(bridgeList[0].iface)
+        if (bridgeList.length > 0) {
+          setNics(prev => prev.map(nic =>
+            bridgeList.some((b: any) => b.iface === nic.bridge) ? nic : { ...nic, bridge: bridgeList[0].iface }
+          ))
         }
       }
     } catch (e) {
@@ -204,6 +231,7 @@ function CreateVmDialog({
       const usedIndices = prev.filter(d => d.bus === bus).map(d => d.index)
       let nextIndex = 0
       while (usedIndices.includes(nextIndex)) nextIndex++
+      setExpandedDisks(s => new Set(s).add(prev.length))
       return [...prev, { ...createDefaultDisk(), bus, index: nextIndex, storage: prev[0]?.storage || '' }]
     })
   }
@@ -226,6 +254,26 @@ function CreateVmDialog({
     })
   }
 
+  // NIC array helpers
+  const addNic = () => {
+    setNics(prev => {
+      setExpandedNics(s => new Set(s).add(prev.length))
+      return [...prev, { ...createDefaultNic(), bridge: prev[0]?.bridge || 'vmbr0' }]
+    })
+  }
+
+  const removeNic = (idx: number) => {
+    setNics(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  const updateNic = (idx: number, updates: Partial<NicConfig>) => {
+    setNics(prev => {
+      const updated = [...prev]
+      updated[idx] = { ...updated[idx], ...updates }
+      return updated
+    })
+  }
+
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
@@ -236,6 +284,9 @@ function CreateVmDialog({
       setSelectedConnection('')
       setPendingClusterSelect(null)
       setDisks([createDefaultDisk()])
+      setNics([createDefaultNic()])
+      setExpandedNics(new Set([0]))
+      setNoNetwork(false)
       loadAllData()
     }
   }, [open])
@@ -624,14 +675,15 @@ return
 
       // Réseau
       if (!noNetwork) {
-        let net0 = `${networkModel},bridge=${networkBridge}`
-
-        if (vlanTag) net0 += `,tag=${vlanTag}`
-        if (macAddress && macAddress !== 'auto') net0 += `,macaddr=${macAddress}`
-        if (firewall) net0 += ',firewall=1'
-        if (rateLimit) net0 += `,rate=${rateLimit}`
-        if (networkDisconnect) net0 += ',link_down=1'
-        payload.net0 = net0
+        nics.forEach((nic, i) => {
+          let netStr = `${nic.model},bridge=${nic.bridge}`
+          if (nic.vlanTag) netStr += `,tag=${nic.vlanTag}`
+          if (nic.macAddress && nic.macAddress !== 'auto') netStr += `,macaddr=${nic.macAddress}`
+          if (nic.firewall) netStr += ',firewall=1'
+          if (nic.rateLimit) netStr += `,rate=${nic.rateLimit}`
+          if (nic.disconnect) netStr += ',link_down=1'
+          ;(payload as any)[`net${i}`] = netStr
+        })
       }
 
       // CPU
@@ -704,7 +756,7 @@ return
     switch (activeTab) {
       case 0: // General
         return (
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+          <Stack spacing={1.5}>
             <FormControl fullWidth size="small">
               <InputLabel>{t('inventory.createVm.node')}</InputLabel>
               <Select
@@ -861,383 +913,498 @@ return
                 }
               }}
             />
-            <Box />
             <TextField label={t('inventory.createVm.vmName')} value={vmName} onChange={(e) => setVmName(e.target.value)} size="small" fullWidth />
-            <Box />
-            <FormControlLabel 
-              control={<Switch checked={startOnBoot} onChange={(e) => setStartOnBoot(e.target.checked)} size="small" />} 
-              label={t('inventory.createVm.startAtBoot')} 
-            />
-            <Box />
-            <TextField label={t('inventory.createVm.startupShutdownOrder')} value={startupOrder} onChange={(e) => setStartupOrder(e.target.value)} size="small" placeholder="any" />
-            <Box />
-            <TextField label={t('inventory.createVm.startupDelay')} value={startupDelay} onChange={(e) => setStartupDelay(e.target.value)} size="small" placeholder="default" />
-            <Box />
-            <TextField label={t('inventory.createVm.shutdownTimeout')} value={shutdownTimeout} onChange={(e) => setShutdownTimeout(e.target.value)} size="small" placeholder="default" />
-          </Box>
+
+            {/* Boot & Shutdown — collapsible */}
+            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+              <Box
+                onClick={() => setBootSectionExpanded(v => !v)}
+                sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
+              >
+                <i className={bootSectionExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                <i className="ri-timer-line" style={{ fontSize: 16, opacity: 0.6 }} />
+                <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.bootShutdown')}</Typography>
+                <Box sx={{ flex: 1 }} />
+                {startOnBoot && <Chip label={t('inventory.createVm.startAtBoot')} size="small" variant="outlined" color="success" sx={{ fontSize: 10, height: 20 }} />}
+              </Box>
+              <Collapse in={bootSectionExpanded}>
+                <Box sx={{ px: 2, pb: 2, pt: 0.5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                  <FormControlLabel
+                    control={<Switch checked={startOnBoot} onChange={(e) => setStartOnBoot(e.target.checked)} size="small" />}
+                    label={t('inventory.createVm.startAtBoot')}
+                    sx={{ gridColumn: '1 / -1' }}
+                  />
+                  <TextField label={t('inventory.createVm.startupShutdownOrder')} value={startupOrder} onChange={(e) => setStartupOrder(e.target.value)} size="small" placeholder="any" />
+                  <TextField label={t('inventory.createVm.startupDelay')} value={startupDelay} onChange={(e) => setStartupDelay(e.target.value)} size="small" placeholder="default" />
+                  <TextField label={t('inventory.createVm.shutdownTimeout')} value={shutdownTimeout} onChange={(e) => setShutdownTimeout(e.target.value)} size="small" placeholder="default" />
+                </Box>
+              </Collapse>
+            </Box>
+          </Stack>
         )
 
       case 1: // OS
-        return (
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            <Box sx={{ gridColumn: '1 / -1' }}>
-              <FormControl component="fieldset">
-                <Stack spacing={1}>
+        {
+          const osPresets: { id: string; label: string; icon: string; type: string; version: string }[] = [
+            { id: 'ubuntu', label: 'Ubuntu / Debian', icon: 'ri-ubuntu-fill', type: 'Linux', version: 'l26' },
+            { id: 'centos', label: 'CentOS / RHEL', icon: 'ri-centos-fill', type: 'Linux', version: 'l26' },
+            { id: 'fedora', label: 'Fedora', icon: 'ri-firefox-fill', type: 'Linux', version: 'l26' },
+            { id: 'win11', label: 'Windows 11', icon: 'ri-windows-fill', type: 'Windows', version: 'win11' },
+            { id: 'win10', label: 'Windows 10', icon: 'ri-windows-fill', type: 'Windows', version: 'win10' },
+            { id: 'winserver', label: 'Windows Server', icon: 'ri-windows-fill', type: 'Windows', version: 'win11' },
+          ]
+
+          return (
+            <Stack spacing={2}>
+              {/* Quick presets */}
+              <Box>
+                <Typography variant="caption" fontWeight={700} sx={{ display: 'block', opacity: 0.5, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {t('inventory.createVm.osPresets')}
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                  {osPresets.map((p) => {
+                    const isActive = selectedOsPreset === p.id
+                    return (
+                      <Box
+                        key={p.id}
+                        onClick={() => { setGuestOsType(p.type); setGuestOsVersion(p.version); setSelectedOsPreset(p.id) }}
+                        sx={{
+                          border: '1px solid', borderColor: isActive ? 'primary.main' : 'divider', borderRadius: 2,
+                          px: 1.5, py: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1,
+                          bgcolor: isActive ? alpha(theme.palette.primary.main, 0.06) : 'transparent',
+                          transition: 'all 0.15s',
+                          '&:hover': { borderColor: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.03) },
+                        }}
+                      >
+                        <i className={p.icon} style={{ fontSize: 20, opacity: isActive ? 1 : 0.5 }} />
+                        <Typography variant="body2" fontSize={12} fontWeight={isActive ? 700 : 400}>{p.label}</Typography>
+                      </Box>
+                    )
+                  })}
+                </Box>
+              </Box>
+
+              {/* ISO media section */}
+              <Box sx={{ border: '1px solid', borderColor: osMediaType === 'iso' ? 'primary.main' : 'divider', borderRadius: 2, overflow: 'hidden', transition: 'border-color 0.2s' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25 }}>
+                  <i className="ri-disc-line" style={{ fontSize: 16, opacity: 0.6 }} />
+                  <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.installMedia')}</Typography>
+                  <Box sx={{ flex: 1 }} />
                   <FormControlLabel
                     control={<Switch checked={osMediaType === 'iso'} onChange={(e) => setOsMediaType(e.target.checked ? 'iso' : 'none')} size="small" />}
-                    label={t('inventory.createVm.useCdDvd')}
+                    label=""
+                    sx={{ mr: 0 }}
                   />
-                </Stack>
-              </FormControl>
-            </Box>
-            
-            {osMediaType === 'iso' && (
-              <>
-                <FormControl fullWidth size="small">
-                  <InputLabel>{t('inventory.createVm.storage')}</InputLabel>
-                  <Select value={isoStorage} onChange={(e) => setIsoStorage(e.target.value)} label={t('inventory.createVm.storage')}>
-                    {isoStoragesList.map(s => (
-                      <MenuItem key={s.id || s.storage} value={s.storage}>
-                        {s.storage} ({s.type}){!s.shared && s.node ? ` — ${s.node}` : ''}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Typography variant="subtitle2" sx={{ alignSelf: 'center', fontWeight: 600 }}>{t('inventory.createVm.guestOs')}</Typography>
-                
-                <FormControl fullWidth size="small">
-                  <InputLabel>{t('inventory.createVm.isoImage')}</InputLabel>
-                  <Select value={isoImage} onChange={(e) => setIsoImage(e.target.value)} label={t('inventory.createVm.isoImage')}>
-                    {isoImages.length > 0 ? (
-                      isoImages.map((iso: any) => (
-                        <MenuItem key={iso.volid || iso.name} value={iso.name || iso.volid?.split('/').pop()}>
-                          {iso.name || iso.volid?.split('/').pop()}
-                        </MenuItem>
-                      ))
-                    ) : (
-                      <MenuItem value="" disabled>{t('common.noData')}</MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth size="small">
-                  <InputLabel>{t('inventory.createVm.osType')}</InputLabel>
-                  <Select
-                    value={guestOsType}
-                    onChange={(e) => setGuestOsType(e.target.value)}
-                    label={t('inventory.createVm.osType')}
-                    renderValue={(val) => (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <i className={val === 'Linux' ? 'ri-ubuntu-fill' : val === 'Windows' ? 'ri-windows-fill' : val === 'Solaris' ? 'ri-sun-line' : 'ri-question-line'} style={{ fontSize: 18, opacity: 0.8 }} />
-                        {t(`inventory.createVm.os${val}`)}
-                      </Box>
-                    )}
-                  >
-                    <MenuItem value="Linux">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <i className="ri-ubuntu-fill" style={{ fontSize: 18, opacity: 0.8 }} />
-                        {t('inventory.createVm.osLinux')}
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="Windows">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <i className="ri-windows-fill" style={{ fontSize: 18, opacity: 0.8 }} />
-                        {t('inventory.createVm.osWindows')}
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="Solaris">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <i className="ri-sun-line" style={{ fontSize: 18, opacity: 0.8 }} />
-                        {t('inventory.createVm.osSolaris')}
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="Other">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <i className="ri-question-line" style={{ fontSize: 18, opacity: 0.8 }} />
-                        {t('inventory.createVm.osOther')}
-                      </Box>
-                    </MenuItem>
-                  </Select>
-                </FormControl>
-                
-                <Box />
-                <FormControl fullWidth size="small">
-                  <InputLabel>{t('inventory.createVm.osVersion')}</InputLabel>
-                  <Select value={guestOsVersion} onChange={(e) => setGuestOsVersion(e.target.value)} label={t('inventory.createVm.osVersion')}>
-                    {guestOsType === 'Linux' && [
-                      <MenuItem key="l26" value="l26">6.x - 2.6 Kernel</MenuItem>,
-                      <MenuItem key="l24" value="l24">2.4 Kernel</MenuItem>,
-                    ]}
-                    {guestOsType === 'Windows' && [
-                      <MenuItem key="win11" value="win11">11/2022</MenuItem>,
-                      <MenuItem key="win10" value="win10">10/2016/2019</MenuItem>,
-                      <MenuItem key="win8" value="win8">8/2012</MenuItem>,
-                      <MenuItem key="win7" value="win7">7/2008r2</MenuItem>,
-                    ]}
-                    {guestOsType === 'Solaris' && <MenuItem value="solaris">Solaris Kernel</MenuItem>}
-                    {guestOsType === 'Other' && <MenuItem value="other">Other</MenuItem>}
-                  </Select>
-                </FormControl>
-              </>
-            )}
-            
-            {osMediaType === 'none' && (
-              <Typography variant="body2" color="text.secondary" sx={{ gridColumn: '1 / -1' }}>
-                {t('inventory.createVm.doNotUseMedia')}
-              </Typography>
-            )}
-          </Box>
-        )
+                </Box>
+
+                <Collapse in={osMediaType === 'iso'}>
+                  <Box sx={{ px: 2, pb: 2, pt: 0.5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>{t('inventory.createVm.storage')}</InputLabel>
+                      <Select value={isoStorage} onChange={(e) => setIsoStorage(e.target.value)} label={t('inventory.createVm.storage')}>
+                        {isoStoragesList.map(s => (
+                          <MenuItem key={s.id || s.storage} value={s.storage}>
+                            {s.storage} ({s.type}){!s.shared && s.node ? ` — ${s.node}` : ''}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>{t('inventory.createVm.isoImage')}</InputLabel>
+                      <Select value={isoImage} onChange={(e) => setIsoImage(e.target.value)} label={t('inventory.createVm.isoImage')}>
+                        {isoImages.length > 0 ? (
+                          isoImages.map((iso: any) => (
+                            <MenuItem key={iso.volid || iso.name} value={iso.name || iso.volid?.split('/').pop()}>
+                              {iso.name || iso.volid?.split('/').pop()}
+                            </MenuItem>
+                          ))
+                        ) : (
+                          <MenuItem value="" disabled>{t('common.noData')}</MenuItem>
+                        )}
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </Collapse>
+
+                {osMediaType === 'none' && (
+                  <Box sx={{ px: 2, pb: 2, display: 'flex', alignItems: 'center', gap: 1, opacity: 0.4 }}>
+                    <i className="ri-close-circle-line" style={{ fontSize: 16 }} />
+                    <Typography variant="body2" fontSize={12}>{t('inventory.createVm.doNotUseMedia')}</Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Guest OS type + version */}
+              <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <i className={guestOsType === 'Linux' ? 'ri-ubuntu-fill' : guestOsType === 'Windows' ? 'ri-windows-fill' : guestOsType === 'Solaris' ? 'ri-sun-line' : 'ri-question-line'} style={{ fontSize: 16, opacity: 0.6 }} />
+                  <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.guestOs')}</Typography>
+                </Box>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>{t('inventory.createVm.osType')}</InputLabel>
+                    <Select
+                      value={guestOsType}
+                      onChange={(e) => setGuestOsType(e.target.value)}
+                      label={t('inventory.createVm.osType')}
+                      renderValue={(val) => (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <i className={val === 'Linux' ? 'ri-ubuntu-fill' : val === 'Windows' ? 'ri-windows-fill' : val === 'Solaris' ? 'ri-sun-line' : 'ri-question-line'} style={{ fontSize: 18, opacity: 0.8 }} />
+                          {t(`inventory.createVm.os${val}`)}
+                        </Box>
+                      )}
+                    >
+                      <MenuItem value="Linux"><Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><i className="ri-ubuntu-fill" style={{ fontSize: 18, opacity: 0.8 }} />{t('inventory.createVm.osLinux')}</Box></MenuItem>
+                      <MenuItem value="Windows"><Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><i className="ri-windows-fill" style={{ fontSize: 18, opacity: 0.8 }} />{t('inventory.createVm.osWindows')}</Box></MenuItem>
+                      <MenuItem value="Solaris"><Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><i className="ri-sun-line" style={{ fontSize: 18, opacity: 0.8 }} />{t('inventory.createVm.osSolaris')}</Box></MenuItem>
+                      <MenuItem value="Other"><Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><i className="ri-question-line" style={{ fontSize: 18, opacity: 0.8 }} />{t('inventory.createVm.osOther')}</Box></MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>{t('inventory.createVm.osVersion')}</InputLabel>
+                    <Select value={guestOsVersion} onChange={(e) => setGuestOsVersion(e.target.value)} label={t('inventory.createVm.osVersion')}>
+                      {guestOsType === 'Linux' && [
+                        <MenuItem key="l26" value="l26">6.x - 2.6 Kernel</MenuItem>,
+                        <MenuItem key="l24" value="l24">2.4 Kernel</MenuItem>,
+                      ]}
+                      {guestOsType === 'Windows' && [
+                        <MenuItem key="win11" value="win11">11/2022</MenuItem>,
+                        <MenuItem key="win10" value="win10">10/2016/2019</MenuItem>,
+                        <MenuItem key="win8" value="win8">8/2012</MenuItem>,
+                        <MenuItem key="win7" value="win7">7/2008r2</MenuItem>,
+                      ]}
+                      {guestOsType === 'Solaris' && <MenuItem value="solaris">Solaris Kernel</MenuItem>}
+                      {guestOsType === 'Other' && <MenuItem value="other">Other</MenuItem>}
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Box>
+            </Stack>
+          )
+        }
 
       case 2: // System
         return (
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>{t('inventory.createVm.graphicCard')}</InputLabel>
-              <Select value={graphicCard} onChange={(e) => setGraphicCard(e.target.value)} label={t('inventory.createVm.graphicCard')}>
-                <MenuItem value="default">Default</MenuItem>
-                <MenuItem value="std">Standard VGA</MenuItem>
-                <MenuItem value="vmware">VMware compatible</MenuItem>
-                <MenuItem value="qxl">SPICE (qxl)</MenuItem>
-                <MenuItem value="virtio">VirtIO-GPU</MenuItem>
-                <MenuItem value="none">None</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl fullWidth size="small">
-              <InputLabel>{t('inventory.createVm.scsiController')}</InputLabel>
-              <Select value={scsiController} onChange={(e) => setScsiController(e.target.value)} label={t('inventory.createVm.scsiController')}>
-                <MenuItem value="virtio-scsi-single">VirtIO SCSI single</MenuItem>
-                <MenuItem value="virtio-scsi-pci">VirtIO SCSI</MenuItem>
-                <MenuItem value="lsi">LSI 53C895A</MenuItem>
-                <MenuItem value="lsi53c810">LSI 53C810</MenuItem>
-                <MenuItem value="megasas">MegaRAID SAS</MenuItem>
-                <MenuItem value="pvscsi">VMware PVSCSI</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl fullWidth size="small">
-              <InputLabel>{t('inventory.createVm.machine')}</InputLabel>
-              <Select value={machine} onChange={(e) => setMachine(e.target.value)} label={t('inventory.createVm.machine')}>
-                <MenuItem value="i440fx">Default (i440fx)</MenuItem>
-                <MenuItem value="q35">q35</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControlLabel 
-              control={<Switch checked={qemuAgent} onChange={(e) => setQemuAgent(e.target.checked)} size="small" />} 
-              label={t('inventory.createVm.qemuAgent')} 
-            />
-            <Typography variant="body2" sx={{ fontWeight: 600, mt: 1 }}>{t('inventory.createVm.firmware')}</Typography>
-            <Box />
-            <FormControl fullWidth size="small">
-              <InputLabel>BIOS</InputLabel>
-              <Select value={bios} onChange={(e) => setBios(e.target.value)} label="BIOS">
-                <MenuItem value="seabios">Default (SeaBIOS)</MenuItem>
-                <MenuItem value="ovmf">OVMF (UEFI)</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControlLabel 
-              control={<Switch checked={addTpm} onChange={(e) => setAddTpm(e.target.checked)} size="small" />} 
-              label={t('inventory.createVm.addTpm')} 
-            />
-          </Box>
+          <Stack spacing={1.5}>
+            {/* Hardware card */}
+            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                <i className="ri-cpu-line" style={{ fontSize: 16, opacity: 0.6 }} />
+                <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.hardware')}</Typography>
+              </Box>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('inventory.createVm.machine')}</InputLabel>
+                  <Select value={machine} onChange={(e) => setMachine(e.target.value)} label={t('inventory.createVm.machine')}>
+                    <MenuItem value="i440fx">Default (i440fx)</MenuItem>
+                    <MenuItem value="q35">q35</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('inventory.createVm.scsiController')}</InputLabel>
+                  <Select value={scsiController} onChange={(e) => setScsiController(e.target.value)} label={t('inventory.createVm.scsiController')}>
+                    <MenuItem value="virtio-scsi-single">VirtIO SCSI single</MenuItem>
+                    <MenuItem value="virtio-scsi-pci">VirtIO SCSI</MenuItem>
+                    <MenuItem value="lsi">LSI 53C895A</MenuItem>
+                    <MenuItem value="lsi53c810">LSI 53C810</MenuItem>
+                    <MenuItem value="megasas">MegaRAID SAS</MenuItem>
+                    <MenuItem value="pvscsi">VMware PVSCSI</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('inventory.createVm.graphicCard')}</InputLabel>
+                  <Select value={graphicCard} onChange={(e) => setGraphicCard(e.target.value)} label={t('inventory.createVm.graphicCard')}>
+                    <MenuItem value="default">Default</MenuItem>
+                    <MenuItem value="std">Standard VGA</MenuItem>
+                    <MenuItem value="vmware">VMware compatible</MenuItem>
+                    <MenuItem value="qxl">SPICE (qxl)</MenuItem>
+                    <MenuItem value="virtio">VirtIO-GPU</MenuItem>
+                    <MenuItem value="none">None</MenuItem>
+                  </Select>
+                </FormControl>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <FormControlLabel
+                    control={<Switch checked={qemuAgent} onChange={(e) => setQemuAgent(e.target.checked)} size="small" />}
+                    label={<Typography variant="body2" fontSize={12}>{t('inventory.createVm.qemuAgent')}</Typography>}
+                  />
+                </Box>
+              </Box>
+            </Box>
+
+            {/* Firmware card */}
+            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                <i className="ri-flashlight-line" style={{ fontSize: 16, opacity: 0.6 }} />
+                <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.firmware')}</Typography>
+              </Box>
+              {/* BIOS presets */}
+              <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5 }}>
+                {([
+                  { val: 'seabios', label: 'SeaBIOS (Legacy)', icon: 'ri-terminal-box-line' },
+                  { val: 'ovmf', label: 'OVMF (UEFI)', icon: 'ri-shield-check-line' },
+                ] as const).map(fw => (
+                  <Box
+                    key={fw.val}
+                    onClick={() => setBios(fw.val)}
+                    sx={{
+                      flex: 1, border: '1px solid', borderColor: bios === fw.val ? 'primary.main' : 'divider', borderRadius: 2,
+                      px: 1.5, py: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1,
+                      bgcolor: bios === fw.val ? alpha(theme.palette.primary.main, 0.06) : 'transparent',
+                      transition: 'all 0.15s',
+                      '&:hover': { borderColor: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.03) },
+                    }}
+                  >
+                    <i className={fw.icon} style={{ fontSize: 18, opacity: bios === fw.val ? 1 : 0.5 }} />
+                    <Typography variant="body2" fontSize={12} fontWeight={bios === fw.val ? 700 : 400}>{fw.label}</Typography>
+                  </Box>
+                ))}
+              </Box>
+              <FormControlLabel
+                control={<Switch checked={addTpm} onChange={(e) => setAddTpm(e.target.checked)} size="small" />}
+                label={<Typography variant="body2" fontSize={12}>{t('inventory.createVm.addTpm')}</Typography>}
+              />
+              {bios === 'ovmf' && (
+                <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.5 }}>
+                  {t('inventory.createVm.uefiHint')}
+                </Typography>
+              )}
+            </Box>
+          </Stack>
         )
 
       case 3: // Disks
         return (
-          <Box>
-            {disks.map((disk, diskIdx) => (
-              <Box key={diskIdx} sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
-                  <Chip label={`${disk.bus}${disk.index}`} variant="outlined" sx={{ fontFamily: 'monospace' }} />
-                  <Tabs value={0} sx={{ minHeight: 32, flex: 1, '& .MuiTab-root': { minHeight: 32, py: 0.5 } }}>
-                    <Tab label={t('inventory.createVm.disk')} />
-                    <Tab label={t('inventory.createVm.bandwidth')} disabled />
-                  </Tabs>
-                  {disks.length > 1 && (
-                    <Tooltip title="Remove disk">
-                      <IconButton size="small" onClick={() => removeDisk(diskIdx)} color="error">
-                        <i className="ri-delete-bin-line" style={{ fontSize: 18 }} />
-                      </IconButton>
-                    </Tooltip>
-                  )}
+          <Stack spacing={1.5}>
+            {disks.map((disk, diskIdx) => {
+              const isExpanded = expandedDisks.has(diskIdx)
+              const toggleExpand = () => setExpandedDisks(s => { const n = new Set(s); n.has(diskIdx) ? n.delete(diskIdx) : n.add(diskIdx); return n })
+              const storageName = diskStoragesList.find(s => s.storage === disk.storage)
+              return (
+                <Box key={diskIdx} sx={{ border: '1px solid', borderColor: isExpanded ? 'primary.main' : 'divider', borderRadius: 2, overflow: 'hidden', transition: 'border-color 0.2s' }}>
+                  {/* Compact header line */}
+                  <Box
+                    onClick={toggleExpand}
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', bgcolor: isExpanded ? alpha(theme.palette.primary.main, 0.04) : 'transparent', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.06) } }}
+                  >
+                    <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                    <Chip label={`${disk.bus}${disk.index}`} size="small" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, height: 24 }} />
+                    <Typography variant="body2" fontSize={12} sx={{ opacity: 0.6 }}>{disk.storage || '—'}{storageName ? ` (${storageName.type})` : ''}</Typography>
+                    <Typography variant="body2" fontSize={12} fontWeight={700}>{disk.size} GiB</Typography>
+                    <Typography variant="body2" fontSize={11} sx={{ opacity: 0.4 }}>{disk.format}</Typography>
+                    <Box sx={{ flex: 1 }} />
+                    {disks.length > 1 && (
+                      <Tooltip title="Remove disk">
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); removeDisk(diskIdx) }} color="error" sx={{ p: 0.5 }}>
+                          <i className="ri-delete-bin-line" style={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+
+                  {/* Expanded content */}
+                  <Collapse in={isExpanded}>
+                    <Box sx={{ px: 2, pb: 2, pt: 1 }}>
+                      {/* Essential fields */}
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1.5, mb: 2 }}>
+                        <FormControl size="small">
+                          <InputLabel>{t('inventory.createVm.busDevice')}</InputLabel>
+                          <Select value={disk.bus} onChange={(e) => updateDisk(diskIdx, { bus: e.target.value })} label={t('inventory.createVm.busDevice')}>
+                            <MenuItem value="scsi">SCSI</MenuItem>
+                            <MenuItem value="virtio">VirtIO Block</MenuItem>
+                            <MenuItem value="sata">SATA</MenuItem>
+                            <MenuItem value="ide">IDE</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <FormControl size="small">
+                          <InputLabel>{t('inventory.createVm.storage')}</InputLabel>
+                          <Select value={disk.storage} onChange={(e) => updateDisk(diskIdx, { storage: e.target.value })} label={t('inventory.createVm.storage')}>
+                            {diskStoragesList.map(s => (
+                              <MenuItem key={s.id || s.storage} value={s.storage}>
+                                {s.storage} ({s.type}){!s.shared && s.node ? ` — ${s.node}` : ''}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        <TextField
+                          label={t('inventory.createVm.diskSizeGib')}
+                          value={disk.size}
+                          onChange={(e) => updateDisk(diskIdx, { size: parseInt(e.target.value) || 0 })}
+                          size="small"
+                          type="number"
+                        />
+                      </Box>
+
+                      {diskIdx === 0 && (
+                        <Typography variant="caption" sx={{ display: 'block', opacity: 0.5, mb: 1.5 }}>{t('inventory.createVm.scsiControllerLabel', { controller: scsiController })} — {t('inventory.createVm.format', { format: disk.format })}</Typography>
+                      )}
+                      {diskIdx !== 0 && (
+                        <Typography variant="caption" sx={{ display: 'block', opacity: 0.5, mb: 1.5 }}>{t('inventory.createVm.format', { format: disk.format })}</Typography>
+                      )}
+
+                      {/* Advanced options */}
+                      <Typography variant="caption" fontWeight={700} sx={{ display: 'block', opacity: 0.5, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {t('inventory.createVm.advancedOptions')}
+                      </Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                        <FormControl size="small">
+                          <InputLabel>{t('inventory.createVm.cache')}</InputLabel>
+                          <Select value={disk.cache} onChange={(e) => updateDisk(diskIdx, { cache: e.target.value })} label={t('inventory.createVm.cache')}>
+                            <MenuItem value="none">{t('inventory.createVm.defaultNoCache')}</MenuItem>
+                            <MenuItem value="directsync">{t('inventory.createVm.directSync')}</MenuItem>
+                            <MenuItem value="writethrough">{t('inventory.createVm.writeThrough')}</MenuItem>
+                            <MenuItem value="writeback">{t('inventory.createVm.writeBack')}</MenuItem>
+                            <MenuItem value="unsafe">{t('inventory.createVm.writeBackUnsafe')}</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <Box />
+                      </Box>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
+                        <FormControlLabel control={<Switch checked={disk.discard} onChange={(e) => updateDisk(diskIdx, { discard: e.target.checked })} size="small" />} label={<Typography variant="body2" fontSize={12}>{t('inventory.createVm.discard')}</Typography>} />
+                        <FormControlLabel control={<Switch checked={disk.ioThread} onChange={(e) => updateDisk(diskIdx, { ioThread: e.target.checked })} size="small" />} label={<Typography variant="body2" fontSize={12}>{t('inventory.createVm.ioThread')}</Typography>} />
+                        <FormControlLabel control={<Switch checked={disk.ssd} onChange={(e) => updateDisk(diskIdx, { ssd: e.target.checked })} size="small" />} label={<Typography variant="body2" fontSize={12}>{t('inventory.createVm.ssdEmulation')}</Typography>} />
+                        <FormControlLabel control={<Switch checked={disk.backup} onChange={(e) => updateDisk(diskIdx, { backup: e.target.checked })} size="small" />} label={<Typography variant="body2" fontSize={12}>{t('inventory.createVm.backup')}</Typography>} />
+                      </Box>
+                    </Box>
+                  </Collapse>
                 </Box>
-
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="body2" sx={{ minWidth: 100 }}>{t('inventory.createVm.busDevice')}</Typography>
-                    <FormControl size="small" sx={{ minWidth: 100 }}>
-                      <Select value={disk.bus} onChange={(e) => updateDisk(diskIdx, { bus: e.target.value })}>
-                        <MenuItem value="scsi">SCSI</MenuItem>
-                        <MenuItem value="virtio">VirtIO Block</MenuItem>
-                        <MenuItem value="sata">SATA</MenuItem>
-                        <MenuItem value="ide">IDE</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <TextField size="small" value={disk.index} disabled sx={{ width: 60 }} />
-                  </Stack>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>{t('inventory.createVm.cache')}</InputLabel>
-                    <Select value={disk.cache} onChange={(e) => updateDisk(diskIdx, { cache: e.target.value })} label={t('inventory.createVm.cache')}>
-                      <MenuItem value="none">{t('inventory.createVm.defaultNoCache')}</MenuItem>
-                      <MenuItem value="directsync">{t('inventory.createVm.directSync')}</MenuItem>
-                      <MenuItem value="writethrough">{t('inventory.createVm.writeThrough')}</MenuItem>
-                      <MenuItem value="writeback">{t('inventory.createVm.writeBack')}</MenuItem>
-                      <MenuItem value="unsafe">{t('inventory.createVm.writeBackUnsafe')}</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  {diskIdx === 0 && (
-                    <Typography variant="body2">{t('inventory.createVm.scsiControllerLabel', { controller: scsiController })}</Typography>
-                  )}
-                  {diskIdx !== 0 && <Box />}
-                  <FormControlLabel
-                    control={<Switch checked={disk.discard} onChange={(e) => updateDisk(diskIdx, { discard: e.target.checked })} size="small" />}
-                    label={t('inventory.createVm.discard')}
-                  />
-
-                  <FormControl fullWidth size="small">
-                    <InputLabel>{t('inventory.createVm.storage')}</InputLabel>
-                    <Select value={disk.storage} onChange={(e) => updateDisk(diskIdx, { storage: e.target.value })} label={t('inventory.createVm.storage')}>
-                      {diskStoragesList.map(s => (
-                        <MenuItem key={s.id || s.storage} value={s.storage}>
-                          {s.storage} ({s.type}){!s.shared && s.node ? ` — ${s.node}` : ''}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControlLabel
-                    control={<Switch checked={disk.ioThread} onChange={(e) => updateDisk(diskIdx, { ioThread: e.target.checked })} size="small" />}
-                    label={t('inventory.createVm.ioThread')}
-                  />
-
-                  <TextField
-                    label={t('inventory.createVm.diskSizeGib')}
-                    value={disk.size}
-                    onChange={(e) => updateDisk(diskIdx, { size: parseInt(e.target.value) || 0 })}
-                    size="small"
-                    type="number"
-                  />
-                  <Box />
-
-                  <Typography variant="body2" sx={{ opacity: 0.7 }}>{t('inventory.createVm.format', { format: disk.format })}</Typography>
-                  <Box />
-
-                  <Divider sx={{ gridColumn: '1 / -1', my: 1 }} />
-
-                  <FormControlLabel
-                    control={<Switch checked={disk.ssd} onChange={(e) => updateDisk(diskIdx, { ssd: e.target.checked })} size="small" />}
-                    label={t('inventory.createVm.ssdEmulation')}
-                  />
-                  <FormControlLabel
-                    control={<Switch checked={disk.backup} onChange={(e) => updateDisk(diskIdx, { backup: e.target.checked })} size="small" />}
-                    label={t('inventory.createVm.backup')}
-                  />
-                </Box>
-                {diskIdx < disks.length - 1 && <Divider sx={{ mt: 3 }} />}
-              </Box>
-            ))}
+              )
+            })}
             <Button
               variant="outlined"
               size="small"
               startIcon={<i className="ri-add-line" />}
               onClick={addDisk}
-              sx={{ mt: 1 }}
+              sx={{ alignSelf: 'flex-start' }}
             >
               {t('inventory.createVm.addDisk') || 'Add Disk'}
             </Button>
-          </Box>
+          </Stack>
         )
 
       case 4: // CPU
-        return (
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            <TextField 
-              label={t('inventory.createVm.sockets')} 
-              value={cpuSockets} 
-              onChange={(e) => setCpuSockets(parseInt(e.target.value) || 1)} 
-              size="small" 
-              type="number"
-              inputProps={{ min: 1, max: 4 }}
-            />
-            <FormControl fullWidth size="small">
-              <InputLabel>{t('inventory.createVm.cpuType')}</InputLabel>
-              <Select value={cpuType} onChange={(e) => setCpuType(e.target.value)} label={t('inventory.createVm.cpuType')}>
-                <ListSubheader>Special</ListSubheader>
-                <MenuItem value="host">host</MenuItem>
-                <MenuItem value="max">max</MenuItem>
-                <MenuItem value="kvm64">kvm64</MenuItem>
-                <MenuItem value="kvm32">kvm32</MenuItem>
-                <MenuItem value="qemu64">qemu64</MenuItem>
-                <MenuItem value="qemu32">qemu32</MenuItem>
-                <ListSubheader>x86-64 Levels</ListSubheader>
-                <MenuItem value="x86-64-v2">x86-64-v2</MenuItem>
-                <MenuItem value="x86-64-v2-AES">x86-64-v2-AES (Recommended)</MenuItem>
-                <MenuItem value="x86-64-v3">x86-64-v3</MenuItem>
-                <MenuItem value="x86-64-v4">x86-64-v4</MenuItem>
-                <ListSubheader>Intel</ListSubheader>
-                <MenuItem value="Conroe">Conroe</MenuItem>
-                <MenuItem value="Penryn">Penryn</MenuItem>
-                <MenuItem value="Nehalem">Nehalem</MenuItem>
-                <MenuItem value="Westmere">Westmere</MenuItem>
-                <MenuItem value="SandyBridge">SandyBridge</MenuItem>
-                <MenuItem value="IvyBridge">IvyBridge</MenuItem>
-                <MenuItem value="Haswell">Haswell</MenuItem>
-                <MenuItem value="Broadwell">Broadwell</MenuItem>
-                <MenuItem value="Skylake-Client">Skylake-Client</MenuItem>
-                <MenuItem value="Skylake-Server">Skylake-Server</MenuItem>
-                <MenuItem value="Cascadelake-Server">Cascadelake-Server</MenuItem>
-                <MenuItem value="Cooperlake">Cooperlake</MenuItem>
-                <MenuItem value="Icelake-Server">Icelake-Server</MenuItem>
-                <MenuItem value="SapphireRapids">SapphireRapids</MenuItem>
-                <MenuItem value="GraniteRapids">GraniteRapids</MenuItem>
-                <ListSubheader>AMD</ListSubheader>
-                <MenuItem value="Opteron_G5">Opteron G5</MenuItem>
-                <MenuItem value="EPYC">EPYC</MenuItem>
-                <MenuItem value="EPYC-Rome">EPYC-Rome</MenuItem>
-                <MenuItem value="EPYC-Milan">EPYC-Milan</MenuItem>
-                <MenuItem value="EPYC-Genoa">EPYC-Genoa</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <TextField 
-              label={t('inventory.createVm.cores')} 
-              value={cpuCores} 
-              onChange={(e) => setCpuCores(parseInt(e.target.value) || 1)} 
-              size="small" 
-              type="number"
-              inputProps={{ min: 1, max: 128 }}
-            />
-            <Typography variant="body2" sx={{ alignSelf: 'center' }}>
-              {t('inventory.createVm.totalCores', { count: cpuSockets * cpuCores })}
-            </Typography>
-            
-            <Divider sx={{ gridColumn: '1 / -1', my: 1 }} />
-            
-            <TextField 
-              label={t('inventory.createVm.vcpus')} 
-              value={cpuSockets * cpuCores} 
-              size="small" 
-              disabled
-            />
-            <TextField 
-              label={t('inventory.createVm.cpuUnits')} 
-              value={cpuUnits} 
-              onChange={(e) => setCpuUnits(parseInt(e.target.value) || 100)} 
-              size="small" 
-              type="number"
-            />
-            
-            <TextField 
-              label={t('inventory.createVm.cpuLimit')} 
-              value={cpuLimit === 0 ? 'unlimited' : cpuLimit} 
-              onChange={(e) => setCpuLimit(e.target.value === 'unlimited' ? 0 : parseFloat(e.target.value) || 0)} 
-              size="small" 
-              placeholder="unlimited"
-            />
-            <FormControlLabel 
-              control={<Switch checked={enableNuma} onChange={(e) => setEnableNuma(e.target.checked)} size="small" />} 
-              label={t('inventory.createVm.enableNuma')} 
-            />
-          </Box>
-        )
+        {
+          const totalVcpus = cpuSockets * cpuCores
+          const cpuPresets = [1, 2, 4, 8, 16, 32]
+          return (
+            <Stack spacing={2}>
+              {/* Quick presets */}
+              <Box>
+                <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>{t('inventory.createVm.totalCores', { count: totalVcpus })}</Typography>
+                <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+                  {cpuPresets.map(v => (
+                    <Chip
+                      key={v}
+                      label={`${v} vCPU`}
+                      size="small"
+                      variant={totalVcpus === v ? 'filled' : 'outlined'}
+                      color={totalVcpus === v ? 'primary' : 'default'}
+                      onClick={() => { setCpuSockets(1); setCpuCores(v) }}
+                      sx={{ fontWeight: totalVcpus === v ? 700 : 400, cursor: 'pointer' }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+
+              {/* Sockets × Cores + Type */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                <TextField
+                  label={t('inventory.createVm.sockets')}
+                  value={cpuSockets}
+                  onChange={(e) => setCpuSockets(parseInt(e.target.value) || 1)}
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 1, max: 4 }}
+                />
+                <TextField
+                  label={t('inventory.createVm.cores')}
+                  value={cpuCores}
+                  onChange={(e) => setCpuCores(parseInt(e.target.value) || 1)}
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 1, max: 128 }}
+                />
+                <FormControl fullWidth size="small" sx={{ gridColumn: '1 / -1' }}>
+                  <InputLabel>{t('inventory.createVm.cpuType')}</InputLabel>
+                  <Select value={cpuType} onChange={(e) => setCpuType(e.target.value)} label={t('inventory.createVm.cpuType')}>
+                    <ListSubheader>Special</ListSubheader>
+                    <MenuItem value="host">host</MenuItem>
+                    <MenuItem value="max">max</MenuItem>
+                    <MenuItem value="kvm64">kvm64</MenuItem>
+                    <MenuItem value="kvm32">kvm32</MenuItem>
+                    <MenuItem value="qemu64">qemu64</MenuItem>
+                    <MenuItem value="qemu32">qemu32</MenuItem>
+                    <ListSubheader>x86-64 Levels</ListSubheader>
+                    <MenuItem value="x86-64-v2">x86-64-v2</MenuItem>
+                    <MenuItem value="x86-64-v2-AES">x86-64-v2-AES (Recommended)</MenuItem>
+                    <MenuItem value="x86-64-v3">x86-64-v3</MenuItem>
+                    <MenuItem value="x86-64-v4">x86-64-v4</MenuItem>
+                    <ListSubheader>Intel</ListSubheader>
+                    <MenuItem value="Conroe">Conroe</MenuItem>
+                    <MenuItem value="Penryn">Penryn</MenuItem>
+                    <MenuItem value="Nehalem">Nehalem</MenuItem>
+                    <MenuItem value="Westmere">Westmere</MenuItem>
+                    <MenuItem value="SandyBridge">SandyBridge</MenuItem>
+                    <MenuItem value="IvyBridge">IvyBridge</MenuItem>
+                    <MenuItem value="Haswell">Haswell</MenuItem>
+                    <MenuItem value="Broadwell">Broadwell</MenuItem>
+                    <MenuItem value="Skylake-Client">Skylake-Client</MenuItem>
+                    <MenuItem value="Skylake-Server">Skylake-Server</MenuItem>
+                    <MenuItem value="Cascadelake-Server">Cascadelake-Server</MenuItem>
+                    <MenuItem value="Cooperlake">Cooperlake</MenuItem>
+                    <MenuItem value="Icelake-Server">Icelake-Server</MenuItem>
+                    <MenuItem value="SapphireRapids">SapphireRapids</MenuItem>
+                    <MenuItem value="GraniteRapids">GraniteRapids</MenuItem>
+                    <ListSubheader>AMD</ListSubheader>
+                    <MenuItem value="Opteron_G5">Opteron G5</MenuItem>
+                    <MenuItem value="EPYC">EPYC</MenuItem>
+                    <MenuItem value="EPYC-Rome">EPYC-Rome</MenuItem>
+                    <MenuItem value="EPYC-Milan">EPYC-Milan</MenuItem>
+                    <MenuItem value="EPYC-Genoa">EPYC-Genoa</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Advanced — collapsible */}
+              <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+                <Box
+                  onClick={() => setCpuAdvancedExpanded(v => !v)}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
+                >
+                  <i className={cpuAdvancedExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                  <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.advancedOptions')}</Typography>
+                </Box>
+                <Collapse in={cpuAdvancedExpanded}>
+                  <Box sx={{ px: 2, pb: 2, pt: 0.5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                    <TextField
+                      label={t('inventory.createVm.vcpus')}
+                      value={totalVcpus}
+                      size="small"
+                      disabled
+                    />
+                    <TextField
+                      label={t('inventory.createVm.cpuUnits')}
+                      value={cpuUnits}
+                      onChange={(e) => setCpuUnits(parseInt(e.target.value) || 100)}
+                      size="small"
+                      type="number"
+                    />
+                    <TextField
+                      label={t('inventory.createVm.cpuLimit')}
+                      value={cpuLimit === 0 ? 'unlimited' : cpuLimit}
+                      onChange={(e) => setCpuLimit(e.target.value === 'unlimited' ? 0 : parseFloat(e.target.value) || 0)}
+                      size="small"
+                      placeholder="unlimited"
+                    />
+                    <FormControlLabel
+                      control={<Switch checked={enableNuma} onChange={(e) => setEnableNuma(e.target.checked)} size="small" />}
+                      label={t('inventory.createVm.enableNuma')}
+                    />
+                  </Box>
+                </Collapse>
+              </Box>
+            </Stack>
+          )
+        }
 
       case 5: // Memory
         {
@@ -1258,11 +1425,29 @@ return
           const formatGib = (mib: number) => mib >= 1024 ? `${(mib / 1024).toFixed(mib % 1024 === 0 ? 0 : 1)} GiB` : `${mib} MiB`
 
           return (
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-              <Box sx={{ gridColumn: '1 / -1', px: 1 }}>
-                <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 600 }}>
+            <Stack spacing={2}>
+              {/* Label + presets on same line */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                   {t('inventory.createVm.memoryMib')}: {formatGib(memorySize)}
                 </Typography>
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  {[512, 1024, 2048, 4096, 8192, 16384, 32768].map(v => (
+                    <Chip
+                      key={v}
+                      label={formatGib(v)}
+                      size="small"
+                      variant={memorySize === v ? 'filled' : 'outlined'}
+                      color={memorySize === v ? 'primary' : 'default'}
+                      onClick={() => setMemorySize(v)}
+                      sx={{ fontWeight: memorySize === v ? 700 : 400, cursor: 'pointer', height: 24, fontSize: 11 }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+
+              {/* Slider */}
+              <Box sx={{ px: 1 }}>
                 <Slider
                   value={memoryToSlider(memorySize)}
                   min={0}
@@ -1275,6 +1460,7 @@ return
                   sx={{ '& .MuiSlider-markLabel': { fontSize: '0.65rem' } }}
                 />
               </Box>
+
               <TextField
                 label={t('inventory.createVm.memoryMib')}
                 value={memorySize}
@@ -1282,147 +1468,261 @@ return
                 size="small"
                 type="number"
                 inputProps={{ min: 128, step: 128 }}
+                sx={{ maxWidth: 200 }}
               />
-              <Box />
 
-              <TextField
-                label={t('inventory.createVm.minMemoryMib')}
-                value={minMemory}
-                onChange={(e) => setMinMemory(parseInt(e.target.value) || 512)}
-                size="small"
-                type="number"
-                inputProps={{ min: 128, step: 128 }}
-                disabled={!ballooning}
-              />
-              <Box />
-
-              <Typography variant="body2" sx={{ opacity: 0.7 }}>{t('inventory.createVm.sharesDefault')}</Typography>
-              <Box />
-
-              <FormControlLabel
-                control={<Switch checked={ballooning} onChange={(e) => setBallooning(e.target.checked)} size="small" />}
-                label={t('inventory.createVm.ballooningDevice')}
-              />
-            </Box>
+              {/* Advanced — collapsible */}
+              <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+                <Box
+                  onClick={() => setMemAdvancedExpanded(v => !v)}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
+                >
+                  <i className={memAdvancedExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                  <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.advancedOptions')}</Typography>
+                  <Box sx={{ flex: 1 }} />
+                  {ballooning && <Chip label={t('inventory.createVm.ballooningDevice')} size="small" variant="outlined" sx={{ fontSize: 10, height: 20 }} />}
+                </Box>
+                <Collapse in={memAdvancedExpanded}>
+                  <Box sx={{ px: 2, pb: 2, pt: 0.5, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                    <FormControlLabel
+                      control={<Switch checked={ballooning} onChange={(e) => setBallooning(e.target.checked)} size="small" />}
+                      label={t('inventory.createVm.ballooningDevice')}
+                      sx={{ gridColumn: '1 / -1' }}
+                    />
+                    <TextField
+                      label={t('inventory.createVm.minMemoryMib')}
+                      value={minMemory}
+                      onChange={(e) => setMinMemory(parseInt(e.target.value) || 512)}
+                      size="small"
+                      type="number"
+                      inputProps={{ min: 128, step: 128 }}
+                      disabled={!ballooning}
+                    />
+                    <Typography variant="body2" sx={{ opacity: 0.7, alignSelf: 'center' }}>{t('inventory.createVm.sharesDefault')}</Typography>
+                  </Box>
+                </Collapse>
+              </Box>
+            </Stack>
           )
         }
 
       case 6: // Network
         return (
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            <FormControlLabel 
-              control={<Switch checked={noNetwork} onChange={(e) => setNoNetwork(e.target.checked)} size="small" />} 
-              label={t('inventory.createVm.noNetworkDevice')} 
-              sx={{ gridColumn: '1 / -1' }}
+          <Stack spacing={1.5}>
+            <FormControlLabel
+              control={<Switch checked={noNetwork} onChange={(e) => setNoNetwork(e.target.checked)} size="small" />}
+              label={t('inventory.createVm.noNetworkDevice')}
             />
-            
-            {!noNetwork && (
-              <>
-                <FormControl fullWidth size="small">
-                  <InputLabel>{t('inventory.createVm.bridge')}</InputLabel>
-                  <Select value={networkBridge} onChange={(e) => setNetworkBridge(e.target.value)} label={t('inventory.createVm.bridge')}>
-                    {bridges.length > 0 ? (
-                      bridges.map((b: any) => (
-                        <MenuItem key={b.iface} value={b.iface}>
-                          {b.iface}{b.type === 'OVSBridge' ? ' (OVS)' : ''}{b.comments ? ` — ${b.comments}` : ''}{b.cidr ? ` (${b.cidr})` : ''}
-                        </MenuItem>
-                      ))
-                    ) : (
-                      <MenuItem value={networkBridge}>{networkBridge}</MenuItem>
+
+            {!noNetwork && nics.map((nic, nicIdx) => {
+              const isExpanded = expandedNics.has(nicIdx)
+              const toggleExpand = () => setExpandedNics(s => { const n = new Set(s); n.has(nicIdx) ? n.delete(nicIdx) : n.add(nicIdx); return n })
+              return (
+                <Box key={nicIdx} sx={{ border: '1px solid', borderColor: isExpanded ? 'primary.main' : 'divider', borderRadius: 2, overflow: 'hidden', transition: 'border-color 0.2s' }}>
+                  {/* Compact header */}
+                  <Box
+                    onClick={toggleExpand}
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', bgcolor: isExpanded ? alpha(theme.palette.primary.main, 0.04) : 'transparent', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.06) } }}
+                  >
+                    <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                    <Chip label={`net${nicIdx}`} size="small" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, height: 24 }} />
+                    <Typography variant="body2" fontSize={12} fontWeight={700}>{nic.bridge}</Typography>
+                    <Typography variant="body2" fontSize={12} sx={{ opacity: 0.6 }}>{nic.model === 'virtio' ? 'VirtIO' : nic.model}</Typography>
+                    {nic.vlanTag && <Chip label={`VLAN ${nic.vlanTag}`} size="small" variant="outlined" sx={{ fontSize: 10, height: 20 }} />}
+                    {nic.firewall && <Chip label="FW" size="small" color="success" variant="outlined" sx={{ fontSize: 10, height: 20 }} />}
+                    <Box sx={{ flex: 1 }} />
+                    {nics.length > 1 && (
+                      <Tooltip title="Remove NIC">
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); removeNic(nicIdx) }} color="error" sx={{ p: 0.5 }}>
+                          <i className="ri-delete-bin-line" style={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
                     )}
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth size="small">
-                  <InputLabel>{t('inventory.createVm.model')}</InputLabel>
-                  <Select value={networkModel} onChange={(e) => setNetworkModel(e.target.value)} label={t('inventory.createVm.model')}>
-                    <MenuItem value="virtio">VirtIO (paravirtualized)</MenuItem>
-                    <MenuItem value="e1000">Intel E1000</MenuItem>
-                    <MenuItem value="rtl8139">Realtek RTL8139</MenuItem>
-                    <MenuItem value="vmxnet3">VMware vmxnet3</MenuItem>
-                  </Select>
-                </FormControl>
-                
-                <TextField 
-                  label={t('inventory.createVm.vlanTag')} 
-                  value={vlanTag} 
-                  onChange={(e) => setVlanTag(e.target.value)} 
-                  size="small"
-                  placeholder="no VLAN"
-                />
-                <TextField 
-                  label={t('inventory.createVm.macAddress')} 
-                  value={macAddress} 
-                  onChange={(e) => setMacAddress(e.target.value)} 
-                  size="small"
-                  placeholder="auto"
-                />
-                
-                <FormControlLabel 
-                  control={<Switch checked={firewall} onChange={(e) => setFirewall(e.target.checked)} size="small" />} 
-                  label={t('inventory.createVm.firewall')} 
-                />
-                <Box />
-                
-                <Divider sx={{ gridColumn: '1 / -1', my: 1 }} />
-                
-                <FormControlLabel 
-                  control={<Switch checked={networkDisconnect} onChange={(e) => setNetworkDisconnect(e.target.checked)} size="small" />} 
-                  label={t('inventory.createVm.disconnect')} 
-                />
-                <TextField 
-                  label={t('inventory.createVm.rateLimitMbs')} 
-                  value={rateLimit} 
-                  onChange={(e) => setRateLimit(e.target.value)} 
-                  size="small"
-                  placeholder="unlimited"
-                />
-                
-                <TextField 
-                  label={t('inventory.createVm.mtu')} 
-                  value={mtu} 
-                  onChange={(e) => setMtu(e.target.value)} 
-                  size="small"
-                  placeholder="1500 (1 = bridge MTU)"
-                />
-              </>
+                  </Box>
+
+                  {/* Expanded content */}
+                  <Collapse in={isExpanded}>
+                    <Box sx={{ px: 2, pb: 2, pt: 1 }}>
+                      {/* Essential fields */}
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mb: 2 }}>
+                        <FormControl size="small">
+                          <InputLabel>{t('inventory.createVm.bridge')}</InputLabel>
+                          <Select value={nic.bridge} onChange={(e) => updateNic(nicIdx, { bridge: e.target.value })} label={t('inventory.createVm.bridge')}>
+                            {bridges.length > 0 ? (
+                              bridges.map((b: any) => (
+                                <MenuItem key={b.iface} value={b.iface}>
+                                  {b.iface}{b.type === 'OVSBridge' ? ' (OVS)' : ''}{b.comments ? ` — ${b.comments}` : ''}{b.cidr ? ` (${b.cidr})` : ''}
+                                </MenuItem>
+                              ))
+                            ) : (
+                              <MenuItem value={nic.bridge}>{nic.bridge}</MenuItem>
+                            )}
+                          </Select>
+                        </FormControl>
+                        <FormControl size="small">
+                          <InputLabel>{t('inventory.createVm.model')}</InputLabel>
+                          <Select value={nic.model} onChange={(e) => updateNic(nicIdx, { model: e.target.value })} label={t('inventory.createVm.model')}>
+                            <MenuItem value="virtio">VirtIO (paravirtualized)</MenuItem>
+                            <MenuItem value="e1000">Intel E1000</MenuItem>
+                            <MenuItem value="rtl8139">Realtek RTL8139</MenuItem>
+                            <MenuItem value="vmxnet3">VMware vmxnet3</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <TextField
+                          label={t('inventory.createVm.vlanTag')}
+                          value={nic.vlanTag}
+                          onChange={(e) => updateNic(nicIdx, { vlanTag: e.target.value })}
+                          size="small"
+                          placeholder="no VLAN"
+                        />
+                        <TextField
+                          label={t('inventory.createVm.macAddress')}
+                          value={nic.macAddress}
+                          onChange={(e) => updateNic(nicIdx, { macAddress: e.target.value })}
+                          size="small"
+                          placeholder="auto"
+                        />
+                      </Box>
+
+                      {/* Advanced options */}
+                      <Typography variant="caption" fontWeight={700} sx={{ display: 'block', opacity: 0.5, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {t('inventory.createVm.advancedOptions')}
+                      </Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                        <TextField
+                          label={t('inventory.createVm.rateLimitMbs')}
+                          value={nic.rateLimit}
+                          onChange={(e) => updateNic(nicIdx, { rateLimit: e.target.value })}
+                          size="small"
+                          placeholder="unlimited"
+                        />
+                        <TextField
+                          label={t('inventory.createVm.mtu')}
+                          value={nic.mtu}
+                          onChange={(e) => updateNic(nicIdx, { mtu: e.target.value })}
+                          size="small"
+                          placeholder="1500 (1 = bridge MTU)"
+                        />
+                      </Box>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
+                        <FormControlLabel control={<Switch checked={nic.firewall} onChange={(e) => updateNic(nicIdx, { firewall: e.target.checked })} size="small" />} label={<Typography variant="body2" fontSize={12}>{t('inventory.createVm.firewall')}</Typography>} />
+                        <FormControlLabel control={<Switch checked={nic.disconnect} onChange={(e) => updateNic(nicIdx, { disconnect: e.target.checked })} size="small" />} label={<Typography variant="body2" fontSize={12}>{t('inventory.createVm.disconnect')}</Typography>} />
+                      </Box>
+                    </Box>
+                  </Collapse>
+                </Box>
+              )
+            })}
+
+            {!noNetwork && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<i className="ri-add-line" />}
+                onClick={addNic}
+                sx={{ alignSelf: 'flex-start' }}
+              >
+                {t('inventory.createVm.addNic') || 'Add NIC'}
+              </Button>
             )}
-          </Box>
+          </Stack>
         )
 
       case 7: // Confirm
-        return (
-          <Box>
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Review your settings before creating the VM
-            </Alert>
-            <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 1, fontFamily: 'monospace', fontSize: '0.85rem' }}>
-              <Typography variant="body2"><b>Node:</b> {resolvedNode}</Typography>
-              <Typography variant="body2"><b>VM ID:</b> {vmid}</Typography>
-              <Typography variant="body2"><b>Name:</b> {vmName}</Typography>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="body2"><b>OS:</b> {guestOsType} {guestOsVersion}</Typography>
-              {osMediaType === 'iso' && <Typography variant="body2"><b>ISO:</b> {isoStorage}:iso/{isoImage}</Typography>}
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="body2"><b>Machine:</b> {machine} / {bios}</Typography>
-              <Typography variant="body2"><b>SCSI:</b> {scsiController}</Typography>
-              <Divider sx={{ my: 1 }} />
-              {disks.map((disk, i) => (
-                <Typography key={i} variant="body2"><b>Disk {disk.bus}{disk.index}:</b> {disk.storage}:{disk.size}GB</Typography>
-              ))}
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="body2"><b>CPU:</b> {cpuSockets} socket(s) × {cpuCores} core(s) = {cpuSockets * cpuCores} vCPU(s), type={cpuType}</Typography>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="body2"><b>Memory:</b> {memorySize} MiB {ballooning ? `(balloon min: ${minMemory} MiB)` : ''}</Typography>
-              <Divider sx={{ my: 1 }} />
-              {!noNetwork ? (
-                <Typography variant="body2"><b>Network:</b> {networkModel} on {networkBridge}{vlanTag ? ` (VLAN ${vlanTag})` : ''}</Typography>
-              ) : (
-                <Typography variant="body2"><b>Network:</b> None</Typography>
-              )}
+        {
+          const formatGibConfirm = (mib: number) => mib >= 1024 ? `${(mib / 1024).toFixed(mib % 1024 === 0 ? 0 : 1)} GiB` : `${mib} MiB`
+          const confirmCard = (icon: string, title: string, items: React.ReactNode) => (
+            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                <i className={icon} style={{ fontSize: 16, opacity: 0.6 }} />
+                <Typography variant="body2" fontWeight={700} fontSize={12} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.6 }}>{title}</Typography>
+              </Box>
+              {items}
             </Box>
-          </Box>
-        )
+          )
+          return (
+            <Box>
+              {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+              <Alert severity="info" sx={{ mb: 2 }}>
+                {t('inventory.createVm.reviewSettingsVm')}
+              </Alert>
+              <Stack spacing={1.5}>
+                {/* General */}
+                {confirmCard('ri-server-line', 'General', (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    <Chip label={`Node: ${resolvedNode}`} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+                    <Chip label={`ID: ${vmid}`} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+                    {vmName && <Chip label={vmName} size="small" color="primary" sx={{ fontSize: 11 }} />}
+                  </Box>
+                ))}
+
+                {/* OS */}
+                {confirmCard('ri-disc-line', 'OS', (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    <Chip icon={<i className={guestOsType === 'Linux' ? 'ri-ubuntu-fill' : guestOsType === 'Windows' ? 'ri-windows-fill' : 'ri-question-line'} />} label={`${guestOsType} ${guestOsVersion}`} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+                    {osMediaType === 'iso' && isoImage && <Chip label={isoImage} size="small" variant="outlined" sx={{ fontSize: 11 }} />}
+                  </Box>
+                ))}
+
+                {/* System */}
+                {confirmCard('ri-settings-3-line', 'System', (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    <Chip label={`${machine} / ${bios}`} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+                    <Chip label={scsiController} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+                    {qemuAgent && <Chip label="QEMU Agent" size="small" color="info" variant="outlined" sx={{ fontSize: 11 }} />}
+                  </Box>
+                ))}
+
+                {/* Disks */}
+                {confirmCard('ri-hard-drive-3-line', `${t('inventory.createVm.tabs.disks')} (${disks.length})`, (
+                  <Stack spacing={0.5}>
+                    {disks.map((disk, i) => (
+                      <Box key={i} sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
+                        <Chip label={`${disk.bus}${disk.index}`} size="small" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700, height: 22 }} />
+                        <Typography variant="body2" fontSize={12}>{disk.storage} — {disk.size} GiB — {disk.format}</Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                ))}
+
+                {/* CPU + Memory side by side */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                  {confirmCard('ri-cpu-line', 'CPU', (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                      <Chip label={`${cpuSockets * cpuCores} vCPU`} size="small" color="primary" sx={{ fontSize: 11, fontWeight: 700 }} />
+                      <Chip label={cpuType} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+                      <Chip label={`${cpuSockets}s × ${cpuCores}c`} size="small" variant="outlined" sx={{ fontSize: 11 }} />
+                    </Box>
+                  ))}
+                  {confirmCard('ri-ram-line', t('inventory.createVm.tabs.memory'), (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                      <Chip label={formatGibConfirm(memorySize)} size="small" color="primary" sx={{ fontSize: 11, fontWeight: 700 }} />
+                      {ballooning && <Chip label={`Balloon: ${formatGibConfirm(minMemory)}`} size="small" variant="outlined" sx={{ fontSize: 11 }} />}
+                    </Box>
+                  ))}
+                </Box>
+
+                {/* Network */}
+                {confirmCard('ri-global-line', `${t('inventory.createVm.tabs.network')} (${noNetwork ? 0 : nics.length})`, (
+                  noNetwork ? (
+                    <Typography variant="body2" fontSize={12} sx={{ opacity: 0.5 }}>No network</Typography>
+                  ) : (
+                    <Stack spacing={0.5}>
+                      {nics.map((nic, i) => (
+                        <Box key={i} sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
+                          <Chip label={`net${i}`} size="small" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700, height: 22 }} />
+                          <Typography variant="body2" fontSize={12}>{nic.model === 'virtio' ? 'VirtIO' : nic.model} on {nic.bridge}</Typography>
+                          {nic.vlanTag && <Chip label={`VLAN ${nic.vlanTag}`} size="small" variant="outlined" sx={{ fontSize: 10, height: 20 }} />}
+                          {nic.firewall && <Chip label="FW" size="small" color="success" variant="outlined" sx={{ fontSize: 10, height: 20 }} />}
+                        </Box>
+                      ))}
+                    </Stack>
+                  )
+                ))}
+              </Stack>
+            </Box>
+          )
+        }
 
       default:
         return null
