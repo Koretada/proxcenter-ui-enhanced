@@ -227,6 +227,8 @@ function ConnectionsTab() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isOnboarding = searchParams.get('onboarding') === 'true'
+  const { hasFeature } = useLicense()
+  const migrationAvailable = hasFeature(Features.VMWARE_MIGRATION)
   const [connTab, setConnTab] = useState(0)
 
   // Hook for data fetching
@@ -818,39 +820,67 @@ function ConnectionsTab() {
             }
           />
           <Tab
+            disabled={!migrationAvailable}
             label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <img src='/images/esxi-logo.svg' alt='' width={18} height={18} />
-                <span>VMware ESXi</span>
-                <Chip size='small' label={vmwareConnections.length} sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#638C1C', color: '#fff' }} />
-              </Box>
+              <Tooltip title={!migrationAvailable ? 'Enterprise' : ''} placement='top'>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: migrationAvailable ? 1 : 0.4 }}>
+                  <img src='/images/esxi-logo.svg' alt='' width={18} height={18} />
+                  <span>VMware ESXi</span>
+                  {migrationAvailable ? (
+                    <Chip size='small' label={vmwareConnections.length} sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#638C1C', color: '#fff' }} />
+                  ) : (
+                    <i className='ri-lock-line' style={{ fontSize: 14, opacity: 0.5 }} />
+                  )}
+                </Box>
+              </Tooltip>
             }
           />
           <Tab
+            disabled={!migrationAvailable}
             label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <img src='/images/xcpng-logo.svg' alt='' width={18} height={18} />
-                <span>XCP-ng</span>
-                <Chip size='small' label={xcpngConnections.length} sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#00ADB5', color: '#fff' }} />
-              </Box>
+              <Tooltip title={!migrationAvailable ? 'Enterprise' : ''} placement='top'>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: migrationAvailable ? 1 : 0.4 }}>
+                  <img src='/images/xcpng-logo.svg' alt='' width={18} height={18} />
+                  <span>XCP-ng</span>
+                  {migrationAvailable ? (
+                    <Chip size='small' label={xcpngConnections.length} sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#00ADB5', color: '#fff' }} />
+                  ) : (
+                    <i className='ri-lock-line' style={{ fontSize: 14, opacity: 0.5 }} />
+                  )}
+                </Box>
+              </Tooltip>
             }
           />
           <Tab
+            disabled={!migrationAvailable}
             label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <img src='/images/nutanix-logo.svg' alt='' width={18} height={18} />
-                <span>Nutanix</span>
-                <Chip size='small' label='Soon' sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#00B9E6', color: '#fff' }} />
-              </Box>
+              <Tooltip title={!migrationAvailable ? 'Enterprise' : ''} placement='top'>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: migrationAvailable ? 1 : 0.4 }}>
+                  <img src='/images/nutanix-logo.svg' alt='' width={18} height={18} />
+                  <span>Nutanix</span>
+                  {migrationAvailable ? (
+                    <Chip size='small' label='Soon' sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#00B9E6', color: '#fff' }} />
+                  ) : (
+                    <i className='ri-lock-line' style={{ fontSize: 14, opacity: 0.5 }} />
+                  )}
+                </Box>
+              </Tooltip>
             }
           />
           <Tab
+            disabled={!migrationAvailable}
             label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <img src='/images/hyperv-logo.svg' alt='' width={18} height={18} />
-                <span>Microsoft Hyper-V</span>
-                <Chip size='small' label='Soon' sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#00B9E6', color: '#fff' }} />
-              </Box>
+              <Tooltip title={!migrationAvailable ? 'Enterprise' : ''} placement='top'>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: migrationAvailable ? 1 : 0.4 }}>
+                  <img src='/images/hyperv-logo.svg' alt='' width={18} height={18} />
+                  <span>Microsoft Hyper-V</span>
+                  {migrationAvailable ? (
+                    <Chip size='small' label='Soon' sx={{ height: 18, fontSize: 10, ml: 0.5, bgcolor: '#00B9E6', color: '#fff' }} />
+                  ) : (
+                    <i className='ri-lock-line' style={{ fontSize: 14, opacity: 0.5 }} />
+                  )}
+                </Box>
+              </Tooltip>
             }
           />
         </Tabs>
