@@ -156,6 +156,7 @@ export default function VmDetailTabs(props: any) {
     navigateToBreadcrumb,
     navigateToFolder,
     navigateUp,
+    numaEnabled,
     newSnapshotDesc,
     newSnapshotName,
     newSnapshotRam,
@@ -231,6 +232,7 @@ export default function VmDetailTabs(props: any) {
     setNewSnapshotName,
     setNewSnapshotRam,
     setNotesEditing,
+    setNumaEnabled,
     setReplicationComment,
     setReplicationLoaded,
     setReplicationRateLimit,
@@ -756,17 +758,28 @@ export default function VmDetailTabs(props: any) {
                             </Select>
                           </FormControl>
 
-                          {/* CPU Limit (optionnel) */}
+                          {/* CPU Limit + NUMA toggles */}
                           <Box sx={{ mb: 2 }}>
-                            <FormControlLabel
-                              control={
-                                <Switch
-                                  checked={cpuLimitEnabled}
-                                  onChange={(e) => setCpuLimitEnabled(e.target.checked)}
-                                />
-                              }
-                              label={t('inventory.limitCpuUsage')}
-                            />
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                              <FormControlLabel
+                                control={
+                                  <Switch
+                                    checked={cpuLimitEnabled}
+                                    onChange={(e) => setCpuLimitEnabled(e.target.checked)}
+                                  />
+                                }
+                                label={t('inventory.limitCpuUsage')}
+                              />
+                              <FormControlLabel
+                                control={
+                                  <Switch
+                                    checked={numaEnabled}
+                                    onChange={(e) => setNumaEnabled(e.target.checked)}
+                                  />
+                                }
+                                label="Enable NUMA"
+                              />
+                            </Box>
                             {cpuLimitEnabled && (
                               <Box sx={{ mt: 2 }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>

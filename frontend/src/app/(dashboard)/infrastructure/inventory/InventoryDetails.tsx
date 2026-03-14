@@ -457,6 +457,7 @@ export default function InventoryDetails({
   const [cpuFlags, setCpuFlags] = useState<Record<string, '+' | '-'>>({})
   const [cpuLimit, setCpuLimit] = useState(0)
   const [cpuLimitEnabled, setCpuLimitEnabled] = useState(false)
+  const [numaEnabled, setNumaEnabled] = useState(false)
   const [memory, setMemory] = useState(2048) // en MB
   const [balloon, setBalloon] = useState(0) // en MB
   const [balloonEnabled, setBalloonEnabled] = useState(false)
@@ -1345,6 +1346,7 @@ return textExts.includes(ext) || imageExts.includes(ext) || fileName.startsWith(
       setCpuFlags(data.cpuInfo.flags || {})
       setCpuLimit(data.cpuInfo.cpulimit || 0)
       setCpuLimitEnabled(!!data.cpuInfo.cpulimit)
+      setNumaEnabled(!!data.cpuInfo.numa)
     }
 
     if (data?.memoryInfo) {
@@ -1851,9 +1853,10 @@ return (
       cpuType !== (data.cpuInfo.type || 'kvm64') ||
       flagsChanged ||
       cpuLimit !== (data.cpuInfo.cpulimit || 0) ||
-      cpuLimitEnabled !== !!data.cpuInfo.cpulimit
+      cpuLimitEnabled !== !!data.cpuInfo.cpulimit ||
+      numaEnabled !== !!data.cpuInfo.numa
     )
-  }, [data?.cpuInfo, cpuSockets, cpuCores, cpuType, cpuFlags, cpuLimit, cpuLimitEnabled])
+  }, [data?.cpuInfo, cpuSockets, cpuCores, cpuType, cpuFlags, cpuLimit, cpuLimitEnabled, numaEnabled])
 
   // Détecter si les valeurs RAM ont été modifiées
   const memoryModified = useMemo(() => {
@@ -1890,8 +1893,9 @@ return (
         sockets: cpuSockets,
         cores: cpuCores,
         cpu: cpuField,
+        numa: numaEnabled ? 1 : 0,
       }
-      
+
       if (cpuLimitEnabled && cpuLimit > 0) {
         configUpdate.cpulimit = cpuLimit
       } else {
@@ -3001,7 +3005,7 @@ return vm?.isCluster ?? false
                 haGroup, haGroups, haLoading, haMaxRelocate, haMaxRestart,
                 haSaving, haState, loadBackupContent, loadBackupContentViaPbs, loadHaConfig,
                 loadNotes, loadTasks, loading, localTags, memory,
-                memoryModified, navigateToBreadcrumb, navigateToFolder, navigateUp, newSnapshotDesc,
+                memoryModified, navigateToBreadcrumb, navigateToFolder, navigateUp, numaEnabled, newSnapshotDesc,
                 newSnapshotName, newSnapshotRam, notesEditing, notesError, notesLoading,
                 notesSaving, previewFile, primaryColor, primaryColorLight, removeHaConfig,
                 replicationComment, replicationJobs, replicationLoading, replicationRateLimit, replicationSchedule,
@@ -3016,7 +3020,7 @@ return vm?.isCluster ?? false
                 setEditOptionDialog, setEditScsiControllerDialogOpen, setExplorerArchive, setExplorerArchives, setExplorerFiles,
                 setExplorerSearch, setHaComment, setHaEditing, setHaGroup, setHaMaxRelocate,
                 setHaMaxRestart, setHaState, setMemory, setNewSnapshotDesc, setNewSnapshotName,
-                setNewSnapshotRam, setNotesEditing, setReplicationComment, setReplicationLoaded, setReplicationRateLimit,
+                setNewSnapshotRam, setNotesEditing, setNumaEnabled, setReplicationComment, setReplicationLoaded, setReplicationRateLimit,
                 setReplicationSchedule, setReplicationTargetNode, setSavingReplication, setSelectedBackup, setSelectedCephCluster,
                 setSelectedDisk, setSelectedNetwork, setSelectedPveStorage, setShowCreateSnapshot, setTasksLoaded,
                 setTf, setVmNotes, showCreateSnapshot, snapshotActionBusy, snapshots,
