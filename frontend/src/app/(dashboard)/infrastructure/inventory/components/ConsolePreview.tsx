@@ -184,13 +184,13 @@ function ConsolePreview({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <i className="ri-computer-line" style={{ fontSize: 12, opacity: 0.5 }} />
               <Typography variant="caption" sx={{ opacity: 0.6 }}>OS:</Typography>
-              <i 
-                className={osInfo.type === 'windows' ? 'ri-windows-fill' : osInfo.type === 'linux' ? 'ri-ubuntu-fill' : 'ri-terminal-box-line'} 
-                style={{ 
-                  fontSize: 12, 
-                  color: osInfo.type === 'windows' ? '#0078D4' : osInfo.type === 'linux' ? '#E95420' : undefined 
-                }} 
-              />
+              {osIconData?.type === 'svg'
+                ? <img src={osIconData.src} alt="" width={12} height={12} />
+                : <i
+                    className={osIconData?.className || 'ri-terminal-box-line'}
+                    style={{ fontSize: 12 }}
+                  />
+              }
               <Typography variant="caption" sx={{ fontWeight: 600 }}>
                 {osInfo.name || 'Unknown'}
               </Typography>

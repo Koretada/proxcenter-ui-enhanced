@@ -1080,10 +1080,13 @@ return
                         <MenuItem key="l24" value="l24">2.4 Kernel</MenuItem>,
                       ]}
                       {guestOsType === 'Windows' && [
-                        <MenuItem key="win11" value="win11">11/2022</MenuItem>,
+                        <MenuItem key="win11" value="win11">11/2022/2025</MenuItem>,
                         <MenuItem key="win10" value="win10">10/2016/2019</MenuItem>,
-                        <MenuItem key="win8" value="win8">8/2012</MenuItem>,
+                        <MenuItem key="win8" value="win8">8.x/2012/2012r2</MenuItem>,
                         <MenuItem key="win7" value="win7">7/2008r2</MenuItem>,
+                        <MenuItem key="wvista" value="wvista">Vista/2008</MenuItem>,
+                        <MenuItem key="wxp" value="wxp">XP/2003</MenuItem>,
+                        <MenuItem key="w2k" value="w2k">2000</MenuItem>,
                       ]}
                       {guestOsType === 'Solaris' && <MenuItem value="solaris">Solaris Kernel</MenuItem>}
                       {guestOsType === 'Other' && <MenuItem value="other">Other</MenuItem>}
