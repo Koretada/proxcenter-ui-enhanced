@@ -158,7 +158,7 @@ export function EditNetworkDialog({ open, onClose, onSave, onDelete, connId, nod
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <i className="ri-router-line" style={{ fontSize: 24 }} />
-          Modifier: {network.id}
+          {t('common.edit')}: {network.id}
         </Box>
       </DialogTitle>
 

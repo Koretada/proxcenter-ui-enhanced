@@ -580,7 +580,7 @@ return
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <i className="ri-hard-drive-2-line" style={{ fontSize: 24 }} />
-          Modifier: {disk.id}
+          {t('common.edit')}: {disk.id}
         </Box>
         <Typography variant="caption" sx={{ opacity: 0.7 }}>
           {disk.size} • {disk.storage}

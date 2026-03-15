@@ -4709,10 +4709,10 @@ return vm?.isCluster ?? false
       <Dialog open={!!editOptionDialog} onClose={() => setEditOptionDialog(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <i className="ri-settings-3-line" style={{ fontSize: 20 }} />
-          Éditer: {editOptionDialog?.label}
+          {t('common.edit')}: {editOptionDialog?.label}
         </DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 1 }}>
+        <DialogContent sx={{ pt: '20px !important' }}>
+          <Box>
             {editOptionDialog?.type === 'text' && (
               <TextField
                 fullWidth
