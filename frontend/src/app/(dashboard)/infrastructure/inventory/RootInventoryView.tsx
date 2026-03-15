@@ -111,7 +111,7 @@ function RootInventoryView({
 
   // Health score
   const { healthScore, healthBreakdown } = useMemo(() => {
-    if (!kpis) return { healthScore: 0, healthBreakdown: null }
+    if (!kpis) return { healthScore: null, healthBreakdown: null }
     const result = calculateHealthScoreWithDetails(kpis, predictiveAlerts)
     return { healthScore: result.score, healthBreakdown: result.breakdown }
   }, [kpis, predictiveAlerts])
@@ -122,18 +122,20 @@ function RootInventoryView({
   const storePct = kpis && kpis.storage.total > 0 ? (kpis.storage.used / kpis.storage.total) * 100 : 0
 
   // Health score display
-  const scoreColor = healthScore >= 80 ? theme.palette.success.main
+  const scoreColor = healthScore === null ? theme.palette.text.disabled
+    : healthScore >= 80 ? theme.palette.success.main
     : healthScore >= 60 ? theme.palette.warning.main
     : healthScore >= 40 ? '#f97316'
     : theme.palette.error.main
 
-  const scoreLabel = healthScore >= 80 ? t('resources.scoreExcellent')
+  const scoreLabel = healthScore === null ? t('resources.calculating', { defaultMessage: 'Calculating…' })
+    : healthScore >= 80 ? t('resources.scoreExcellent')
     : healthScore >= 60 ? t('resources.scoreGood')
     : healthScore >= 40 ? t('resources.scoreMonitoring')
     : t('resources.critical')
 
   const scoreCircumference = 2 * Math.PI * 14
-  const scoreDashLen = (healthScore / 100) * scoreCircumference
+  const scoreDashLen = ((healthScore ?? 0) / 100) * scoreCircumference
 
   // Translate breakdown reasons (same logic as Resources page GlobalHealthScore)
   const trReason = (reason: string) => reason
@@ -424,7 +426,7 @@ function RootInventoryView({
                         style={{ transition: 'stroke-dasharray 0.6s ease' }} />
                     </svg>
                     <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Typography sx={{ fontWeight: 900, fontSize: 16, color: scoreColor }}>{healthScore}</Typography>
+                      <Typography sx={{ fontWeight: 900, fontSize: 16, color: scoreColor }}>{healthScore ?? '—'}</Typography>
                     </Box>
                   </Box>
                 </MuiTooltip>

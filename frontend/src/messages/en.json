@@ -2455,6 +2455,7 @@
     "optimal": "Optimal",
     "aggressive": "Aggressive",
     "critical": "Critical",
+    "calculating": "Calculating…",
     "scoreExcellent": "Excellent",
     "scoreGood": "Good",
     "medium": "Average",
