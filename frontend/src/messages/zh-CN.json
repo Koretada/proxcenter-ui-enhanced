@@ -2027,6 +2027,8 @@
     "dangerousPermission": "此权限允许执行破坏性或敏感操作（删除、修改、管理）"
   },
   "network": {
+    "bridgeType": "网桥类型",
+    "bridgeNative": "原生",
     "title": "网络安全",
     "addRule": "添加规则",
     "addSecurityGroup": "添加安全组",

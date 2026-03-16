@@ -6,11 +6,12 @@ import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 import { resolveManagementIp } from "@/lib/proxmox/resolveManagementIp"
 import { extractHostFromUrl, extractPortFromUrl } from "@/lib/proxmox/urlUtils"
 import { setNodeIps } from "@/lib/cache/nodeIpCache"
-import { prisma } from "@/lib/db/prisma"
+import { getSessionPrisma } from "@/lib/tenant"
 
 export const runtime = "nodejs"
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> | { id: string } }) {
+  const prisma = await getSessionPrisma()
   const params = await Promise.resolve(ctx.params)
   const id = (params as any)?.id
 
@@ -58,6 +59,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
         ip = resolveManagementIp(networks) || null
 
+        // Detect bridge types (native Linux bridge vs OVS)
+        if (networks && Array.isArray(networks)) {
+          const bridges = networks.filter((iface: any) => iface.type === 'bridge' || iface.type === 'OVSBridge')
+          const nativeBridges = bridges.filter((iface: any) => iface.type === 'bridge').map((iface: any) => iface.iface)
+          const ovsBridges = bridges.filter((iface: any) => iface.type === 'OVSBridge').map((iface: any) => iface.iface)
+
+          ;(node as any)._bridges = { native: nativeBridges, ovs: ovsBridges }
+        }
+
         // Use memory from /nodes/{node}/status (excludes ZFS ARC / kernel caches)
         if (nodeStatus?.memory?.total > 0) {
           accurateMem = {
@@ -74,6 +84,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         ...(accurateMem ? { mem: accurateMem.used, maxmem: accurateMem.total } : {}),
         ip,
         hastate: hastateMap[nodeName] || null,
+        bridges: (node as any)._bridges || null,
       }
     })
   )

@@ -40,6 +40,7 @@ import { DataGrid } from '@mui/x-data-grid'
 
 import { usePageTitle } from '@/contexts/PageTitleContext'
 import { useLicense, Features } from '@/contexts/LicenseContext'
+import { useSession } from 'next-auth/react'
 import EmptyState from '@/components/EmptyState'
 
 import { useConnectionsManagement } from '@/hooks/useConnectionsManagement'
@@ -73,6 +74,11 @@ const ConnectionDialog = dynamic(() => import('@/components/settings/ConnectionD
 })
 
 const WhiteLabelTab = dynamic(() => import('@/components/settings/WhiteLabelTab'), {
+  ssr: false,
+  loading: () => <Box sx={{ p: 3, textAlign: 'center' }}><LinearProgress /></Box>
+})
+
+const TenantsTab = dynamic(() => import('@/components/settings/TenantsTab'), {
   ssr: false,
   loading: () => <Box sx={{ p: 3, textAlign: 'center' }}><LinearProgress /></Box>
 })
@@ -216,6 +222,54 @@ function ConnectionVersion({ connection }) {
       variant='outlined'
       sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.75rem' }}
     />
+  )
+}
+
+/* ==================== BridgeTypes Component ==================== */
+
+function BridgeTypes({ connection }) {
+  const t = useTranslations()
+  const [bridgeInfo, setBridgeInfo] = useState(null)
+
+  useEffect(() => {
+    if (!connection?.id || connection.type !== 'pve') return
+
+    fetch(`/api/v1/connections/${connection.id}/nodes`)
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (!json?.data) return
+        let hasNative = false
+        let hasOvs = false
+
+        for (const node of json.data) {
+          if (node.bridges?.native?.length > 0) hasNative = true
+          if (node.bridges?.ovs?.length > 0) hasOvs = true
+        }
+
+        setBridgeInfo({ hasNative, hasOvs })
+      })
+      .catch(() => {})
+  }, [connection?.id, connection?.type])
+
+  if (!bridgeInfo) {
+    return <Typography variant='caption' sx={{ opacity: 0.3 }}>—</Typography>
+  }
+
+  const { hasNative, hasOvs } = bridgeInfo
+
+  if (!hasNative && !hasOvs) {
+    return <Typography variant='caption' sx={{ opacity: 0.3 }}>—</Typography>
+  }
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+      {hasNative && (
+        <Chip size='small' label={t('network.bridgeNative')} variant='outlined' sx={{ fontSize: '0.7rem', height: 22 }} />
+      )}
+      {hasOvs && (
+        <Chip size='small' label='OVS' color='info' variant='outlined' sx={{ fontSize: '0.7rem', height: 22 }} />
+      )}
+    </Box>
   )
 }
 
@@ -438,6 +492,25 @@ function ConnectionsTab() {
         )
       },
       {
+        field: 'clusterType',
+        headerName: t('common.type'),
+        width: 120,
+        sortable: false,
+        valueGetter: (value, row) => {
+          const hosts = row.hosts
+          return hosts && hosts.length > 1 ? 'cluster' : 'standalone'
+        },
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            {params.value === 'cluster' ? (
+              <Chip size='small' label='Cluster' color='primary' variant='outlined' icon={<i className='ri-server-line' style={{ fontSize: 14 }} />} />
+            ) : (
+              <Chip size='small' label='Standalone' variant='outlined' icon={<i className='ri-computer-line' style={{ fontSize: 14 }} />} />
+            )}
+          </Box>
+        )
+      },
+      {
         field: 'hosts',
         headerName: t('settings.nodesHeader'),
         width: 200,
@@ -509,6 +582,17 @@ function ConnectionsTab() {
             ) : (
               <Typography variant='caption' sx={{ opacity: 0.4 }}>{t('common.no')}</Typography>
             )}
+          </Box>
+        )
+      },
+      {
+        field: 'bridgeType',
+        headerName: t('network.bridgeType'),
+        width: 140,
+        sortable: false,
+        renderCell: params => (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            <BridgeTypes connection={params.row} />
           </Box>
         )
       },
@@ -2175,6 +2259,8 @@ export default function SettingsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { hasFeature, loading: licenseLoading } = useLicense()
+  const { data: session } = useSession()
+  const isSuperAdmin = session?.user?.role === 'super_admin'
 
   const { setPageInfo } = usePageTitle()
 
@@ -2194,12 +2280,13 @@ export default function SettingsPage() {
 
   // Check if a tab's required feature is available
   const isTabAvailable = (tab) => {
+    if (tab.superAdminOnly && !isSuperAdmin) return false
     if (licenseLoading) return true
     if (!tab.requiredFeature) return true
     return hasFeature(tab.requiredFeature)
   }
 
-  const tabNames = ['connections', 'appearance', 'notifications', 'ldap', 'oidc', 'license', 'ai', 'green', 'white-label']
+  const tabNames = ['connections', 'appearance', 'notifications', 'ldap', 'oidc', 'license', 'ai', 'green', 'white-label', 'tenants']
 
   const tabs = [
     { label: t('settings.connections'), icon: 'ri-link', component: ConnectionsTab },
@@ -2211,6 +2298,7 @@ export default function SettingsPage() {
     { label: t('settings.ai'), icon: 'ri-robot-line', component: AITab, requiredFeature: Features.AI_INSIGHTS },
     { label: 'RSE / Green IT', icon: 'ri-leaf-line', component: GreenTab, requiredFeature: Features.GREEN_METRICS },
     { label: 'White Label', icon: 'ri-pantone-line', component: WhiteLabelTab, requiredFeature: Features.WHITE_LABEL },
+    { label: 'Tenants', icon: 'ri-building-line', component: TenantsTab, requiredFeature: Features.MULTI_TENANCY, superAdminOnly: true },
   ]
 
   // Resolve tab index from URL param

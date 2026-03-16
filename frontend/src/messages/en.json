@@ -2031,6 +2031,8 @@
     "dangerousPermission": "This permission allows destructive or sensitive actions (delete, modify, manage)"
   },
   "network": {
+    "bridgeType": "Bridge Type",
+    "bridgeNative": "Native",
     "title": "Network Security",
     "addRule": "Add rule",
     "addSecurityGroup": "Add Security Group",
