@@ -116,7 +116,11 @@
     "network": "网络",
     "status": "状态",
     "uptime": "运行时间",
-    "node": "节点"
+    "node": "节点",
+    "visibleColumns": "可见列",
+    "favorites": "收藏",
+    "snapshots": "快照",
+    "trend": "趋势"
   },
   "time": {
     "justNow": "刚刚",

@@ -444,8 +444,21 @@ return migratingVmIds.has(`${connId}:${vmid}`)
       }
     }
 
+    // Restore from localStorage
+    try {
+      const saved = localStorage.getItem('proxcenter_vmtable_columns')
+      if (saved) return { ...defaults, ...JSON.parse(saved) }
+    } catch {}
+
     return defaults
   })
+
+  // Persist column visibility to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('proxcenter_vmtable_columns', JSON.stringify(visibleColumns))
+    } catch {}
+  }, [visibleColumns])
   
   // État pour le menu contextuel (clic droit)
   const [contextMenu, setContextMenu] = useState<VmContextMenu>(null)
@@ -1543,26 +1556,26 @@ return true
               }}
             >
               <Typography variant="caption" sx={{ px: 2, py: 1, display: 'block', fontWeight: 600, color: 'text.secondary' }}>
-                Colonnes visibles
+                {t('vms.visibleColumns')}
               </Typography>
               {[
                 { field: 'vmid', label: '#ID' },
-                { field: 'favorite', label: 'Favoris' },
-                { field: 'name', label: 'Nom' },
-                { field: 'type', label: 'Type' },
+                { field: 'favorite', label: t('vms.favorites') },
+                { field: 'name', label: t('common.name') },
+                { field: 'type', label: t('common.type') },
                 { field: 'status', label: t('common.status') },
-                { field: 'node', label: 'Node' },
+                { field: 'node', label: t('common.node') },
                 { field: 'ha', label: 'HA' },
                 { field: 'cpu', label: 'CPU' },
                 { field: 'ram', label: 'RAM' },
                 { field: 'maxmem', label: t('common.memory') },
                 { field: 'disk', label: t('vms.disk') },
-                { field: 'tags', label: 'Tags' },
+                { field: 'tags', label: t('common.tags') },
                 { field: 'ip', label: 'IP' },
-                { field: 'snapshots', label: 'Snapshots' },
+                { field: 'snapshots', label: t('vms.snapshots') },
                 { field: 'osInfo', label: 'OS' },
-                { field: 'uptime', label: 'Uptime' },
-                { field: 'trend', label: 'Trend' },
+                { field: 'uptime', label: t('vms.uptime') },
+                { field: 'trend', label: t('vms.trend') },
                 { field: 'actions', label: t('common.actions') },
               ].map(({ field, label }) => (
                 <MenuItem 
