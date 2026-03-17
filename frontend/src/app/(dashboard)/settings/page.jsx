@@ -40,7 +40,7 @@ import { DataGrid } from '@mui/x-data-grid'
 
 import { usePageTitle } from '@/contexts/PageTitleContext'
 import { useLicense, Features } from '@/contexts/LicenseContext'
-import { useSession } from 'next-auth/react'
+import { useRBAC } from '@/contexts/RBACContext'
 import EmptyState from '@/components/EmptyState'
 
 import { useConnectionsManagement } from '@/hooks/useConnectionsManagement'
@@ -2259,8 +2259,7 @@ export default function SettingsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { hasFeature, loading: licenseLoading } = useLicense()
-  const { data: session } = useSession()
-  const isSuperAdmin = session?.user?.role === 'super_admin'
+  const { isAdmin: isSuperAdmin } = useRBAC()
 
   const { setPageInfo } = usePageTitle()
 
