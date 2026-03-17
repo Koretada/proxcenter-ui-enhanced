@@ -7,13 +7,15 @@ set -e
 # Usage: curl -fsSL https://get.proxcenter.io/enterprise | sudo bash -s -- --token YOUR_GHCR_TOKEN
 # ============================================
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
 
 # Configuration
 INSTALL_DIR="/opt/proxcenter"
@@ -23,40 +25,85 @@ REGISTRY_USER="adminsyspro"
 FRONTEND_IMAGE="ghcr.io/adminsyspro/proxcenter-frontend:latest"
 ORCHESTRATOR_IMAGE="ghcr.io/adminsyspro/proxcenter-orchestrator:latest"
 
+TOTAL_STEPS=6
+START_TIME=$(date +%s)
+
 # ============================================
 # Helper Functions
 # ============================================
 
+step() {
+    local step_num=$1
+    local msg=$2
+    echo ""
+    echo -e "${BOLD}${BLUE}[$step_num/$TOTAL_STEPS]${NC} ${BOLD}$msg${NC}"
+}
+
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "    ${DIM}$1${NC}"
 }
 
 log_success() {
-    echo -e "${GREEN}[OK]${NC} $1"
+    echo -e "    ${GREEN}✓${NC} $1"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo -e "    ${YELLOW}!${NC} $1"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "\n    ${RED}✗ $1${NC}"
     exit 1
 }
 
-print_banner() {
-    echo -e "${CYAN}"
-    cat << 'EOF'
-  ____                 ____           _
- |  _ \ _ __ _____  __/ ___|___ _ __ | |_ ___ _ __
- | |_) | '__/ _ \ \/ / |   / _ \ '_ \| __/ _ \ '__|
- |  __/| | | (_) >  <| |__|  __/ | | | ||  __/ |
- |_|   |_|  \___/_/\_\\____\___|_| |_|\__\___|_|
+spinner() {
+    local pid=$1
+    local msg=${2:-"Please wait"}
+    local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    local i=0
+    tput civis 2>/dev/null || true
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r    ${DIM}%s %s${NC}" "${chars:i++%${#chars}:1}" "$msg"
+        sleep 0.1
+    done
+    printf "\r\033[K"
+    tput cnorm 2>/dev/null || true
+}
 
+format_duration() {
+    local secs=$1
+    if [ "$secs" -lt 60 ]; then
+        echo "${secs}s"
+    else
+        echo "$((secs / 60))m $((secs % 60))s"
+    fi
+}
+
+cleanup_on_error() {
+    echo ""
+    echo -e "${RED}${BOLD}Installation failed.${NC}"
+    echo -e "${DIM}    Logs may help diagnose the issue:${NC}"
+    echo -e "${DIM}    - Check Docker: docker compose -f $INSTALL_DIR/docker-compose.yml logs${NC}"
+    echo -e "${DIM}    - Re-run this script to retry${NC}"
+    echo ""
+    tput cnorm 2>/dev/null || true
+    exit 1
+}
+
+trap cleanup_on_error ERR
+
+print_banner() {
+    echo ""
+    echo -e "${CYAN}${BOLD}"
+    cat << 'EOF'
+    ____                 ____           _
+   |  _ \ _ __ _____  __/ ___|___ _ __ | |_ ___ _ __
+   | |_) | '__/ _ \ \/ / |   / _ \ '_ \| __/ _ \ '__|
+   |  __/| | | (_) >  <| |__|  __/ | | | ||  __/ |
+   |_|   |_|  \___/_/\_\\____\___|_| |_|\__\___|_|
 EOF
     echo -e "${NC}"
-    echo -e "${GREEN}Enterprise Edition${NC} - Full Featured"
-    echo "============================================="
+    echo -e "    ${GREEN}${BOLD}Enterprise Edition${NC}  ${DIM}— Full Featured${NC}"
     echo ""
 }
 
@@ -107,24 +154,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ============================================
-# Check Requirements
+# Pre-flight Checks
 # ============================================
 
-check_root() {
+preflight_checks() {
     if [ "$EUID" -ne 0 ]; then
         log_error "This script must be run as root. Use: sudo bash install-enterprise.sh --token YOUR_TOKEN"
     fi
-}
 
-check_token() {
     if [ -z "$GHCR_TOKEN" ]; then
         echo -e "${RED}Error: GHCR token is required${NC}"
         echo ""
         show_usage
     fi
-}
 
-detect_os() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
         OS=$ID
@@ -136,8 +179,6 @@ detect_os() {
     else
         log_error "Unsupported operating system"
     fi
-
-    log_info "Detected OS: $OS $VERSION_ID"
 
     case $OS in
         ubuntu|debian)
@@ -154,83 +195,104 @@ detect_os() {
             log_error "Unsupported OS: $OS"
             ;;
     esac
+
+    log_info "OS: $OS $VERSION_ID"
 }
 
 # ============================================
-# Install Docker
+# Step 1: Validate Token
+# ============================================
+
+validate_token() {
+    step 1 "Validating installation token"
+
+    local http_code
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer $GHCR_TOKEN" \
+        "https://ghcr.io/v2/adminsyspro/proxcenter-frontend/tags/list" 2>/dev/null || echo "000")
+
+    if [ "$http_code" = "200" ]; then
+        log_success "Token validated"
+    elif [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+        log_error "Invalid token. Make sure your token has read:packages scope.\n    Get one at: https://proxcenter.io/account/tokens"
+    else
+        log_warning "Could not validate token (HTTP $http_code) — continuing anyway"
+    fi
+}
+
+# ============================================
+# Step 2: Install Docker
 # ============================================
 
 install_docker() {
+    step 2 "Installing Docker"
+
     if command -v docker &> /dev/null; then
-        log_success "Docker is already installed"
+        local docker_version
+        docker_version=$(docker --version | grep -oP '\d+\.\d+\.\d+' | head -1)
+        log_success "Docker $docker_version already installed"
         return
     fi
 
-    # Install required dependencies (openssl, curl may be missing on minimal installs)
     log_info "Installing dependencies..."
-    $PKG_INSTALL openssl curl ca-certificates
-
-    log_info "Installing Docker..."
+    $PKG_INSTALL openssl curl ca-certificates > /dev/null 2>&1
 
     case $OS in
         ubuntu|debian)
-            apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
-            $PKG_INSTALL gnupg lsb-release
+            apt-get remove -y docker docker-engine docker.io containerd runc > /dev/null 2>&1 || true
+            $PKG_INSTALL gnupg lsb-release > /dev/null 2>&1
             install -m 0755 -d /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/$OS/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            curl -fsSL https://download.docker.com/linux/$OS/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null
             chmod a+r /etc/apt/keyrings/docker.gpg
             echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-            apt-get update
-            $PKG_INSTALL docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            apt-get update > /dev/null 2>&1
+            $PKG_INSTALL docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null 2>&1
             ;;
         centos|rhel|rocky|almalinux|fedora)
-            dnf remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine 2>/dev/null || true
-            $PKG_INSTALL dnf-plugins-core
-            dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-            $PKG_INSTALL docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            dnf remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine > /dev/null 2>&1 || true
+            $PKG_INSTALL dnf-plugins-core > /dev/null 2>&1
+            dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo > /dev/null 2>&1
+            $PKG_INSTALL docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null 2>&1
             ;;
     esac
 
     systemctl start docker
-    systemctl enable docker
+    systemctl enable docker > /dev/null 2>&1
 
     log_success "Docker installed"
 }
 
 # ============================================
-# Authenticate to GHCR
+# Step 3: Authenticate to Registry
 # ============================================
 
-authenticate_ghcr() {
-    log_info "Authenticating to GitHub Container Registry..."
+authenticate_registry() {
+    step 3 "Authenticating to container registry"
 
-    echo "$GHCR_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+    echo "$GHCR_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin > /dev/null 2>&1
 
     if [ $? -ne 0 ]; then
-        log_error "Failed to authenticate to GHCR. Please check your token."
+        log_error "Failed to authenticate. Please check your token."
     fi
 
-    log_success "Authenticated to GHCR"
+    log_success "Authenticated to ghcr.io"
 }
 
 # ============================================
-# Setup ProxCenter
+# Step 4: Configure ProxCenter
 # ============================================
 
 setup_proxcenter() {
-    log_info "Setting up ProxCenter Enterprise..."
+    step 4 "Configuring ProxCenter"
 
-    # Create install directory
-    mkdir -p "$INSTALL_DIR"
     mkdir -p "$INSTALL_DIR/config"
     cd "$INSTALL_DIR"
 
-    # Download docker-compose file
-    log_info "Downloading configuration..."
-    curl -fsSL "$COMPOSE_URL" -o docker-compose.yml
+    # Download docker-compose
+    curl -fsSL "$COMPOSE_URL" -o docker-compose.yml 2>/dev/null
+    log_success "Downloaded compose configuration"
 
     # Generate secrets
-    log_info "Generating secrets..."
     APP_SECRET=$(openssl rand -hex 32)
     NEXTAUTH_SECRET=$(openssl rand -hex 32)
     ORCHESTRATOR_API_KEY=$(openssl rand -hex 32)
@@ -244,7 +306,7 @@ setup_proxcenter() {
     # Create .env file
     cat > "$INSTALL_DIR/.env" << EOF
 # ProxCenter Enterprise Edition
-# Generated on $(date)
+# Generated on $(date -Iseconds)
 
 # Docker Registry
 GHCR_TOKEN=$GHCR_TOKEN
@@ -268,8 +330,6 @@ EOF
     # Create orchestrator config
     cat > "$INSTALL_DIR/config/orchestrator.yaml" << EOF
 # ProxCenter Orchestrator Configuration
-# Generated on $(date)
-
 server:
   port: 8080
   mode: production
@@ -291,103 +351,122 @@ EOF
     chmod 600 "$INSTALL_DIR/.env"
     chmod 600 "$INSTALL_DIR/config/orchestrator.yaml"
 
-    log_success "Configuration created"
+    log_success "Secrets generated and configuration saved"
 }
 
 # ============================================
-# Start Services
+# Step 5: Pull & Initialize
 # ============================================
 
-start_services() {
-    log_info "Pulling Docker images..."
+pull_and_init() {
+    step 5 "Pulling images and initializing"
+
     cd "$INSTALL_DIR"
-    docker compose pull
 
-    log_info "Initializing database..."
-    docker volume create proxcenter_data 2>/dev/null || true
-    docker volume create orchestrator_data 2>/dev/null || true
+    # Pull images (show progress)
+    docker compose pull 2>&1 | tail -5
+    log_success "Images pulled"
 
-    # Initialize data directory
-    docker run --rm --user root \
+    # Create volumes
+    docker volume create proxcenter_data > /dev/null 2>&1 || true
+    docker volume create orchestrator_data > /dev/null 2>&1 || true
+
+    # Init data directory — bypass entrypoint, pass dummy NEXTAUTH_SECRET to suppress warning
+    docker run --rm --user root --entrypoint "" \
         -v proxcenter_data:/app/data \
         "$FRONTEND_IMAGE" \
-        sh -c "mkdir -p /app/data && chown -R 1001:1001 /app/data"
+        sh -c "mkdir -p /app/data && chown -R 1001:1001 /app/data" > /dev/null 2>&1
 
-    # Run migrations
-    docker run --rm \
+    # Run Prisma migrations — bypass entrypoint
+    docker run --rm --entrypoint "" \
         -v proxcenter_data:/app/data \
         -e DATABASE_URL="file:/app/data/proxcenter.db" \
         "$FRONTEND_IMAGE" \
-        sh -c "prisma db push --schema /app/prisma/schema.migrate.prisma --accept-data-loss --skip-generate" 2>/dev/null || true
+        sh -c "prisma db push --schema /app/prisma/schema.migrate.prisma --accept-data-loss --skip-generate" > /dev/null 2>&1 || true
 
-    log_info "Starting ProxCenter Enterprise..."
-    docker compose up -d
-
-    log_success "ProxCenter Enterprise started"
+    log_success "Database initialized"
 }
 
 # ============================================
-# Wait and Print Success
+# Step 6: Start Services
 # ============================================
 
-wait_and_finish() {
-    log_info "Waiting for services to be ready..."
+start_and_wait() {
+    step 6 "Starting ProxCenter Enterprise"
 
-    # Wait for frontend
-    local attempt=1
-    while [ $attempt -le 30 ]; do
-        if curl -s -f http://localhost:3000/api/health > /dev/null 2>&1; then
-            break
-        fi
-        echo -n "."
-        sleep 2
-        attempt=$((attempt + 1))
-    done
-    echo ""
+    cd "$INSTALL_DIR"
+    docker compose up -d 2>&1 | grep -v "^$"
+    log_success "Containers started"
+
+    # Wait for frontend with spinner
+    log_info "Waiting for services to be ready..."
+    (
+        local attempt=1
+        while [ $attempt -le 60 ]; do
+            if curl -s -f http://localhost:3000/api/health > /dev/null 2>&1; then
+                exit 0
+            fi
+            sleep 2
+            attempt=$((attempt + 1))
+        done
+        exit 1
+    ) &
+    local wait_pid=$!
+    spinner $wait_pid "Starting frontend..."
+    wait $wait_pid || log_error "Frontend failed to start within 2 minutes. Check: docker compose logs frontend"
 
     # Wait for orchestrator
-    attempt=1
-    while [ $attempt -le 30 ]; do
-        if curl -s -f http://localhost:8080/api/v1/health > /dev/null 2>&1; then
-            break
-        fi
-        echo -n "."
-        sleep 2
-        attempt=$((attempt + 1))
-    done
-    echo ""
+    (
+        local attempt=1
+        while [ $attempt -le 60 ]; do
+            if curl -s -f http://localhost:8080/api/v1/health > /dev/null 2>&1; then
+                exit 0
+            fi
+            sleep 2
+            attempt=$((attempt + 1))
+        done
+        exit 1
+    ) &
+    wait_pid=$!
+    spinner $wait_pid "Starting orchestrator..."
+    wait $wait_pid || log_error "Orchestrator failed to start within 2 minutes. Check: docker compose logs orchestrator"
+
+    log_success "All services healthy"
+}
+
+# ============================================
+# Final Summary
+# ============================================
+
+print_summary() {
+    local end_time=$(date +%s)
+    local duration=$((end_time - START_TIME))
 
     SERVER_IP=$(hostname -I | awk '{print $1}' | head -1)
 
     echo ""
-    echo -e "${GREEN}============================================${NC}"
-    echo -e "${GREEN}   ProxCenter Enterprise is ready!${NC}"
-    echo -e "${GREEN}============================================${NC}"
+    echo -e "${GREEN}${BOLD}  ┌─────────────────────────────────────────────┐${NC}"
+    echo -e "${GREEN}${BOLD}  │     ProxCenter Enterprise is ready!         │${NC}"
+    echo -e "${GREEN}${BOLD}  └─────────────────────────────────────────────┘${NC}"
     echo ""
-    echo -e "Open: ${CYAN}http://$SERVER_IP:3000${NC}"
+    echo -e "    ${BOLD}URL${NC}         ${CYAN}http://$SERVER_IP:3000${NC}"
+    echo -e "    ${BOLD}Install${NC}     $INSTALL_DIR"
+    echo -e "    ${BOLD}Duration${NC}    $(format_duration $duration)"
     echo ""
-    echo "All features included:"
-    echo "  - Dashboard & Inventory"
-    echo "  - VM/CT Management"
-    echo "  - Backups & Snapshots"
-    echo "  - Storage Management"
-    echo "  - DRS (Distributed Resource Scheduler)"
-    echo "  - RBAC & LDAP"
-    echo "  - Advanced Monitoring"
-    echo "  - AI Insights"
-    echo "  - Jobs & Automation"
-    echo "  - And more..."
-    echo ""
+
     if [ -z "$LICENSE_KEY" ]; then
-        echo -e "${YELLOW}Note: No license key provided. Activate your license in Settings > License${NC}"
+        echo -e "    ${YELLOW}${BOLD}!${NC} ${YELLOW}No license key provided${NC}"
+        echo -e "      Activate in ${BOLD}Settings > License${NC} or re-run with ${DIM}--license YOUR_KEY${NC}"
         echo ""
     fi
-    echo "Commands:"
-    echo "  cd $INSTALL_DIR && docker compose logs -f   # View logs"
-    echo "  cd $INSTALL_DIR && docker compose down      # Stop"
-    echo "  cd $INSTALL_DIR && docker compose pull      # Update"
+
+    echo -e "    ${DIM}Manage:${NC}"
+    echo -e "      ${DIM}docker compose -f $INSTALL_DIR/docker-compose.yml logs -f${NC}     ${DIM}# Logs${NC}"
+    echo -e "      ${DIM}docker compose -f $INSTALL_DIR/docker-compose.yml down${NC}        ${DIM}# Stop${NC}"
+    echo -e "      ${DIM}docker compose -f $INSTALL_DIR/docker-compose.yml pull && \\${NC}"
+    echo -e "      ${DIM}docker compose -f $INSTALL_DIR/docker-compose.yml up -d${NC}       ${DIM}# Update${NC}"
     echo ""
-    echo "Support: support@proxcenter.io"
+    echo -e "    ${DIM}Support: support@proxcenter.io${NC}"
     echo ""
 }
 
@@ -397,25 +476,16 @@ wait_and_finish() {
 
 main() {
     print_banner
-    check_root
-    check_token
-    detect_os
+    preflight_checks
 
-    echo ""
-    $PKG_UPDATE > /dev/null 2>&1 || true
+    validate_token
     install_docker
-
-    echo ""
-    authenticate_ghcr
-
-    echo ""
+    authenticate_registry
     setup_proxcenter
+    pull_and_init
+    start_and_wait
 
-    echo ""
-    start_services
-
-    echo ""
-    wait_and_finish
+    print_summary
 }
 
 main "$@"
