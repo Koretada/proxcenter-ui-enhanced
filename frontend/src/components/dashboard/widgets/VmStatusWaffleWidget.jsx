@@ -2,11 +2,13 @@
 
 import React, { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Box, Typography } from '@mui/material'
 import VmWaffleChart from '@/components/VmWaffleChart'
 
 function VmStatusWaffleWidget({ data, loading }) {
   const router = useRouter()
+  const t = useTranslations()
 
   // Combine VMs and LXCs for the waffle chart
   const allGuests = useMemo(() => {
@@ -22,7 +24,7 @@ function VmStatusWaffleWidget({ data, loading }) {
   if (!data) {
     return (
       <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="caption" color="text.secondary">Loading...</Typography>
+        <Typography variant="caption" color="text.secondary">{t('common.loading')}</Typography>
       </Box>
     )
   }
@@ -30,7 +32,7 @@ function VmStatusWaffleWidget({ data, loading }) {
   if (allGuests.length === 0) {
     return (
       <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="caption" color="text.secondary">No VMs found</Typography>
+        <Typography variant="caption" color="text.secondary">{t('inventory.noGuests')}</Typography>
       </Box>
     )
   }

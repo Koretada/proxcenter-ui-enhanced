@@ -916,6 +916,7 @@
     "running": "Running",
     "stopped": "Stopped",
     "templates": "Templates",
+    "noGuests": "No guests found",
     "lxcContainers": "LXC Containers",
     "resources": "Resources",
     "memoryLabel": "Memory",

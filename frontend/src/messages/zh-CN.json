@@ -913,6 +913,7 @@
     "running": "运行中",
     "stopped": "已停止",
     "templates": "模板",
+    "noGuests": "未找到客户机",
     "lxcContainers": "LXC 容器",
     "resources": "资源",
     "memoryLabel": "内存",

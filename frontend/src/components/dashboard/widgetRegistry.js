@@ -48,7 +48,7 @@ export const WIDGET_REGISTRY = {
   'kpi-clusters': {
     type: 'kpi-clusters',
     name: 'Clusters / Nodes',
-    description: 'Affiche le nombre de clusters et nodes',
+    description: 'Number of clusters and nodes',
     icon: 'ri-server-line',
     category: 'infrastructure',
     defaultSize: { w: 3, h: 2 },
@@ -59,7 +59,7 @@ export const WIDGET_REGISTRY = {
   'kpi-vms': {
     type: 'kpi-vms',
     name: 'VMs Running',
-    description: 'Affiche le nombre de VMs en cours',
+    description: 'Number of running VMs',
     icon: 'ri-computer-line',
     category: 'infrastructure',
     defaultSize: { w: 3, h: 2 },
@@ -70,7 +70,7 @@ export const WIDGET_REGISTRY = {
   'kpi-lxc': {
     type: 'kpi-lxc',
     name: 'LXC Running',
-    description: 'Running / total LXC containers',
+    description: 'Number of running LXC containers',
     icon: 'ri-instance-line',
     category: 'infrastructure',
     defaultSize: { w: 3, h: 2 },
@@ -81,7 +81,7 @@ export const WIDGET_REGISTRY = {
   'kpi-backups': {
     type: 'kpi-backups',
     name: 'Backups 24h',
-    description: 'Affiche les stats de backup PBS',
+    description: 'PBS backup stats',
     icon: 'ri-shield-check-line',
     category: 'backup',
     defaultSize: { w: 3, h: 2 },
@@ -91,8 +91,8 @@ export const WIDGET_REGISTRY = {
   },
   'kpi-alerts': {
     type: 'kpi-alerts',
-    name: 'Alertes',
-    description: 'Affiche le nombre d\'alertes',
+    name: 'Alerts',
+    description: 'Number of alerts',
     icon: 'ri-alarm-warning-line',
     category: 'monitoring',
     defaultSize: { w: 3, h: 2 },
@@ -102,8 +102,8 @@ export const WIDGET_REGISTRY = {
   },
   'quick-stats': {
     type: 'quick-stats',
-    name: 'Stats Rapides',
-    description: 'Vue d\'ensemble en une ligne',
+    name: 'Quick Stats',
+    description: 'Overview in one line',
     icon: 'ri-dashboard-line',
     category: 'infrastructure',
     defaultSize: { w: 12, h: 2 },
@@ -113,8 +113,8 @@ export const WIDGET_REGISTRY = {
   },
   'resources-gauges': {
     type: 'resources-gauges',
-    name: 'Ressources',
-    description: 'Jauges CPU, RAM et Storage',
+    name: 'Resources',
+    description: 'CPU, RAM and Storage gauges',
     icon: 'ri-pie-chart-line',
     category: 'resources',
     defaultSize: { w: 4, h: 4 },
@@ -125,7 +125,7 @@ export const WIDGET_REGISTRY = {
   'top-consumers': {
     type: 'top-consumers',
     name: 'Top Consumers',
-    description: 'Most resource-intensive guests (VMs + LXC)',
+    description: 'Most resource-intensive guests',
     icon: 'ri-bar-chart-line',
     category: 'resources',
     defaultSize: { w: 6, h: 4 },
@@ -135,8 +135,8 @@ export const WIDGET_REGISTRY = {
   },
   'nodes-table': {
     type: 'nodes-table',
-    name: 'État des Nodes',
-    description: 'Tableau des nodes avec CPU/RAM',
+    name: 'Nodes Status',
+    description: 'Nodes table with CPU/RAM',
     icon: 'ri-server-line',
     category: 'infrastructure',
     defaultSize: { w: 6, h: 5 },
@@ -147,7 +147,7 @@ export const WIDGET_REGISTRY = {
   'uptime-nodes': {
     type: 'uptime-nodes',
     name: 'Uptime Nodes',
-    description: 'Temps de fonctionnement des nodes',
+    description: 'Nodes uptime',
     icon: 'ri-time-line',
     category: 'infrastructure',
     defaultSize: { w: 4, h: 4 },
@@ -158,7 +158,7 @@ export const WIDGET_REGISTRY = {
   'pbs-overview': {
     type: 'pbs-overview',
     name: 'PBS Overview',
-    description: 'Vue d\'ensemble Proxmox Backup Server',
+    description: 'Proxmox Backup Server overview',
     icon: 'ri-shield-check-line',
     category: 'backup',
     defaultSize: { w: 5, h: 4 },
@@ -168,8 +168,8 @@ export const WIDGET_REGISTRY = {
   },
   'backup-recent': {
     type: 'backup-recent',
-    name: 'Backups Récents',
-    description: 'Derniers backups et erreurs',
+    name: 'Recent Backups',
+    description: 'Recent backups and errors',
     icon: 'ri-history-line',
     category: 'backup',
     defaultSize: { w: 4, h: 4 },
@@ -180,7 +180,7 @@ export const WIDGET_REGISTRY = {
   'clusters-list': {
     type: 'clusters-list',
     name: 'Clusters',
-    description: 'Liste des clusters avec status',
+    description: 'Clusters list with status',
     icon: 'ri-cloud-line',
     category: 'infrastructure',
     defaultSize: { w: 4, h: 3 },
@@ -191,7 +191,7 @@ export const WIDGET_REGISTRY = {
   'guests-summary': {
     type: 'guests-summary',
     name: 'Guests',
-    description: 'Résumé VMs et LXC',
+    description: 'VMs and LXC summary',
     icon: 'ri-instance-line',
     category: 'infrastructure',
     defaultSize: { w: 4, h: 3 },
@@ -201,8 +201,8 @@ export const WIDGET_REGISTRY = {
   },
   'alerts-list': {
     type: 'alerts-list',
-    name: 'Liste Alertes',
-    description: 'Liste des alertes actives',
+    name: 'Alerts List',
+    description: 'Active alerts list',
     icon: 'ri-alarm-warning-line',
     category: 'monitoring',
     defaultSize: { w: 5, h: 5 },
@@ -212,8 +212,8 @@ export const WIDGET_REGISTRY = {
   },
   'activity-feed': {
     type: 'activity-feed',
-    name: 'Activité Récente',
-    description: 'Tâches et événements récents',
+    name: 'Recent Activity',
+    description: 'Recent tasks and events',
     icon: 'ri-history-line',
     category: 'monitoring',
     defaultSize: { w: 5, h: 5 },
@@ -224,7 +224,7 @@ export const WIDGET_REGISTRY = {
   'storage-pools': {
     type: 'storage-pools',
     name: 'Storages',
-    description: 'Liste des storages PVE',
+    description: 'PVE storages list',
     icon: 'ri-hard-drive-2-line',
     category: 'storage',
     defaultSize: { w: 4, h: 5 },
@@ -235,7 +235,7 @@ export const WIDGET_REGISTRY = {
   'ceph-status': {
     type: 'ceph-status',
     name: 'Ceph Status',
-    description: 'État du cluster Ceph',
+    description: 'Ceph cluster status',
     icon: 'ri-database-2-line',
     category: 'storage',
     defaultSize: { w: 4, h: 4 },
@@ -250,7 +250,7 @@ export const WIDGET_REGISTRY = {
   'zerotrust-score': {
     type: 'zerotrust-score',
     name: 'Zero Trust Overview',
-    description: 'Score de sécurité par cluster (firewall + policies)',
+    description: 'Security score by cluster',
     icon: 'ri-shield-keyhole-line',
     category: 'security',
     defaultSize: { w: 4, h: 4 },
@@ -261,7 +261,7 @@ export const WIDGET_REGISTRY = {
   'zerotrust-securitygroups': {
     type: 'zerotrust-securitygroups',
     name: 'Security Groups',
-    description: 'Liste des Security Groups par cluster',
+    description: 'Security groups list by cluster',
     icon: 'ri-shield-line',
     category: 'security',
     defaultSize: { w: 4, h: 4 },
@@ -276,7 +276,7 @@ export const WIDGET_REGISTRY = {
   'vm-status-waffle': {
     type: 'vm-status-waffle',
     name: 'Guest Status (Waffle)',
-    description: 'Waffle view of guests (VMs + LXC) by cluster and status',
+    description: 'Waffle view of guests by cluster and status',
     icon: 'ri-grid-fill',
     category: 'infrastructure',
     defaultSize: { w: 6, h: 5 },
@@ -287,7 +287,7 @@ export const WIDGET_REGISTRY = {
   'resource-trends': {
     type: 'resource-trends',
     name: 'Resource Trends',
-    description: 'Évolution CPU/RAM sur 1h, 24h ou 7j',
+    description: 'CPU/RAM evolution over 1h, 24h or 7d',
     icon: 'ri-line-chart-line',
     category: 'resources',
     defaultSize: { w: 6, h: 4 },
@@ -298,7 +298,7 @@ export const WIDGET_REGISTRY = {
   'infra-global-chart': {
     type: 'infra-global-chart',
     name: 'Infra CPU/RAM',
-    description: 'CPU/RAM par nœud sur l\'ensemble de l\'infrastructure',
+    description: 'Per-node CPU/RAM across all infrastructure',
     icon: 'ri-line-chart-fill',
     category: 'resources',
     defaultSize: { w: 6, h: 5 },
@@ -309,7 +309,7 @@ export const WIDGET_REGISTRY = {
   'vm-heatmap': {
     type: 'vm-heatmap',
     name: 'Guest Heatmap',
-    description: 'CPU/RAM heatmap of all guests (VMs + LXC)',
+    description: 'CPU/RAM heatmap of all guests',
     icon: 'ri-fire-fill',
     category: 'resources',
     defaultSize: { w: 6, h: 5 },
@@ -324,7 +324,7 @@ export const WIDGET_REGISTRY = {
   'drs-status': {
     type: 'drs-status',
     name: 'DRS Status',
-    description: 'Status DRS, migrations actives et recommandations',
+    description: 'DRS status, active migrations and recommendations',
     icon: 'ri-swap-line',
     category: 'automation',
     defaultSize: { w: 4, h: 4 },
@@ -335,7 +335,7 @@ export const WIDGET_REGISTRY = {
   'site-recovery': {
     type: 'site-recovery',
     name: 'Site Recovery',
-    description: 'Protection VMs, conformité RPO et status réplication',
+    description: 'VM protection, RPO compliance and replication status',
     icon: 'ri-shield-star-line',
     category: 'automation',
     defaultSize: { w: 4, h: 4 },
@@ -347,10 +347,10 @@ export const WIDGET_REGISTRY = {
 
 export const WIDGET_CATEGORIES = [
   { id: 'infrastructure', name: 'Infrastructure', icon: 'ri-server-line' },
-  { id: 'resources', name: 'Ressources', icon: 'ri-pie-chart-line' },
-  { id: 'security', name: 'Sécurité / Zero Trust', icon: 'ri-shield-keyhole-line' },
-  { id: 'backup', name: 'Sauvegardes', icon: 'ri-shield-check-line' },
-  { id: 'storage', name: 'Stockage', icon: 'ri-hard-drive-2-line' },
+  { id: 'resources', name: 'Resources', icon: 'ri-pie-chart-line' },
+  { id: 'security', name: 'Security / Zero Trust', icon: 'ri-shield-keyhole-line' },
+  { id: 'backup', name: 'Backups', icon: 'ri-shield-check-line' },
+  { id: 'storage', name: 'Storage', icon: 'ri-hard-drive-2-line' },
   { id: 'monitoring', name: 'Monitoring', icon: 'ri-alarm-warning-line' },
   { id: 'automation', name: 'Automation', icon: 'ri-robot-2-line' },
 ]
