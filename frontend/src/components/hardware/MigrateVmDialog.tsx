@@ -23,6 +23,7 @@ import {
   Tooltip,
   Divider,
   Chip,
+  useTheme,
 } from '@mui/material'
 
 import { formatBytes } from '@/utils/format'
@@ -90,6 +91,8 @@ type NodeCpuInfo = {
 
 export function MigrateVmDialog({ open, onClose, onMigrate, connId, currentNode, vmName, vmid, vmStatus }: MigrateVmDialogProps) {
   const t = useTranslations()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const [migrating, setMigrating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nodes, setNodes] = useState<NodeInfo[]>([])
@@ -643,7 +646,7 @@ return
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="body2" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <i className="ri-server-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                          <img src={isDark ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
                           {node.node}
                         </Typography>
                         {recommended && (

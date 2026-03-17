@@ -25,6 +25,7 @@ import {
   IconButton,
   InputAdornment,
   Tooltip,
+  useTheme,
 } from '@mui/material'
 
 import { formatBytes } from '@/utils/format'
@@ -46,6 +47,8 @@ type CloneVmDialogProps = {
 
 export function CloneVmDialog({ open, onClose, onClone, connId, currentNode, vmName, vmid, nextVmid, pools = [], existingVmids = [] }: CloneVmDialogProps) {
   const t = useTranslations()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const [cloning, setCloning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nodes, setNodes] = useState<NodeInfo[]>([])
@@ -249,7 +252,7 @@ return currentScore > bestScore ? current : best
   const recommendedNode = getRecommendedNodeLocal(nodes)
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <i className="ri-file-copy-line" style={{ fontSize: 24 }} />
         {t('hardware.cloneTitle', { vmName, vmid })}
@@ -279,7 +282,7 @@ return currentScore > bestScore ? current : best
                     <Box sx={{ width: '100%' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                          <i className="ri-server-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                          <img src={isDark ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
                           <Typography variant="body2" fontWeight={500}>{node.node}</Typography>
                           {isRecommended && (
                             <Chip label="★" size="small" color="success" sx={{ height: 16, fontSize: '0.6rem', minWidth: 20, '& .MuiChip-label': { px: 0.5 } }} />

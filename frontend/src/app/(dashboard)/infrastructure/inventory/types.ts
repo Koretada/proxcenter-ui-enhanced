@@ -52,6 +52,7 @@ export type DetailsPayload = {
   lastUpdated: string
   isCluster?: boolean
   vmType?: 'qemu' | 'lxc'
+  isTemplate?: boolean
   name?: string
   description?: string
 

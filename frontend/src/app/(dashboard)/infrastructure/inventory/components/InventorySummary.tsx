@@ -61,6 +61,7 @@ function InventorySummary({
   haGroup,
   agentEnabled,
   ioSeries,
+  isTemplate,
 }: {
   kindLabel: string
   status: Status
@@ -87,6 +88,7 @@ function InventorySummary({
   haGroup?: string | null
   agentEnabled?: boolean | null
   ioSeries?: SeriesPoint[]
+  isTemplate?: boolean
 }) {
   const t = useTranslations()
   const theme = useTheme()
@@ -221,7 +223,7 @@ return `${mins}m`
           </Stack>
         ) : null}
 
-        {showConsole ? (
+        {showConsole || isTemplate ? (
           <Box
             sx={{
               width: '100%',
@@ -246,11 +248,15 @@ return `${mins}m`
                 bgcolor: (theme) => theme.palette.mode === 'light' ? 'grey.50' : undefined,
               }}
             >
-              <UsageBar themeColor={primaryColor} label="CPU" used={cpuNowPct} capacity={100} mode="pct" />
-              <UsageBar themeColor={primaryColor} label={t('inventory.memoryLabel')} used={memUsed} capacity={memCap} mode="bytes" />
+              {!isTemplate && (
+                <>
+                  <UsageBar themeColor={primaryColor} label="CPU" used={cpuNowPct} capacity={100} mode="pct" />
+                  <UsageBar themeColor={primaryColor} label={t('inventory.memoryLabel')} used={memUsed} capacity={memCap} mode="bytes" />
+                </>
+              )}
 
               {/* Disk I/O & Network I/O */}
-              {showConsole && (<>
+              {showConsole && !isTemplate && (<>
                 <Box sx={{ my: 1.5 }} />
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 1 }}>
                   {/* Disk I/O */}
@@ -375,18 +381,20 @@ return `${mins}m`
               </Box>
             </Box>
 
-            <Box sx={{ width: consoleWidth, flex: '0 0 auto' }}>
-              <ConsolePreview
-                height={210}
-                connId={vmInfo?.connId}
-                node={vmInfo?.node}
-                type={vmInfo?.type}
-                vmid={vmInfo?.vmid}
-                vmStatus={vmState || undefined}
-                osInfo={guestInfo?.osInfo}
-                osLoading={guestInfoLoading}
-              />
-            </Box>
+            {!isTemplate && (
+              <Box sx={{ width: consoleWidth, flex: '0 0 auto' }}>
+                <ConsolePreview
+                  height={210}
+                  connId={vmInfo?.connId}
+                  node={vmInfo?.node}
+                  type={vmInfo?.type}
+                  vmid={vmInfo?.vmid}
+                  vmStatus={vmState || undefined}
+                  osInfo={guestInfo?.osInfo}
+                  osLoading={guestInfoLoading}
+                />
+              </Box>
+            )}
           </Box>
         ) : hostInfo ? (
 

@@ -935,6 +935,7 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
       lastUpdated,
       isCluster,
       vmType: type as 'qemu' | 'lxc',
+      isTemplate: g.template === 1 || g.template === true,
       name,
       description,
       cpuInfo: cpuInfoVal,

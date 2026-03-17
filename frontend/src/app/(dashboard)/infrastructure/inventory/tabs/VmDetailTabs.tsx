@@ -322,6 +322,7 @@ export default function VmDetailTabs(props: any) {
                   }
                 />
                 <Tab
+                  sx={data?.isTemplate ? { display: 'none' } : undefined}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                       <i className="ri-camera-line" style={{ fontSize: 16 }} />
@@ -361,6 +362,7 @@ export default function VmDetailTabs(props: any) {
                 />
                 {selectedVmIsCluster && (
                   <Tab
+                    sx={data?.isTemplate ? { display: 'none' } : undefined}
                     label={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                         <i className="ri-shield-check-line" style={{ fontSize: 16 }} />
@@ -537,6 +539,44 @@ export default function VmDetailTabs(props: any) {
                       </CardContent>
                     </Card>
                   )}
+
+                  {/* Template summary info */}
+                  {data?.isTemplate && (() => {
+                    const cpuInfo = data.cpuInfo
+                    const memoryInfo = data.memoryInfo
+                    const disksInfo = data.disksInfo || []
+                    const bootDisk = disksInfo.find((d: any) => d.id === 'scsi0' || d.id === 'virtio0' || d.id === 'sata0' || d.id === 'ide0')
+                    const totalCores = (cpuInfo?.sockets ?? 1) * (cpuInfo?.cores ?? 1)
+                    const ramMB = memoryInfo?.memory ?? 0
+                    const ramDisplay = ramMB >= 1024 ? `${(ramMB / 1024).toFixed(2)} GiB` : `${ramMB} MiB`
+                    const nodeId = selection?.id?.split(':') || []
+                    const nodeName = nodeId[1] || ''
+
+                    const rows = [
+                      { icon: 'ri-shield-check-line', label: 'HA State', value: 'none' },
+                      { icon: 'ri-server-line', label: t('inventory.node'), value: nodeName },
+                      { icon: 'ri-cpu-line', label: 'Processors', value: `${totalCores} (${cpuInfo?.sockets ?? 1} sockets, ${cpuInfo?.cores ?? 1} cores)` },
+                      { icon: 'ri-ram-line', label: t('inventory.memoryLabel'), value: ramDisplay },
+                      ...(bootDisk ? [{ icon: 'ri-hard-drive-2-line', label: 'Boot disk size', value: bootDisk.size }] : []),
+                      ...(cpuInfo?.type ? [{ icon: 'ri-settings-3-line', label: t('inventory.cpuType'), value: cpuInfo.type }] : []),
+                    ]
+
+                    return (
+                      <Card variant="outlined" sx={{ width: '100%', borderRadius: 2 }}>
+                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                          {rows.map((row, i) => (
+                            <Box key={i} sx={{ display: 'flex', alignItems: 'center', py: 0.75, borderBottom: i < rows.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 180 }}>
+                                <i className={row.icon} style={{ fontSize: 14, opacity: 0.5 }} />
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>{row.label}</Typography>
+                              </Box>
+                              <Typography variant="body2" fontWeight={600}>{row.value}</Typography>
+                            </Box>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )
+                  })()}
                 </Box>
               )}
 

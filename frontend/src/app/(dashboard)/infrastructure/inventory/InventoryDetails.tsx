@@ -1423,7 +1423,7 @@ return () => {
 
   const progress = useMemo(() => (loading ? <LinearProgress /> : null), [loading])
 
-  const canShowRrd = selection && (selection.type === 'node' || selection.type === 'vm')
+  const canShowRrd = selection && (selection.type === 'node' || selection.type === 'vm') && !data?.isTemplate
 
   // Charger les backups quand on sélectionne une VM (pré-chargement pour le badge)
   useEffect(() => {
@@ -2228,7 +2228,7 @@ return
   // Status de la VM pour les actions et la console
   const vmStatus = data?.vmRealStatus || data?.status
   const vmState = data?.vmRealStatus || data?.status
-  const showConsole = selection?.type === 'vm'
+  const showConsole = selection?.type === 'vm' && !data?.isTemplate
 
   // Vérifier si la VM sélectionnée est sur un cluster (pour HA)
   const selectedVmIsCluster = useMemo(() => {
@@ -2616,8 +2616,12 @@ return vm?.isCluster ?? false
                     </IconButton>
                   )}
 
-                  <StatusChip status={data.status} />
-                  {/* Icône VM/LXC */}
+                  {data.isTemplate ? (
+                    <Chip label="TEMPLATE" size="small" variant="outlined" color="warning" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 700 }} />
+                  ) : (
+                    <StatusChip status={data.status} />
+                  )}
+                  {/* Icône VM/LXC/Template */}
                   <Box sx={{
                     width: 28,
                     height: 28,
@@ -2625,12 +2629,12 @@ return vm?.isCluster ?? false
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    bgcolor: alpha(iconColor, 0.1),
+                    bgcolor: alpha(data.isTemplate ? theme.palette.warning.main : iconColor, 0.1),
                     flexShrink: 0,
                   }}>
                     <i
-                      className={isLxc ? 'ri-instance-fill' : 'ri-computer-fill'}
-                      style={{ fontSize: 16, color: iconColor }}
+                      className={data.isTemplate ? 'ri-file-copy-fill' : isLxc ? 'ri-instance-fill' : 'ri-computer-fill'}
+                      style={{ fontSize: 16, color: data.isTemplate ? theme.palette.warning.main : iconColor }}
                     />
                   </Box>
 
@@ -2669,7 +2673,7 @@ return vm?.isCluster ?? false
                     </MuiTooltip>
                   )}
                   <Typography variant="body2" noWrap sx={{ color: 'text.secondary', flexShrink: 0 }}>
-                    {vmState === 'running' ? <><i className="ri-flashlight-fill" style={{ fontSize: 12, color: '#f9a825', verticalAlign: 'middle' }} /></> : vmState ? vmState : ''} · on{' '}
+                    {data.isTemplate ? '' : vmState === 'running' ? <><i className="ri-flashlight-fill" style={{ fontSize: 12, color: '#f9a825', verticalAlign: 'middle' }} /></> : vmState ? vmState + ' · ' : ''}on{' '}
                     <Typography
                       component="span"
                       variant="body2"
@@ -2720,22 +2724,37 @@ return vm?.isCluster ?? false
                         <i className="ri-refresh-line" style={{ fontSize: 18 }} />
                       </IconButton>
                     </MuiTooltip>
-                    <VmActions
-                      disabled={actionBusy || unlocking}
-                      vmStatus={vmStatus}
-                      isCluster={data.isCluster}
-                      isLocked={vmLock.locked}
-                      lockType={vmLock.lockType}
-                      onStart={onStart}
-                      onShutdown={onShutdown}
-                      onStop={onStop}
-                      onPause={onPause}
-                      onMigrate={onMigrate}
-                      onClone={onClone}
-                      onConvertTemplate={onConvertTemplate}
-                      onDelete={onDelete}
-                      onUnlock={onUnlock}
-                    />
+                    {data.isTemplate ? (
+                      <>
+                        <MuiTooltip title={t('hardware.clone')}>
+                          <IconButton size="small" onClick={onClone} sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
+                            <i className="ri-file-copy-line" style={{ fontSize: 18 }} />
+                          </IconButton>
+                        </MuiTooltip>
+                        <MuiTooltip title={t('common.delete')}>
+                          <IconButton size="small" onClick={onDelete} color="error" sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'error.main', color: 'white' } }}>
+                            <i className="ri-delete-bin-line" style={{ fontSize: 18 }} />
+                          </IconButton>
+                        </MuiTooltip>
+                      </>
+                    ) : (
+                      <VmActions
+                        disabled={actionBusy || unlocking}
+                        vmStatus={vmStatus}
+                        isCluster={data.isCluster}
+                        isLocked={vmLock.locked}
+                        lockType={vmLock.lockType}
+                        onStart={onStart}
+                        onShutdown={onShutdown}
+                        onStop={onStop}
+                        onPause={onPause}
+                        onMigrate={onMigrate}
+                        onClone={onClone}
+                        onConvertTemplate={onConvertTemplate}
+                        onDelete={onDelete}
+                        onUnlock={onUnlock}
+                      />
+                    )}
                   </Box>
                 </Box>
               )
@@ -2951,7 +2970,7 @@ return vm?.isCluster ?? false
             </>
           )}
 
-          {selection?.type !== 'ext' && selection?.type !== 'ext-type' && selection?.type !== 'extvm' && selection?.type !== 'storage' && (<>
+          {selection?.type !== 'ext' && selection?.type !== 'ext-type' && selection?.type !== 'extvm' && selection?.type !== 'storage' && !data.isTemplate && (<>
           <Divider sx={{ flexShrink: 0 }} />
 
           <Box sx={{ flexShrink: 0 }}>
@@ -2986,6 +3005,7 @@ return vm?.isCluster ?? false
             haGroup={selection?.type === 'vm' ? (allVms.find(vm => `${vm.connId}:${vm.node}:${vm.type}:${vm.vmid}` === selection.id)?.hagroup || null) : null}
             agentEnabled={selection?.type === 'vm' ? data.optionsInfo?.agentEnabled ?? null : null}
             ioSeries={selection?.type === 'vm' ? series : undefined}
+            isTemplate={data.isTemplate}
           />
           </Box>
           </>)}
