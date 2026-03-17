@@ -2881,15 +2881,6 @@ return (
                     </Box>
                   )}
 
-                  {/* Info */}
-                  {!snapshotsLoading && snapshots.filter(s => s.name !== 'current').length > 0 && (
-                    <Alert severity="info" sx={{ mt: 2 }} icon={<i className="ri-information-line" />}>
-                      <Typography variant="caption">
-                        <strong>{t('audit.actions.restore')}</strong>: {t('inventory.deleteSnapshotDesc')}<br/>
-                        <strong>{t('common.delete')}</strong>: {t('inventory.deleteSnapshotDesc')}
-                      </Typography>
-                    </Alert>
-                  )}
                 </Box>
               )}
 
