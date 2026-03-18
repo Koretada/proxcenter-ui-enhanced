@@ -35,7 +35,7 @@ export async function GET(
 
     return NextResponse.json({ data: formattedLogs })
   } catch (error: any) {
-    console.error(`Error fetching replication logs:`, error)
+    console.error(`Error fetching replication logs:`, String(error?.message || error).replace(/[\r\n]/g, ''))
     return NextResponse.json({ 
       error: error.message || "Failed to fetch replication logs",
       data: []

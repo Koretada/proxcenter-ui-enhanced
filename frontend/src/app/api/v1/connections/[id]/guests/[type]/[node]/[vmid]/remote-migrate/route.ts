@@ -235,7 +235,7 @@ export async function POST(
     })
 
   } catch (e: any) {
-    console.error('[remote-migrate] Error:', e)
+    console.error('[remote-migrate] Error:', String(e?.message || e).replace(/[\r\n]/g, ''))
     
     // Parser le message d'erreur Proxmox pour le rendre plus lisible
     let errorMessage = e?.message || String(e)

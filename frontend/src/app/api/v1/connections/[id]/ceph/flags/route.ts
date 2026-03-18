@@ -68,7 +68,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true, flag })
   } catch (e: any) {
-    console.error("[ceph/flags] PUT Error:", e?.message)
+    console.error("[ceph/flags] PUT Error:", String(e?.message).replace(/[\r\n]/g, ''))
     return NextResponse.json({ error: e?.message || "Failed to set Ceph flag" }, { status: 500 })
   }
 }
@@ -103,7 +103,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, flag })
   } catch (e: any) {
-    console.error("[ceph/flags] DELETE Error:", e?.message)
+    console.error("[ceph/flags] DELETE Error:", String(e?.message).replace(/[\r\n]/g, ''))
     return NextResponse.json({ error: e?.message || "Failed to unset Ceph flag" }, { status: 500 })
   }
 }

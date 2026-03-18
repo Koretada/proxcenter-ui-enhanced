@@ -67,8 +67,8 @@ export async function PUT(req: Request, ctx: RouteContext) {
       message: 'Prune job updated successfully'
     })
   } catch (e: any) {
-    console.error("[pbs-prune-jobs] PUT Error:", e)
-    
+    console.error("[pbs-prune-jobs] PUT Error:", String(e?.message || e).replace(/[\r\n]/g, ''))
+
 return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
   }
 }
@@ -110,8 +110,8 @@ export async function DELETE(req: Request, ctx: RouteContext) {
       message: 'Prune job deleted successfully'
     })
   } catch (e: any) {
-    console.error("[pbs-prune-jobs] DELETE Error:", e)
-    
+    console.error("[pbs-prune-jobs] DELETE Error:", String(e?.message || e).replace(/[\r\n]/g, ''))
+
 return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
   }
 }

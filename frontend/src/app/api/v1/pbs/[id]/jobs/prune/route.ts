@@ -67,7 +67,7 @@ export async function POST(req: Request, ctx: RouteContext) {
       message: 'Prune job created successfully'
     })
   } catch (e: any) {
-    console.error("[pbs-prune-jobs] POST Error:", e)
+    console.error("[pbs-prune-jobs] POST Error:", String(e?.message || e).replace(/[\r\n]/g, ''))
     
 return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
   }

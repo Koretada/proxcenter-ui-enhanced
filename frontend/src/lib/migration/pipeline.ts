@@ -490,7 +490,7 @@ export async function runMigrationPipeline(jobId: string, config: MigrationConfi
       const errFile = `${tmpPrefix}.stderr`
       const exitFile = `${tmpPrefix}.exit`
 
-      const sshCmd = `${sshPrefix} -p ${esxiSshPort} ${esxiSshUser}@${esxiHost} "${command.replace(/"/g, '\\"')}" >"${outFile}" 2>"${errFile}"`
+      const sshCmd = `${sshPrefix} -p ${esxiSshPort} ${esxiSshUser}@${esxiHost} "${command.replaceAll('"', '\\"')}" >"${outFile}" 2>"${errFile}"`
 
       await executeSSH(config.targetConnectionId, nodeIp,
         `cat > "${script}" << 'ESXIEOF'\n${setupCmd}\n${sshCmd}\nEXIT_CODE=$?\n${cleanupCmd}\necho $EXIT_CODE > "${exitFile}"\nESXIEOF`

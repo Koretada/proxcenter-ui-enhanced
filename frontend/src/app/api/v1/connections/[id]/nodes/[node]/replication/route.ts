@@ -204,7 +204,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error(`Error updating replication job:`, error)
+    console.error(`Error updating replication job:`, String(error?.message || error).replace(/[\r\n]/g, ''))
     return NextResponse.json({ 
       error: error.message || "Failed to update replication job"
     }, { status: 500 })
@@ -238,7 +238,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error(`Error deleting replication job:`, error)
+    console.error(`Error deleting replication job:`, String(error?.message || error).replace(/[\r\n]/g, ''))
     return NextResponse.json({ 
       error: error.message || "Failed to delete replication job"
     }, { status: 500 })

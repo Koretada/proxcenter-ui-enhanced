@@ -81,7 +81,7 @@ export async function soapLogout(session: SoapSession): Promise<void> {
 /** Extract a property value from SOAP XML */
 export function extractProp(xml: string, propName: string): string {
   const regex = new RegExp(
-    `<propSet>\\s*<name>${propName.replace(/\./g, "\\.")}</name>\\s*<val[^>]*>([\\s\\S]*?)</val>\\s*</propSet>`
+    `<propSet>\\s*<name>${propName.replaceAll(".", "\\.")}</name>\\s*<val[^>]*>([\\s\\S]*?)</val>\\s*</propSet>`
   )
   return regex.exec(xml)?.[1] || ""
 }

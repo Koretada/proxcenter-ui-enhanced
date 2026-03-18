@@ -309,7 +309,7 @@ export async function POST(
     })
 
   } catch (e: any) {
-    console.error('[remote-migrate/check] Error:', e)
+    console.error('[remote-migrate/check] Error:', String(e?.message || e).replace(/[\r\n]/g, ''))
     return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
   }
 }

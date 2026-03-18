@@ -246,7 +246,7 @@ export async function DELETE(
       }
     })
   } catch (e: any) {
-    console.error("Snapshot delete error:", e)
+    console.error("Snapshot delete error:", String(e?.message || e).replace(/[\r\n]/g, ''))
 
 return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
   }

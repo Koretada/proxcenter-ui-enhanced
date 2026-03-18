@@ -30,7 +30,7 @@ export async function GET(
 
     return NextResponse.json({ data: data || [] })
   } catch (e: any) {
-    console.error("Error fetching storage content:", e)
+    console.error("Error fetching storage content:", String(e?.message || e).replace(/[\r\n]/g, ''))
     return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
   }
 }

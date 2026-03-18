@@ -144,7 +144,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string; nod
     return NextResponse.json({ data: result })
 
   } catch (e: any) {
-    console.error("[disks/node] Error:", e?.message)
+    console.error("[disks/node] Error:", String(e?.message).replace(/[\r\n]/g, ''))
     return NextResponse.json({ error: e?.message || "Failed to fetch disks data" }, { status: 500 })
   }
 }
