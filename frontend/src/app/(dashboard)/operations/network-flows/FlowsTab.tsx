@@ -457,14 +457,12 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
                             <TableCell sx={{ py: 0.75, fontSize: '0.8rem' }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                 <i className="ri-computer-line" style={{ fontSize: 14, opacity: 0.5 }} />
-                                <Box>
-                                  <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.8rem' }}>
-                                    {talker.vm_name || `VM ${talker.vmid}`}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    ID {talker.vmid}
-                                  </Typography>
-                                </Box>
+                                <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.8rem' }}>
+                                  {talker.vm_name || `VM ${talker.vmid}`}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  ({talker.vmid})
+                                </Typography>
                               </Box>
                             </TableCell>
                             <TableCell align="right" sx={{ py: 0.75, fontSize: '0.8rem', fontFamily: 'monospace', color: 'success.main' }}>
