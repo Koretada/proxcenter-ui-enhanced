@@ -1,5 +1,12 @@
 [
   {
+    "version": "2026-03-19",
+    "title": "German Language Support",
+    "items": [
+      { "type": "new", "text": "Full German (Deutsch) translation — available in the language selector" }
+    ]
+  },
+  {
     "version": "2026-03-16",
     "title": "Multi-Tenancy",
     "items": [
