@@ -5150,6 +5150,8 @@
     "communications": "Communications",
     "peer": "Pair",
     "direction": "Direction",
-    "vmDetailNote": "Les séries temporelles et l'analyse détaillée des flux seront disponibles en Phase 2 avec l'intégration InfluxDB."
+    "vmDetailNote": "Les séries temporelles et l'analyse détaillée des flux seront disponibles en Phase 2 avec l'intégration InfluxDB.",
+    "topSources": "Principales sources",
+    "topDestinations": "Principales destinations"
   }
 }

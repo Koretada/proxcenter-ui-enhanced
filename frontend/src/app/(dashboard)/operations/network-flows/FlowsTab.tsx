@@ -68,6 +68,15 @@ interface TopPair {
   dst_port: number
 }
 
+interface TopEndpoint {
+  ip: string
+  vmid?: number
+  vm_name?: string
+  bytes: number
+  packets: number
+  flow_count: number
+}
+
 interface TopPort {
   port: number
   protocol: string
@@ -92,6 +101,8 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
   const [status, setStatus] = useState<SFlowStatus | null>(null)
   const [topTalkers, setTopTalkers] = useState<TopTalker[]>([])
   const [topPairs, setTopPairs] = useState<TopPair[]>([])
+  const [topSources, setTopSources] = useState<TopEndpoint[]>([])
+  const [topDestinations, setTopDestinations] = useState<TopEndpoint[]>([])
   const [topPorts, setTopPorts] = useState<TopPort[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -180,16 +191,20 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
   const loadData = useCallback(async () => {
     try {
       setError(null)
-      const [statusData, talkersData, pairsData, portsData] = await Promise.all([
+      const [statusData, talkersData, pairsData, portsData, srcData, dstData] = await Promise.all([
         fetchSFlow('status'),
         fetchSFlow('top-talkers', { n: '10' }),
         fetchSFlow('top-pairs', { n: '20' }),
         fetchSFlow('top-ports', { n: '10' }),
+        fetchSFlow('top-sources', { n: '10' }),
+        fetchSFlow('top-destinations', { n: '10' }),
       ])
       setStatus(statusData)
       setTopTalkers(Array.isArray(talkersData) ? talkersData : [])
       setTopPairs(Array.isArray(pairsData) ? pairsData : [])
       setTopPorts(Array.isArray(portsData) ? portsData : [])
+      setTopSources(Array.isArray(srcData) ? srcData : [])
+      setTopDestinations(Array.isArray(dstData) ? dstData : [])
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -424,7 +439,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
             </Card>
           </Box>
 
-          {/* Top Talkers + Top Pairs side by side */}
+          {/* Top Talkers + Top Sources/Destinations */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
 
             {/* Top Talkers */}
@@ -480,66 +495,80 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
               </CardContent>
             </Card>
 
-            {/* Top Pairs */}
-            <Card variant="outlined" sx={{ borderRadius: 2 }}>
-              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                  <Typography variant="subtitle2" fontWeight={700}>
-                    <i className="ri-arrow-left-right-line" style={{ fontSize: 16, marginRight: 6 }} />
-                    {t('networkFlows.topPairs')}
+            {/* Top Sources + Top Destinations stacked */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Top Sources */}
+              <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+                    <i className="ri-upload-2-line" style={{ fontSize: 16, marginRight: 6, color: theme.palette.warning.main }} />
+                    {t('networkFlows.topSources')}
                   </Typography>
-                </Box>
-                {topPairs.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4, opacity: 0.4 }}>
-                    <Typography variant="body2">{t('networkFlows.waitingForData')}</Typography>
-                  </Box>
-                ) : (
-                  <TableContainer>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Source</TableCell>
-                          <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}></TableCell>
-                          <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Dest</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Bytes</TableCell>
-                          <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Proto</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {topPairs.slice(0, 10).map((pair, idx) => (
-                          <TableRow key={idx} hover>
-                            <TableCell sx={{ py: 0.75, fontSize: '0.8rem', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                              onClick={() => setSelectedVM({ vmid: pair.src_vmid, vm_name: pair.src_name, node: '', bytes_in: pair.bytes, bytes_out: 0, packets: 0 })}
-                            >
-                              {pair.src_name || `VM ${pair.src_vmid}`}
-                            </TableCell>
-                            <TableCell sx={{ py: 0.75, textAlign: 'center' }}>
-                              <i className="ri-arrow-right-line" style={{ fontSize: 12, opacity: 0.4 }} />
-                            </TableCell>
-                            <TableCell sx={{ py: 0.75, fontSize: '0.8rem', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                              onClick={() => setSelectedVM({ vmid: pair.dst_vmid, vm_name: pair.dst_name, node: '', bytes_in: 0, bytes_out: pair.bytes, packets: 0 })}
-                            >
-                              {pair.dst_name || `VM ${pair.dst_vmid}`}
-                            </TableCell>
-                            <TableCell align="right" sx={{ py: 0.75, fontSize: '0.8rem', fontFamily: 'monospace' }}>
-                              {formatBytes(pair.bytes)}
-                            </TableCell>
-                            <TableCell sx={{ py: 0.75 }}>
-                              <Chip
-                                label={`${pair.protocol}/${pair.dst_port}`}
-                                size="small"
-                                variant="outlined"
-                                sx={{ height: 20, fontSize: '0.65rem' }}
-                              />
-                            </TableCell>
+                  {topSources.length === 0 ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 3, opacity: 0.4 }}>
+                      <Typography variant="body2">{t('networkFlows.waitingForData')}</Typography>
+                    </Box>
+                  ) : (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>IP</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Bytes</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Flows</TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </CardContent>
-            </Card>
+                        </TableHead>
+                        <TableBody>
+                          {topSources.map((src) => (
+                            <TableRow key={src.ip} hover>
+                              <TableCell sx={{ py: 0.5, fontFamily: 'monospace', fontSize: '0.8rem' }}>{src.ip}</TableCell>
+                              <TableCell align="right" sx={{ py: 0.5, fontFamily: 'monospace', fontSize: '0.8rem' }}>{formatBytes(src.bytes)}</TableCell>
+                              <TableCell align="right" sx={{ py: 0.5, fontSize: '0.8rem', color: 'text.secondary' }}>{src.flow_count}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Top Destinations */}
+              <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+                    <i className="ri-download-2-line" style={{ fontSize: 16, marginRight: 6, color: theme.palette.success.main }} />
+                    {t('networkFlows.topDestinations')}
+                  </Typography>
+                  {topDestinations.length === 0 ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 3, opacity: 0.4 }}>
+                      <Typography variant="body2">{t('networkFlows.waitingForData')}</Typography>
+                    </Box>
+                  ) : (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>IP</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Bytes</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Flows</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {topDestinations.map((dst) => (
+                            <TableRow key={dst.ip} hover>
+                              <TableCell sx={{ py: 0.5, fontFamily: 'monospace', fontSize: '0.8rem' }}>{dst.ip}</TableCell>
+                              <TableCell align="right" sx={{ py: 0.5, fontFamily: 'monospace', fontSize: '0.8rem' }}>{formatBytes(dst.bytes)}</TableCell>
+                              <TableCell align="right" sx={{ py: 0.5, fontSize: '0.8rem', color: 'text.secondary' }}>{dst.flow_count}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </Box>
           </Box>
 
           {/* Top Ports */}

@@ -5149,6 +5149,8 @@
     "communications": "Communications",
     "peer": "Peer",
     "direction": "Direction",
-    "vmDetailNote": "Time series and detailed flow analysis will be available in Phase 2 with InfluxDB integration."
+    "vmDetailNote": "Time series and detailed flow analysis will be available in Phase 2 with InfluxDB integration.",
+    "topSources": "Top Sources",
+    "topDestinations": "Top Destinations"
   }
 }

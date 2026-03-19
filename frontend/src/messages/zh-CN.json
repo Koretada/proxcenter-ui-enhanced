@@ -5149,6 +5149,8 @@
     "communications": "通信",
     "peer": "对端",
     "direction": "方向",
-    "vmDetailNote": "时间序列和详细流量分析将在第 2 阶段通过 InfluxDB 集成提供。"
+    "vmDetailNote": "时间序列和详细流量分析将在第 2 阶段通过 InfluxDB 集成提供。",
+    "topSources": "主要来源",
+    "topDestinations": "主要目的地"
   }
 }
