@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts'
 
 import {
   Alert,
@@ -16,7 +16,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   LinearProgress,
+  Tooltip as MuiTooltip,
   Tab,
   Tabs,
   Table,
@@ -103,6 +105,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
   const [configuringNodes, setConfiguringNodes] = useState(false)
   const [configDialogOpen, setConfigDialogOpen] = useState(false)
   const [collectorTarget, setCollectorTarget] = useState('')
+  const [configSingleNode, setConfigSingleNode] = useState<typeof nodeAgents[0] | null>(null)
 
   const primaryColor = theme.palette.primary.main
 
@@ -130,28 +133,35 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
       .catch(() => {}) // Non-critical
   }, [portMapLoaded])
 
-  // Open configure dialog
+  // Open configure dialog (all unconfigured nodes)
   const handleOpenConfigDialog = () => {
-    // Pre-fill with window location hostname + default port
+    setConfigSingleNode(null)
     if (!collectorTarget) {
       setCollectorTarget(`${window.location.hostname}:6343`)
     }
     setConfigDialogOpen(true)
   }
 
-  // Configure sFlow on unconfigured nodes
+  // Configure sFlow on nodes
   const handleConfigureNodes = async () => {
-    const unconfigured = nodeAgents.filter(n => n.hasOvs && !n.sflowConfigured)
-    if (unconfigured.length === 0 || !collectorTarget) return
+    if (!collectorTarget) return
+
+    // If configuring a single node, use that; otherwise configure all unconfigured
+    const nodesToConfigure = configSingleNode
+      ? [configSingleNode]
+      : nodeAgents.filter(n => n.hasOvs && !n.sflowConfigured)
+
+    if (nodesToConfigure.length === 0) return
 
     setConfigDialogOpen(false)
+    setConfigSingleNode(null)
     setConfiguringNodes(true)
     try {
       const res = await fetch('/api/v1/orchestrator/sflow/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nodes: unconfigured.map(n => ({ node: n.node, ip: n.ip, connectionId: n.connectionId })),
+          nodes: nodesToConfigure.map(n => ({ node: n.node, ip: n.ip, connectionId: n.connectionId })),
           collectorTarget,
         }),
       })
@@ -311,6 +321,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>OVS</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>sFlow</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Target</TableCell>
+                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}></TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -343,6 +354,23 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
                           </TableCell>
                           <TableCell sx={{ py: 0.75, fontSize: '0.75rem', fontFamily: 'monospace', color: 'text.secondary' }}>
                             {agent.sflowTarget || '—'}
+                          </TableCell>
+                          <TableCell sx={{ py: 0.75 }}>
+                            {agent.hasOvs && (
+                              <MuiTooltip title={agent.sflowConfigured ? t('networkFlows.reconfigure') : t('networkFlows.configure')}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setConfigSingleNode(agent)
+                                    if (!collectorTarget) setCollectorTarget(`${window.location.hostname}:6343`)
+                                    setConfigDialogOpen(true)
+                                  }}
+                                  sx={{ color: agent.sflowConfigured ? 'text.secondary' : 'warning.main' }}
+                                >
+                                  <i className={agent.sflowConfigured ? 'ri-refresh-line' : 'ri-play-circle-line'} style={{ fontSize: 16 }} />
+                                </IconButton>
+                              </MuiTooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -536,7 +564,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
                     >
                       <XAxis type="number" tickFormatter={(v) => formatBytes(v)} tick={{ fontSize: 11 }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} />
-                      <Tooltip
+                      <RechartsTooltip
                         formatter={(value: number) => [formatBytes(value), 'Traffic']}
                         contentStyle={{ fontSize: 12, borderRadius: 8 }}
                       />
@@ -614,12 +642,20 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
             helperText={t('networkFlows.collectorTargetHelp')}
             InputProps={{ sx: { fontFamily: 'monospace' } }}
           />
-          {nodeAgents.filter(n => n.hasOvs && !n.sflowConfigured).length > 0 && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="caption" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
-                {t('networkFlows.nodesToConfigure')}
-              </Typography>
-              {nodeAgents.filter(n => n.hasOvs && !n.sflowConfigured).map(n => (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="caption" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+              {t('networkFlows.nodesToConfigure')}
+            </Typography>
+            {configSingleNode ? (
+              <Chip
+                label={`${configSingleNode.node} (${configSingleNode.ip})`}
+                size="small"
+                color="primary"
+                variant="outlined"
+                sx={{ height: 24, fontSize: '0.75rem' }}
+              />
+            ) : (
+              nodeAgents.filter(n => n.hasOvs && !n.sflowConfigured).map(n => (
                 <Chip
                   key={n.ip}
                   label={`${n.node} (${n.ip})`}
@@ -627,9 +663,9 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
                   variant="outlined"
                   sx={{ mr: 0.5, mb: 0.5, height: 24, fontSize: '0.75rem' }}
                 />
-              ))}
-            </Box>
-          )}
+              ))
+            )}
+          </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setConfigDialogOpen(false)}>{t('common.cancel')}</Button>

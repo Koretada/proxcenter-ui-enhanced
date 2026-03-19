@@ -5143,6 +5143,8 @@
     "configureSflowDesc": "sFlow 将在所选节点的所有 OVS 网桥上配置。代理将向指定的收集器发送流量样本。",
     "collectorTarget": "收集器目标",
     "collectorTargetHelp": "ProxCenter 服务器的 IP 地址和端口（编排器运行的位置）",
-    "nodesToConfigure": "要配置的节点："
+    "nodesToConfigure": "要配置的节点：",
+    "reconfigure": "重新配置 sFlow",
+    "configure": "配置 sFlow"
   }
 }

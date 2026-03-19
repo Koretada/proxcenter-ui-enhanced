@@ -5144,6 +5144,8 @@
     "configureSflowDesc": "sFlow sera configuré sur tous les bridges OVS des nœuds sélectionnés. Les agents enverront des échantillons de flux au collecteur spécifié.",
     "collectorTarget": "Cible du collecteur",
     "collectorTargetHelp": "Adresse IP et port du serveur ProxCenter (où l'orchestrateur s'exécute)",
-    "nodesToConfigure": "Nœuds à configurer :"
+    "nodesToConfigure": "Nœuds à configurer :",
+    "reconfigure": "Reconfigurer sFlow",
+    "configure": "Configurer sFlow"
   }
 }
