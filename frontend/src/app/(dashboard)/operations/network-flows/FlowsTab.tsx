@@ -406,7 +406,7 @@ export default function FlowsTab() {
                               <TableRow key={agent.ip}>
                                 <TableCell sx={{ py: 0.75, fontSize: '0.8rem' }}>
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                    <i className="ri-server-line" style={{ fontSize: 14, opacity: 0.5 }} />
+                                    <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 14, height: 14, opacity: 0.7 }} />
                                     {agent.node}
                                   </Box>
                                 </TableCell>
