@@ -19,7 +19,6 @@ import {
   TableBody,
   TableCell,
   TableContainer,
-  TableHead,
   TableRow,
   TextField,
   ToggleButton,
@@ -410,14 +409,13 @@ export default function TimeSeriesChart() {
         const peak = Math.max(peakIn, peakOut)
 
         return (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-            {/* Bandwidth Statistics */}
-            <Card variant="outlined" sx={{ borderRadius: 2 }}>
-              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-                  <i className="ri-bar-chart-box-line" style={{ fontSize: 16, marginRight: 6 }} />
-                  Statistics
-                </Typography>
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
+                <i className="ri-bar-chart-box-line" style={{ fontSize: 16, marginRight: 6 }} />
+                Statistics
+              </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
@@ -446,62 +444,38 @@ export default function TimeSeriesChart() {
                     </TableBody>
                   </Table>
                 </TableContainer>
-
-                {/* Visual peak bar */}
-                {peak > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">Peak utilization</Typography>
+                {/* Visual peak bars */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1.5 }}>
+                  {peak > 0 && (<>
+                    <Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography variant="caption" fontWeight={600}>↓ Peak Inbound</Typography>
+                        <Typography variant="caption" fontFamily="JetBrains Mono, monospace" color="success.main">{formatBytes(peakIn)}</Typography>
+                      </Box>
+                      <LinearProgress variant="determinate" value={(peakIn / peak) * 100} sx={{ height: 8, borderRadius: 4, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: 4, bgcolor: 'success.main' } }} />
                     </Box>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Typography variant="caption" color="success.main" sx={{ width: 20 }}>↓</Typography>
-                      <LinearProgress variant="determinate" value={peak > 0 ? (peakIn / peak) * 100 : 0} sx={{ flex: 1, height: 6, borderRadius: 3, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: 3, bgcolor: 'success.main' } }} />
+                    <Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography variant="caption" fontWeight={600}>↑ Peak Outbound</Typography>
+                        <Typography variant="caption" fontFamily="JetBrains Mono, monospace" color="warning.main">{formatBytes(peakOut)}</Typography>
+                      </Box>
+                      <LinearProgress variant="determinate" value={(peakOut / peak) * 100} sx={{ height: 8, borderRadius: 4, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: 4, bgcolor: 'warning.main' } }} />
                     </Box>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5 }}>
-                      <Typography variant="caption" color="warning.main" sx={{ width: 20 }}>↑</Typography>
-                      <LinearProgress variant="determinate" value={peak > 0 ? (peakOut / peak) * 100 : 0} sx={{ flex: 1, height: 6, borderRadius: 3, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: 3, bgcolor: 'warning.main' } }} />
+                    <Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography variant="caption" fontWeight={600}>In/Out Balance</Typography>
+                        <Typography variant="caption" fontFamily="JetBrains Mono, monospace">{totalIn + totalOut > 0 ? ((totalIn / (totalIn + totalOut)) * 100).toFixed(0) : 50}% in</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden' }}>
+                        <Box sx={{ width: `${totalIn + totalOut > 0 ? (totalIn / (totalIn + totalOut)) * 100 : 50}%`, bgcolor: 'success.main' }} />
+                        <Box sx={{ flex: 1, bgcolor: 'warning.main' }} />
+                      </Box>
                     </Box>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recent Data Points table */}
-            <Card variant="outlined" sx={{ borderRadius: 2 }}>
-              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-                  <i className="ri-table-line" style={{ fontSize: 16, marginRight: 6 }} />
-                  Recent Data Points
-                </Typography>
-                <TableContainer sx={{ maxHeight: 220 }}>
-                  <Table size="small" stickyHeader>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', py: 0.5 }}>Time</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600, fontSize: '0.7rem', py: 0.5, color: 'success.main' }}>↓ In</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600, fontSize: '0.7rem', py: 0.5, color: 'warning.main' }}>↑ Out</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {singleData.slice(-15).reverse().map((p, i) => (
-                        <TableRow key={i}>
-                          <TableCell sx={{ py: 0.5, fontSize: '0.75rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                            {new Date(p.time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </TableCell>
-                          <TableCell align="right" sx={{ py: 0.5, fontSize: '0.75rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                            {formatBytes(p.bytes_in || 0)}
-                          </TableCell>
-                          <TableCell align="right" sx={{ py: 0.5, fontSize: '0.75rem', fontFamily: 'JetBrains Mono, monospace' }}>
-                            {formatBytes(p.bytes_out || 0)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </Box>
+                  </>)}
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
         )
       })()}
 

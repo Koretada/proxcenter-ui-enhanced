@@ -714,6 +714,7 @@ export default function FlowsTab() {
                       <XAxis type="number" tickFormatter={(v) => formatBytes(v)} tick={{ fontSize: 11 }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
                       <RechartsTooltip
+                        cursor={{ fill: theme.palette.action.hover }}
                         formatter={(value: number) => [formatBytes(value), 'Traffic']}
                         contentStyle={{
                           fontSize: 12,
@@ -723,7 +724,7 @@ export default function FlowsTab() {
                           color: theme.palette.text.primary,
                         }}
                       />
-                      <Bar dataKey="bytes" radius={[0, 4, 4, 0]} maxBarSize={20} onClick={(_data: any, idx: number) => handlePortClick(topPorts[idx])} style={{ cursor: 'pointer' }} cursor={{ fill: theme.palette.action.hover } as any}>
+                      <Bar dataKey="bytes" radius={[0, 4, 4, 0]} maxBarSize={20} onClick={(_data: any, idx: number) => handlePortClick(topPorts[idx])} style={{ cursor: 'pointer' }}>
                         {topPorts.map((_, idx) => (
                           <Cell key={idx} fill={idx === 0 ? primaryColor : `${primaryColor}${Math.max(30, 90 - idx * 8).toString(16)}`} />
                         ))}
