@@ -14,6 +14,7 @@ interface NodeSFlowStatus {
   connectionName: string
   online: boolean
   hasOvs: boolean
+  ovsVersion: string
   sflowConfigured: boolean
   sflowTarget: string
   bridges: string[]
@@ -58,6 +59,7 @@ export async function GET() {
           connectionName: conn.name,
           online: true,
           hasOvs: false,
+          ovsVersion: "",
           sflowConfigured: false,
           sflowTarget: "",
           bridges: [],
@@ -93,6 +95,16 @@ export async function GET() {
             nodeStatus.hasOvs = true
             if (!nodeStatus.bridges.length && bridgesResult.output?.trim()) {
               nodeStatus.bridges = bridgesResult.output.trim().split("\n").filter(Boolean)
+            }
+
+            // Get OVS version
+            const versionResult = await executeSSHDirect({
+              ...sshOpts,
+              command: "ovs-vsctl --version 2>/dev/null | head -1 || true",
+            })
+            if (versionResult.success && versionResult.output?.trim()) {
+              const match = versionResult.output.match(/(\d+\.\d+\.\d+)/)
+              if (match) nodeStatus.ovsVersion = match[1]
             }
 
             // Check if sFlow is configured on the first bridge

@@ -93,6 +93,9 @@ interface LinkDetail {
   type: 'link'
   sourceName: string
   targetName: string
+  srcIP: string
+  service: string
+  dstIP: string
   bytes: number
   packets: number
   protocol: string
@@ -128,20 +131,34 @@ export default function SankeyChart() {
     return () => clearInterval(interval)
   }, [])
 
-  // Observe container size — use full available height
+  // Observe container size — fit within viewport without scroll
   useEffect(() => {
     if (!containerRef.current) return
+
+    const computeHeight = () => {
+      if (!containerRef.current) return 500
+      // Calculate remaining space: viewport height minus the top position of the container minus some padding
+      const rect = containerRef.current.getBoundingClientRect()
+      return Math.max(300, window.innerHeight - rect.top - 32)
+    }
+
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
         const w = Math.max(600, entry.contentRect.width)
-        // Use viewport height minus header/tabs/padding (~200px)
-        const viewportH = window.innerHeight - 200
-        const h = Math.max(400, viewportH)
-        setDimensions({ width: w, height: h })
+        setDimensions({ width: w, height: computeHeight() })
       }
     })
     observer.observe(containerRef.current)
-    return () => observer.disconnect()
+
+    // Also recalculate on window resize
+    const onResize = () => {
+      if (!containerRef.current) return
+      const w = Math.max(600, containerRef.current.clientWidth)
+      setDimensions({ width: w, height: computeHeight() })
+    }
+    window.addEventListener('resize', onResize)
+
+    return () => { observer.disconnect(); window.removeEventListener('resize', onResize) }
   }, [])
 
   // Build Sankey data
@@ -286,12 +303,41 @@ export default function SankeyChart() {
     })
   }
 
-  // Build detail data for a link click
-  const handleLinkClick = (link: any) => {
+  // Build detail data for a link click — reconstruct full path src → service → dst
+  const handleLinkClick = (link: any, linkIdx: number) => {
+    const srcNode = link.source as any
+    const tgtNode = link.target as any
+
+    // Links come in pairs: even=src→service, odd=service→dst
+    // Find the sibling link to reconstruct the full path
+    let srcIP = link.srcIP || ''
+    let service = ''
+    let dstIP = link.dstIP || ''
+
+    if (srcNode.category === 'source' && tgtNode.category === 'service') {
+      // This is src→service, the next link is service→dst
+      srcIP = srcNode.name
+      service = tgtNode.name
+      const siblingLink = (layout?.links as any[])?.[linkIdx + 1]
+      if (siblingLink) dstIP = (siblingLink.target as any)?.name || dstIP
+    } else if (srcNode.category === 'service' && tgtNode.category === 'destination') {
+      // This is service→dst, the previous link is src→service
+      service = srcNode.name
+      dstIP = tgtNode.name
+      const siblingLink = (layout?.links as any[])?.[linkIdx - 1]
+      if (siblingLink) srcIP = (siblingLink.source as any)?.name || srcIP
+    } else {
+      srcIP = srcNode.name
+      dstIP = tgtNode.name
+    }
+
     setDetail({
       type: 'link',
-      sourceName: (link.source as any).name,
-      targetName: (link.target as any).name,
+      sourceName: srcNode.name,
+      targetName: tgtNode.name,
+      srcIP,
+      service: service || portToService(link.port, link.protocol),
+      dstIP,
       bytes: link.value,
       packets: link.packets || 0,
       protocol: link.protocol,
@@ -401,7 +447,7 @@ export default function SankeyChart() {
                       strokeOpacity={hoveredLink === null && hoveredNode === null ? 0.4 : isHovered ? 0.7 : 0.1}
                       onMouseEnter={() => setHoveredLink(idx)}
                       onMouseLeave={() => setHoveredLink(null)}
-                      onClick={() => handleLinkClick(link)}
+                      onClick={() => handleLinkClick(link, idx)}
                       style={{ cursor: 'pointer', transition: 'stroke-opacity 0.2s' }}
                     >
                       <title>
@@ -592,22 +638,32 @@ export default function SankeyChart() {
               </IconButton>
             </DialogTitle>
             <DialogContent>
-              {/* Flow path visualization */}
+              {/* Full flow path: Source IP → Service → Destination IP */}
               <Box sx={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, p: 2, mb: 2,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, p: 2, mb: 2,
                 borderRadius: 1.5, bgcolor: theme.palette.action.hover,
               }}>
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="caption" color="text.secondary" display="block">{t('networkFlows.source')}</Typography>
-                  <Typography fontFamily="JetBrains Mono, monospace" fontWeight={700} fontSize={14}>
-                    {detail.sourceName}
+                  <Typography fontFamily="JetBrains Mono, monospace" fontWeight={700} fontSize={13} color="warning.main">
+                    {detail.srcIP}
                   </Typography>
                 </Box>
-                <i className="ri-arrow-right-line" style={{ fontSize: 20, color: theme.palette.text.secondary }} />
+                <i className="ri-arrow-right-line" style={{ fontSize: 18, color: theme.palette.text.secondary }} />
                 <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="caption" color="text.secondary" display="block">{t('networkFlows.target')}</Typography>
-                  <Typography fontFamily="JetBrains Mono, monospace" fontWeight={700} fontSize={14}>
-                    {detail.targetName}
+                  <Typography variant="caption" color="text.secondary" display="block">{t('networkFlows.application')}</Typography>
+                  <Chip
+                    label={detail.service}
+                    size="small"
+                    color="primary"
+                    sx={{ fontWeight: 700, fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}
+                  />
+                </Box>
+                <i className="ri-arrow-right-line" style={{ fontSize: 18, color: theme.palette.text.secondary }} />
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="caption" color="text.secondary" display="block">{t('networkFlows.destination')}</Typography>
+                  <Typography fontFamily="JetBrains Mono, monospace" fontWeight={700} fontSize={13} color="success.main">
+                    {detail.dstIP}
                   </Typography>
                 </Box>
               </Box>
