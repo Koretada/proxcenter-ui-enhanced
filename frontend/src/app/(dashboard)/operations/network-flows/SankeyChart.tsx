@@ -114,7 +114,7 @@ export default function SankeyChart() {
   const [loading, setLoading] = useState(true)
   const [hoveredLink, setHoveredLink] = useState<number | null>(null)
   const [hoveredNode, setHoveredNode] = useState<number | null>(null)
-  const [containerWidth, setContainerWidth] = useState(0)
+  const [containerWidth, setContainerWidth] = useState(typeof window !== 'undefined' ? window.innerWidth - 300 : 900)
   const [detail, setDetail] = useState<DetailData | null>(null)
 
   useEffect(() => {
@@ -395,8 +395,8 @@ export default function SankeyChart() {
             {t('networkFlows.flowDiagram')}
           </Typography>
 
-          <Box ref={containerRef} sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
-            {containerWidth > 0 && (<svg
+          <Box ref={containerRef} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', minHeight: 100 }}>
+            <svg
               width={svgWidth}
               height={svgHeight}
               style={{ display: 'block', maxWidth: '100%' }}
@@ -486,7 +486,7 @@ export default function SankeyChart() {
                   )
                 })}
               </g>
-            </svg>)}
+            </svg>
           </Box>
         </CardContent>
       </Card>
