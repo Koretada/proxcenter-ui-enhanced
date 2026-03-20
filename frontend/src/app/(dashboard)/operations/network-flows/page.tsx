@@ -18,7 +18,7 @@ export default function NetworkFlowsPage() {
   const t = useTranslations()
 
   const { data: connectionsData } = usePVEConnections()
-  const connections = (connectionsData?.data || []).filter((c: any) => c.sshConfigured)
+  const connections = connectionsData?.data || []
 
   useEffect(() => {
     setPageInfo(t('networkFlows.title'), t('networkFlows.subtitle'), 'ri-flow-chart')

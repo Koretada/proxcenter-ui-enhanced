@@ -35,10 +35,10 @@
         "latitude": null,
         "longitude": null,
         "locationLabel": null,
-        "sshEnabled": false,
+        "sshEnabled": true,
         "sshPort": 22,
         "sshUser": "root",
-        "sshAuthMethod": null,
+        "sshAuthMethod": "key",
         "sshUseSudo": false,
         "createdAt": "2026-03-03T12:07:47.325Z",
         "updatedAt": "2026-03-03T12:07:47.325Z",
@@ -116,8 +116,8 @@
             "enabled": true
           }
         ],
-        "sshConfigured": false,
-        "sshKeyConfigured": false,
+        "sshConfigured": true,
+        "sshKeyConfigured": true,
         "sshPassConfigured": false
       },
       {

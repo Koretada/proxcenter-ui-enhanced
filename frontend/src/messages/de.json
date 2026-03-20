@@ -5173,6 +5173,7 @@
     "protocol": "Protokoll",
     "port": "Port",
     "shareOfTotal": "Anteil am Gesamtverkehr",
-    "packets": "Pakete"
+    "packets": "Pakete",
+    "noSsh": "Kein SSH"
   }
 }

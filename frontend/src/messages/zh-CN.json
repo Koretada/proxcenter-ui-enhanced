@@ -5177,6 +5177,7 @@
     "protocol": "协议",
     "port": "端口",
     "shareOfTotal": "占总流量比例",
-    "packets": "数据包"
+    "packets": "数据包",
+    "noSsh": "无 SSH"
   }
 }
