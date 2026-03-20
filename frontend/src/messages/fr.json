@@ -5156,6 +5156,8 @@
     "selectVm": "Sélectionner une VM",
     "selectVmToView": "Sélectionnez une VM pour voir son historique de bande passante",
     "noTimeSeriesData": "Pas encore de données de séries temporelles. InfluxDB collecte les données chaque minute.",
-    "influxNotConfigured": "InfluxDB n'est pas configuré. Les séries temporelles nécessitent InfluxDB — ajoutez les paramètres influxdb à la config de l'orchestrateur."
+    "influxNotConfigured": "InfluxDB n'est pas configuré. Les séries temporelles nécessitent InfluxDB — ajoutez les paramètres influxdb à la config de l'orchestrateur.",
+    "selectVms": "Sélectionner les VMs",
+    "multiVmBandwidth": "Comparaison de bande passante multi-VM"
   }
 }

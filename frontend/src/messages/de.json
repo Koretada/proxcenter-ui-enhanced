@@ -5151,6 +5151,8 @@
     "selectVm": "VM auswählen",
     "selectVmToView": "Wählen Sie eine VM, um den Bandbreitenverlauf anzuzeigen",
     "noTimeSeriesData": "Noch keine Zeitreihendaten verfügbar. InfluxDB sammelt Daten jede Minute.",
-    "influxNotConfigured": "InfluxDB ist nicht konfiguriert. Zeitreihen erfordern InfluxDB — fügen Sie die influxdb-Einstellungen zur Orchestrator-Konfiguration hinzu."
+    "influxNotConfigured": "InfluxDB ist nicht konfiguriert. Zeitreihen erfordern InfluxDB — fügen Sie die influxdb-Einstellungen zur Orchestrator-Konfiguration hinzu.",
+    "selectVms": "VMs auswählen",
+    "multiVmBandwidth": "Multi-VM Bandbreitenvergleich"
   }
 }

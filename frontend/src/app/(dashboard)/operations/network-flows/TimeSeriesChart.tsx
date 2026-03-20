@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts'
 
 import {
@@ -37,10 +37,19 @@ interface TimeSeriesPoint {
   packets: number
 }
 
+interface VMTimeSeries {
+  vmid: number
+  vm_name: string
+  points: TimeSeriesPoint[]
+}
+
 async function fetchSFlow(endpoint: string, params?: Record<string, string>) {
   const query = new URLSearchParams({ endpoint, ...params })
   const res = await fetch(`/api/v1/orchestrator/sflow?${query}`)
-  if (!res.ok) return null
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `HTTP ${res.status}`)
+  }
   return res.json()
 }
 
@@ -53,29 +62,42 @@ const timeRanges = [
   { label: '7d', value: 10080 },
 ]
 
+// Colors for multi-VM chart
+const VM_COLORS = [
+  '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
+]
+
 export default function TimeSeriesChart() {
   const t = useTranslations()
   const theme = useTheme()
-  const primaryColor = theme.palette.primary.main
   const isDark = theme.palette.mode === 'dark'
 
   const [vms, setVMs] = useState<TopTalker[]>([])
-  const [selectedVM, setSelectedVM] = useState<TopTalker | null>(null)
-  const [timeRange, setTimeRange] = useState(60) // minutes
-  const [data, setData] = useState<TimeSeriesPoint[]>([])
+  const [selectedVMs, setSelectedVMs] = useState<TopTalker[]>([])
+  const [destFilter, setDestFilter] = useState('')
+  const [timeRange, setTimeRange] = useState(60)
+
+  // Single VM data
+  const [singleData, setSingleData] = useState<TimeSeriesPoint[]>([])
+  // Multi VM data
+  const [multiData, setMultiData] = useState<VMTimeSeries[]>([])
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const isMultiVM = selectedVMs.length > 1
 
   // Load available VMs
   useEffect(() => {
     fetchSFlow('top-talkers', { n: '50' }).then(d => {
       if (Array.isArray(d)) setVMs(d)
-    })
+    }).catch(() => {})
   }, [])
 
   // Load time series data
   const loadTimeSeries = useCallback(async () => {
-    if (!selectedVM) return
+    if (selectedVMs.length === 0) return
 
     setLoading(true)
     setError(null)
@@ -83,44 +105,37 @@ export default function TimeSeriesChart() {
     try {
       const now = new Date()
       const from = new Date(now.getTime() - timeRange * 60 * 1000)
-
       const params: Record<string, string> = {
-        endpoint: 'timeseries/vm',
-        vmid: String(selectedVM.vmid),
         from: from.toISOString(),
         to: now.toISOString(),
       }
 
-      const query = new URLSearchParams(params)
-      const res = await fetch(`/api/v1/orchestrator/sflow?${query}`)
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        if (res.status === 503) {
-          setError(t('networkFlows.influxNotConfigured'))
-        } else {
-          setError(errData.error || 'Failed to load time series')
-        }
-        setData([])
-        return
+      if (selectedVMs.length === 1 && !destFilter) {
+        // Single VM mode
+        const data = await fetchSFlow('timeseries/vm', { ...params, vmid: String(selectedVMs[0].vmid) })
+        setSingleData(Array.isArray(data) ? data : [])
+        setMultiData([])
+      } else {
+        // Multi VM mode or filtered
+        const vmids = selectedVMs.map(v => v.vmid).join(',')
+        const data = await fetchSFlow('timeseries/all-vms', { ...params, vmids })
+        setMultiData(Array.isArray(data) ? data : [])
+        setSingleData([])
       }
-
-      const points = await res.json()
-      setData(Array.isArray(points) ? points : [])
     } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [selectedVM, timeRange, t])
+  }, [selectedVMs, timeRange, destFilter])
 
   useEffect(() => {
     loadTimeSeries()
-    if (selectedVM) {
+    if (selectedVMs.length > 0) {
       const interval = setInterval(loadTimeSeries, 30000)
       return () => clearInterval(interval)
     }
-  }, [loadTimeSeries, selectedVM])
+  }, [loadTimeSeries, selectedVMs])
 
   const formatTime = (ts: number) => {
     const d = new Date(ts * 1000)
@@ -129,21 +144,58 @@ export default function TimeSeriesChart() {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   }
 
+  // Build merged chart data for multi-VM
+  const mergedMultiData = useMemo(() => {
+    if (multiData.length === 0) return []
+
+    // Collect all timestamps
+    const timeMap = new Map<number, Record<string, number>>()
+    for (const vm of multiData) {
+      for (const p of vm.points) {
+        if (!timeMap.has(p.time)) timeMap.set(p.time, { time: p.time })
+        const entry = timeMap.get(p.time)!
+        entry[`vm_${vm.vmid}_total`] = (p.bytes_in || 0) + (p.bytes_out || 0)
+      }
+    }
+
+    return Array.from(timeMap.values()).sort((a, b) => a.time - b.time)
+  }, [multiData])
+
+  const hasData = isMultiVM ? mergedMultiData.length > 0 : singleData.length > 0
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 1 }}>
 
       {/* Controls */}
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <Autocomplete
+          multiple
           size="small"
-          sx={{ minWidth: 300 }}
+          sx={{ minWidth: 350, flex: 1 }}
           options={vms}
           getOptionLabel={(vm) => `${vm.vm_name || `VM ${vm.vmid}`} (${vm.vmid})`}
-          value={selectedVM}
-          onChange={(_, v) => setSelectedVM(v)}
+          value={selectedVMs}
+          onChange={(_, v) => setSelectedVMs(v)}
           renderInput={(params) => (
-            <TextField {...params} label={t('networkFlows.selectVm')} placeholder={t('common.search')} />
+            <TextField {...params} label={t('networkFlows.selectVms')} placeholder={t('common.search')} />
           )}
+          renderTags={(value, getTagProps) =>
+            value.map((vm, idx) => (
+              <Chip
+                {...getTagProps({ index: idx })}
+                key={vm.vmid}
+                label={vm.vm_name || `VM ${vm.vmid}`}
+                size="small"
+                sx={{
+                  height: 24,
+                  bgcolor: `${VM_COLORS[idx % VM_COLORS.length]}20`,
+                  borderColor: VM_COLORS[idx % VM_COLORS.length],
+                  '& .MuiChip-label': { fontSize: '0.75rem' },
+                }}
+                variant="outlined"
+              />
+            ))
+          }
           renderOption={(props, vm) => (
             <Box component="li" {...props} sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -180,7 +232,7 @@ export default function TimeSeriesChart() {
       )}
 
       {/* No VM selected */}
-      {!selectedVM && (
+      {selectedVMs.length === 0 && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
           <Box sx={{ textAlign: 'center', opacity: 0.4 }}>
             <i className="ri-line-chart-line" style={{ fontSize: 48 }} />
@@ -190,83 +242,92 @@ export default function TimeSeriesChart() {
       )}
 
       {/* Loading */}
-      {selectedVM && loading && data.length === 0 && (
+      {selectedVMs.length > 0 && loading && !hasData && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
           <CircularProgress size={32} />
         </Box>
       )}
 
-      {/* Chart */}
-      {selectedVM && data.length > 0 && (
+      {/* Single VM Chart — In/Out */}
+      {selectedVMs.length === 1 && singleData.length > 0 && (
         <Card variant="outlined" sx={{ borderRadius: 2 }}>
           <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
               <Typography variant="subtitle2" fontWeight={700}>
                 <i className="ri-line-chart-line" style={{ fontSize: 16, marginRight: 6 }} />
-                {selectedVM.vm_name || `VM ${selectedVM.vmid}`} — Bandwidth
+                {selectedVMs[0].vm_name || `VM ${selectedVMs[0].vmid}`} — Bandwidth
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <Chip
-                  label={`↓ In`}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${theme.palette.success.main}20`, color: theme.palette.success.main }}
-                />
-                <Chip
-                  label={`↑ Out`}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${theme.palette.warning.main}20`, color: theme.palette.warning.main }}
-                />
+                <Chip label="↓ In" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${theme.palette.success.main}20`, color: theme.palette.success.main }} />
+                <Chip label="↑ Out" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${theme.palette.warning.main}20`, color: theme.palette.warning.main }} />
               </Box>
             </Box>
 
-            <Box sx={{ height: 300 }}>
+            <Box sx={{ height: 350 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data}>
+                <AreaChart data={singleData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} />
-                  <XAxis
-                    dataKey="time"
-                    tickFormatter={formatTime}
-                    tick={{ fontSize: 10 }}
-                    stroke={theme.palette.text.secondary}
-                  />
-                  <YAxis
-                    tickFormatter={(v) => formatBytes(v)}
-                    tick={{ fontSize: 10 }}
-                    width={70}
-                    stroke={theme.palette.text.secondary}
-                  />
+                  <XAxis dataKey="time" tickFormatter={formatTime} tick={{ fontSize: 10 }} stroke={theme.palette.text.secondary} />
+                  <YAxis tickFormatter={(v) => formatBytes(v)} tick={{ fontSize: 10 }} width={70} stroke={theme.palette.text.secondary} />
                   <RechartsTooltip
                     labelFormatter={(v) => new Date(Number(v) * 1000).toLocaleString()}
-                    formatter={(v: number, name: string) => [
-                      formatBytes(v),
-                      name === 'bytes_in' ? '↓ Inbound' : '↑ Outbound'
-                    ]}
-                    contentStyle={{
-                      backgroundColor: theme.palette.background.paper,
-                      borderColor: theme.palette.divider,
-                      color: theme.palette.text.primary,
-                      fontSize: 12,
-                      borderRadius: 8,
+                    formatter={(v: number, name: string) => [formatBytes(v), name === 'bytes_in' ? '↓ Inbound' : '↑ Outbound']}
+                    contentStyle={{ backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary, fontSize: 12, borderRadius: 8 }}
+                  />
+                  <Area type="monotone" dataKey="bytes_in" stroke={theme.palette.success.main} fill={theme.palette.success.main} fillOpacity={0.2} strokeWidth={2} isAnimationActive={false} />
+                  <Area type="monotone" dataKey="bytes_out" stroke={theme.palette.warning.main} fill={theme.palette.warning.main} fillOpacity={0.2} strokeWidth={2} isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Multi VM Chart — Total bandwidth per VM */}
+      {selectedVMs.length > 1 && mergedMultiData.length > 0 && (
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                <i className="ri-line-chart-line" style={{ fontSize: 16, marginRight: 6 }} />
+                {t('networkFlows.multiVmBandwidth')} ({selectedVMs.length} VMs)
+              </Typography>
+            </Box>
+
+            <Box sx={{ height: 350 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={mergedMultiData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} />
+                  <XAxis dataKey="time" tickFormatter={formatTime} tick={{ fontSize: 10 }} stroke={theme.palette.text.secondary} />
+                  <YAxis tickFormatter={(v) => formatBytes(v)} tick={{ fontSize: 10 }} width={70} stroke={theme.palette.text.secondary} />
+                  <RechartsTooltip
+                    labelFormatter={(v) => new Date(Number(v) * 1000).toLocaleString()}
+                    formatter={(v: number, name: string) => {
+                      const vm = multiData.find(m => `vm_${m.vmid}_total` === name)
+                      return [formatBytes(v), vm?.vm_name || name]
                     }}
+                    contentStyle={{ backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary, fontSize: 12, borderRadius: 8 }}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="bytes_in"
-                    stroke={theme.palette.success.main}
-                    fill={theme.palette.success.main}
-                    fillOpacity={0.2}
-                    strokeWidth={2}
-                    isAnimationActive={false}
+                  <Legend
+                    formatter={(value: string) => {
+                      const vm = multiData.find(m => `vm_${m.vmid}_total` === value)
+                      return vm?.vm_name || value
+                    }}
+                    wrapperStyle={{ fontSize: 11 }}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="bytes_out"
-                    stroke={theme.palette.warning.main}
-                    fill={theme.palette.warning.main}
-                    fillOpacity={0.2}
-                    strokeWidth={2}
-                    isAnimationActive={false}
-                  />
+                  {multiData.map((vm, idx) => (
+                    <Area
+                      key={vm.vmid}
+                      type="monotone"
+                      dataKey={`vm_${vm.vmid}_total`}
+                      name={`vm_${vm.vmid}_total`}
+                      stroke={VM_COLORS[idx % VM_COLORS.length]}
+                      fill={VM_COLORS[idx % VM_COLORS.length]}
+                      fillOpacity={0.15}
+                      strokeWidth={2}
+                      isAnimationActive={false}
+                    />
+                  ))}
                 </AreaChart>
               </ResponsiveContainer>
             </Box>
@@ -275,7 +336,7 @@ export default function TimeSeriesChart() {
       )}
 
       {/* Empty state */}
-      {selectedVM && !loading && data.length === 0 && !error && (
+      {selectedVMs.length > 0 && !loading && !hasData && !error && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
           <Box sx={{ textAlign: 'center', opacity: 0.4 }}>
             <i className="ri-database-2-line" style={{ fontSize: 48 }} />

@@ -5155,6 +5155,8 @@
     "selectVm": "选择 VM",
     "selectVmToView": "选择 VM 以查看其带宽历史",
     "noTimeSeriesData": "尚无时间序列数据。InfluxDB 每分钟收集数据。",
-    "influxNotConfigured": "InfluxDB 未配置。时间序列需要 InfluxDB — 请在编排器配置中添加 influxdb 设置。"
+    "influxNotConfigured": "InfluxDB 未配置。时间序列需要 InfluxDB — 请在编排器配置中添加 influxdb 设置。",
+    "selectVms": "选择 VM",
+    "multiVmBandwidth": "多 VM 带宽对比"
   }
 }
