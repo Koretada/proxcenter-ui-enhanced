@@ -5151,6 +5151,10 @@
     "direction": "Direction",
     "vmDetailNote": "Time series and detailed flow analysis will be available in Phase 2 with InfluxDB integration.",
     "topSources": "Top Sources",
-    "topDestinations": "Top Destinations"
+    "topDestinations": "Top Destinations",
+    "selectVm": "Select a VM",
+    "selectVmToView": "Select a VM to view its bandwidth history",
+    "noTimeSeriesData": "No time series data available yet. InfluxDB collects data every minute.",
+    "influxNotConfigured": "InfluxDB is not configured. Time series requires InfluxDB — add influxdb settings to your orchestrator config."
   }
 }

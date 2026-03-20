@@ -5147,6 +5147,10 @@
     "direction": "Richtung",
     "vmDetailNote": "Zeitreihen und detaillierte Flow-Analyse werden in Phase 2 mit InfluxDB-Integration verfügbar sein.",
     "topSources": "Top-Quellen",
-    "topDestinations": "Top-Ziele"
+    "topDestinations": "Top-Ziele",
+    "selectVm": "VM auswählen",
+    "selectVmToView": "Wählen Sie eine VM, um den Bandbreitenverlauf anzuzeigen",
+    "noTimeSeriesData": "Noch keine Zeitreihendaten verfügbar. InfluxDB sammelt Daten jede Minute.",
+    "influxNotConfigured": "InfluxDB ist nicht konfiguriert. Zeitreihen erfordern InfluxDB — fügen Sie die influxdb-Einstellungen zur Orchestrator-Konfiguration hinzu."
   }
 }

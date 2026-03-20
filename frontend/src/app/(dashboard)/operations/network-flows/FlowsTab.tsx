@@ -37,6 +37,7 @@ import { formatBytes } from '@/utils/format'
 import dynamic from 'next/dynamic'
 
 const DependencyGraph = dynamic(() => import('./DependencyGraph'), { ssr: false })
+const TimeSeriesChart = dynamic(() => import('./TimeSeriesChart'), { ssr: false })
 
 interface FlowsTabProps {
   connectionId: string
@@ -674,12 +675,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
 
       {/* Time Series sub-tab */}
       {subTab === 2 && (
-        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
-          <Box sx={{ textAlign: 'center', opacity: 0.5 }}>
-            <i className="ri-line-chart-line" style={{ fontSize: 48 }} />
-            <Typography variant="body2" sx={{ mt: 1 }}>{t('networkFlows.timeSeriesComingSoon')}</Typography>
-          </Box>
-        </Box>
+        <TimeSeriesChart />
       )}
 
       {/* Security sub-tab */}

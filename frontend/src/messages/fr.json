@@ -5152,6 +5152,10 @@
     "direction": "Direction",
     "vmDetailNote": "Les séries temporelles et l'analyse détaillée des flux seront disponibles en Phase 2 avec l'intégration InfluxDB.",
     "topSources": "Principales sources",
-    "topDestinations": "Principales destinations"
+    "topDestinations": "Principales destinations",
+    "selectVm": "Sélectionner une VM",
+    "selectVmToView": "Sélectionnez une VM pour voir son historique de bande passante",
+    "noTimeSeriesData": "Pas encore de données de séries temporelles. InfluxDB collecte les données chaque minute.",
+    "influxNotConfigured": "InfluxDB n'est pas configuré. Les séries temporelles nécessitent InfluxDB — ajoutez les paramètres influxdb à la config de l'orchestrateur."
   }
 }
