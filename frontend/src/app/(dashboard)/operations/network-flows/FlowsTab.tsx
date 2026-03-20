@@ -437,9 +437,7 @@ export default function FlowsTab() {
                                   {agent.ip}
                                 </TableCell>
                                 <TableCell sx={{ py: 0.75 }}>
-                                  {agent.noSsh ? (
-                                    <Chip label={t('networkFlows.noSsh')} size="small" color="error" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-                                  ) : agent.hasOvs ? (
+                                  {agent.hasOvs ? (
                                     <MuiTooltip title={agent.ovsVersion ? `Open vSwitch ${agent.ovsVersion}` : 'Open vSwitch'}>
                                       <Chip label={agent.ovsVersion ? `OVS ${agent.ovsVersion}` : 'OVS'} size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
                                     </MuiTooltip>
@@ -448,9 +446,7 @@ export default function FlowsTab() {
                                   )}
                                 </TableCell>
                                 <TableCell sx={{ py: 0.75 }}>
-                                  {agent.noSsh ? (
-                                    <Chip label="—" size="small" color="default" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
-                                  ) : agent.sflowConfigured ? (
+                                  {agent.sflowConfigured ? (
                                     <Chip label={t('networkFlows.active')} size="small" color="success" sx={{ height: 20, fontSize: '0.65rem' }} />
                                   ) : agent.hasOvs ? (
                                     <Chip label={t('networkFlows.notConfigured')} size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
@@ -479,7 +475,7 @@ export default function FlowsTab() {
                                   </>)
                                 })()}
                                 <TableCell sx={{ py: 0.75 }}>
-                                  {agent.hasOvs && !agent.noSsh && (
+                                  {agent.hasOvs && (
                                     <MuiTooltip title={agent.sflowConfigured ? t('networkFlows.reconfigure') : t('networkFlows.configure')}>
                                       <IconButton
                                         size="small"
