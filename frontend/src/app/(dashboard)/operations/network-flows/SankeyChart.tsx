@@ -114,7 +114,7 @@ export default function SankeyChart() {
   const [loading, setLoading] = useState(true)
   const [hoveredLink, setHoveredLink] = useState<number | null>(null)
   const [hoveredNode, setHoveredNode] = useState<number | null>(null)
-  const [dimensions, setDimensions] = useState({ width: 900, height: 600 })
+  const [containerWidth, setContainerWidth] = useState(0)
   const [detail, setDetail] = useState<DetailData | null>(null)
 
   useEffect(() => {
@@ -131,26 +131,25 @@ export default function SankeyChart() {
     return () => clearInterval(interval)
   }, [])
 
-  // Track width via ResizeObserver (only width — height is CSS-driven)
+  // Track container width
   useEffect(() => {
     if (!containerRef.current) return
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
-        setDimensions(prev => ({
-          ...prev,
-          width: Math.max(600, entry.contentRect.width),
-        }))
+        setContainerWidth(Math.max(400, Math.floor(entry.contentRect.width)))
       }
     })
     observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [])
 
-  // Compute height from available viewport space
+  // SVG dimensions: full width, height = fill remaining viewport
+  const svgWidth = containerWidth || 900
   const svgHeight = useMemo(() => {
-    // tabs ~48 + card header ~40 + card padding ~16 + page padding ~16 + header ~64 = ~184
-    return Math.max(300, Math.min(700, dimensions.width * 0.45))
-  }, [dimensions.width])
+    // Viewport height - page header(64) - tabs(48) - card header(40) - paddings(48)
+    const available = typeof window !== 'undefined' ? window.innerHeight - 200 : 500
+    return Math.max(350, available)
+  }, [containerWidth]) // recalc when width changes (orientation change)
 
   // Build Sankey data
   const sankeyData = useMemo(() => {
@@ -217,7 +216,7 @@ export default function SankeyChart() {
     if (!sankeyData) return null
 
     const margin = { top: 30, right: 20, bottom: 10, left: 20 }
-    const width = dimensions.width - margin.left - margin.right
+    const width = svgWidth - margin.left - margin.right
     const height = svgHeight - margin.top - margin.bottom
 
     try {
@@ -239,7 +238,7 @@ export default function SankeyChart() {
     } catch {
       return null
     }
-  }, [sankeyData, dimensions, svgHeight])
+  }, [sankeyData, svgWidth, svgHeight])
 
   // Total bytes for percentage calculations
   const totalBytes = useMemo(() => {
@@ -371,8 +370,8 @@ export default function SankeyChart() {
   // Category labels
   const categories = [
     { label: t('networkFlows.source'), x: margin.left },
-    { label: t('networkFlows.application'), x: dimensions.width / 2 - 30 },
-    { label: t('networkFlows.destination'), x: dimensions.width - margin.right - 60 },
+    { label: t('networkFlows.application'), x: svgWidth / 2 - 30 },
+    { label: t('networkFlows.destination'), x: svgWidth - margin.right - 60 },
   ]
 
   const categoryColors: Record<string, string> = {
@@ -397,12 +396,10 @@ export default function SankeyChart() {
           </Typography>
 
           <Box ref={containerRef} sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
-            <svg
-              width="100%"
+            {containerWidth > 0 && (<svg
+              width={svgWidth}
               height={svgHeight}
-              viewBox={`0 0 ${dimensions.width} ${svgHeight}`}
-              preserveAspectRatio="xMidYMid meet"
-              style={{ display: 'block' }}
+              style={{ display: 'block', maxWidth: '100%' }}
             >
               {/* Column headers */}
               {categories.map((cat, i) => (
@@ -489,7 +486,7 @@ export default function SankeyChart() {
                   )
                 })}
               </g>
-            </svg>
+            </svg>)}
           </Box>
         </CardContent>
       </Card>

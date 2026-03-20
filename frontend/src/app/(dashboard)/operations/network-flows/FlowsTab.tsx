@@ -140,25 +140,43 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
 
   const primaryColor = theme.palette.primary.main
 
-  // Derive node names & IPs for the selected connection to filter sFlow data
+  // Fetch connection's hosts to get node names for filtering
+  const [connectionNodeNames, setConnectionNodeNames] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (!connectionId) return
+    fetch(`/api/v1/hosts?connId=${connectionId}`)
+      .then(r => r.ok ? r.json() : { data: { hosts: [] } })
+      .then(json => {
+        const hosts = json.data?.hosts || json.data || []
+        const names = new Set<string>(hosts.map((h: any) => h.node).filter(Boolean))
+        setConnectionNodeNames(names)
+      })
+      .catch(() => {})
+  }, [connectionId])
+
+  // Also derive from agents as fallback
   const connectionNodes = useMemo(() => {
     const agents = nodeAgents.filter(n => n.connectionId === connectionId)
+    const names = new Set(agents.map(a => a.node))
+    // Merge with hosts data
+    for (const n of connectionNodeNames) names.add(n)
     return {
-      names: new Set(agents.map(a => a.node)),
+      names,
       ips: new Set(agents.map(a => a.ip)),
     }
-  }, [nodeAgents, connectionId])
+  }, [nodeAgents, connectionId, connectionNodeNames])
 
-  // Filter sFlow data by selected connection's nodes (if we have agent info)
+  // Filter sFlow data by selected connection's nodes
   const filteredTalkers = useMemo(() => {
     if (connectionNodes.names.size === 0) return topTalkers
+    // Only filter talkers that have a node field set
     return topTalkers.filter(t => !t.node || connectionNodes.names.has(t.node))
   }, [topTalkers, connectionNodes])
 
   const filteredPairs = useMemo(() => {
     if (connectionNodes.names.size === 0) return topPairs
-    // Keep pairs where at least one side has a matching VM
     const talkerVmids = new Set(filteredTalkers.map(t => t.vmid))
+    if (talkerVmids.size === 0) return topPairs
     return topPairs.filter(p => talkerVmids.has(p.src_vmid) || talkerVmids.has(p.dst_vmid))
   }, [topPairs, filteredTalkers, connectionNodes])
 
