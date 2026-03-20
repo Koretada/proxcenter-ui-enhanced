@@ -39,6 +39,8 @@ import dynamic from 'next/dynamic'
 
 const SankeyChart = dynamic(() => import('./SankeyChart'), { ssr: false })
 const TimeSeriesChart = dynamic(() => import('./TimeSeriesChart'), { ssr: false })
+const SecurityTab = dynamic(() => import('./SecurityTab'), { ssr: false })
+const InfrastructureTab = dynamic(() => import('./InfrastructureTab'), { ssr: false })
 
 
 interface SFlowStatus {
@@ -737,22 +739,12 @@ export default function FlowsTab() {
 
       {/* Security sub-tab */}
       {subTab === 3 && (
-        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
-          <Box sx={{ textAlign: 'center', opacity: 0.5 }}>
-            <i className="ri-shield-cross-line" style={{ fontSize: 48 }} />
-            <Typography variant="body2" sx={{ mt: 1 }}>{t('networkFlows.securityComingSoon')}</Typography>
-          </Box>
-        </Box>
+        <SecurityTab />
       )}
 
       {/* Infrastructure sub-tab */}
       {subTab === 4 && (
-        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
-          <Box sx={{ textAlign: 'center', opacity: 0.5 }}>
-            <i className="ri-server-line" style={{ fontSize: 48 }} />
-            <Typography variant="body2" sx={{ mt: 1 }}>{t('networkFlows.infraComingSoon')}</Typography>
-          </Box>
-        </Box>
+        <InfrastructureTab />
       )}
 
       {/* VM Detail Dialog */}
