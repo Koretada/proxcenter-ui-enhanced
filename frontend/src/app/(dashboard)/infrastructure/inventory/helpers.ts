@@ -328,10 +328,21 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
       } catch {}
     }
 
-    const nodesJson = await nodesR.json()
-    const nodes = asArray<any>(safeJson(nodesJson))
+    let nodesJson: any
+    let nodes: any[]
+    let guests: any[]
+    try {
+      nodesJson = await nodesR.json()
+      nodes = asArray<any>(safeJson(nodesJson))
+    } catch {
+      throw new Error('Failed to load cluster data — please retry')
+    }
     const connectedNode = nodesJson?.connectedNode || null
-    const guests = asArray<any>(safeJson(await resourcesR.json()))
+    try {
+      guests = asArray<any>(safeJson(await resourcesR.json()))
+    } catch {
+      guests = []
+    }
 
     const onlineNodes = nodes.filter((n: any) => n.status === 'online').length
     const runningVMs = guests.filter((g: any) => g.status === 'running').length
@@ -454,7 +465,12 @@ return {
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/maintenance`, { cache: 'no-store' }).catch(() => null),
     ])
 
-    const nodes = asArray<any>(safeJson(await nodesR.json()))
+    let nodes: any[]
+    try {
+      nodes = asArray<any>(safeJson(await nodesR.json()))
+    } catch {
+      throw new Error('Failed to load node data — please retry')
+    }
     const n = nodes.find((x: any) => String(x.node) === String(node))
 
     if (!n) throw new Error('Node not found')
@@ -647,8 +663,18 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/status`, { cache: 'no-store' }).catch(() => null),
     ])
 
-    const resources = asArray<any>(safeJson(await resourcesR.json()))
-    const nodes = asArray<any>(safeJson(await nodesR.json()))
+    let resources: any[]
+    let nodes: any[]
+    try {
+      resources = asArray<any>(safeJson(await resourcesR.json()))
+    } catch {
+      resources = []
+    }
+    try {
+      nodes = asArray<any>(safeJson(await nodesR.json()))
+    } catch {
+      throw new Error('Failed to load VM data — please retry')
+    }
 
     let nodeStatusData: any = null
     if (nodeStatusR && nodeStatusR.ok) {
