@@ -258,8 +258,8 @@ export default function FlowsTab() {
       setError(null)
       const [statusData, talkersData, pairsData, portsData] = await Promise.all([
         fetchSFlow('status'),
-        fetchSFlow('top-talkers', { n: '10' }),
-        fetchSFlow('ip-pairs', { n: '30' }),
+        fetchSFlow('top-talkers', { n: '100' }),
+        fetchSFlow('ip-pairs', { n: '500' }),
         fetchSFlow('top-ports', { n: '10' }),
       ])
       setStatus(statusData)
@@ -575,8 +575,8 @@ export default function FlowsTab() {
                     <Typography variant="body2">{t('networkFlows.waitingForData')}</Typography>
                   </Box>
                 ) : (
-                  <TableContainer>
-                    <Table size="small">
+                  <TableContainer sx={{ maxHeight: 400 }}>
+                    <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>VM</TableCell>
@@ -638,8 +638,8 @@ export default function FlowsTab() {
                     <Typography variant="body2">{t('networkFlows.waitingForData')}</Typography>
                   </Box>
                 ) : (
-                  <TableContainer>
-                    <Table size="small">
+                  <TableContainer sx={{ maxHeight: 400 }}>
+                    <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', py: 0.5 }}>Source</TableCell>
