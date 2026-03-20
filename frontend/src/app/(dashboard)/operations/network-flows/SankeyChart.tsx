@@ -435,6 +435,15 @@ export default function SankeyChart() {
                 </text>
               ))}
 
+              {/* Flow animation keyframes */}
+              <defs>
+                <style>{`
+                  @keyframes flowDash {
+                    to { stroke-dashoffset: -40; }
+                  }
+                `}</style>
+              </defs>
+
               <g transform={`translate(${margin.left},${margin.top})`}>
                 {/* Links */}
                 {layoutLinks.map((link: any, idx: number) => {
@@ -443,24 +452,46 @@ export default function SankeyChart() {
 
                   const color = FLOW_COLORS[idx % FLOW_COLORS.length]
                   const isHovered = hoveredLink === idx || hoveredLink === idx + 1 || hoveredLink === idx - 1
+                  const linkWidth = Math.max(2, link.width || 1)
+
+                  // Animation speed based on flow volume — bigger flow = faster
+                  const maxValue = Math.max(...layoutLinks.map((l: any) => l.value || 1))
+                  const ratio = (link.value || 1) / maxValue // 0..1
+                  const animDuration = Math.max(0.5, 3 - ratio * 2.5) // 0.5s (fast) to 3s (slow)
 
                   return (
-                    <path
-                      key={idx}
-                      d={path}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth={Math.max(2, link.width || 1)}
-                      strokeOpacity={hoveredLink === null && hoveredNode === null ? 0.4 : isHovered ? 0.7 : 0.1}
-                      onMouseEnter={() => setHoveredLink(idx)}
-                      onMouseLeave={() => setHoveredLink(null)}
-                      onClick={() => handleLinkClick(link, idx)}
-                      style={{ cursor: 'pointer', transition: 'stroke-opacity 0.2s' }}
-                    >
+                    <g key={idx}>
+                      {/* Base flow band */}
+                      <path
+                        d={path}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={linkWidth}
+                        strokeOpacity={hoveredLink === null && hoveredNode === null ? 0.3 : isHovered ? 0.6 : 0.08}
+                        onMouseEnter={() => setHoveredLink(idx)}
+                        onMouseLeave={() => setHoveredLink(null)}
+                        onClick={() => handleLinkClick(link, idx)}
+                        style={{ cursor: 'pointer', transition: 'stroke-opacity 0.2s' }}
+                      />
+                      {/* Animated flow particles */}
+                      <path
+                        d={path}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={Math.min(linkWidth * 0.5, 6)}
+                        strokeOpacity={hoveredLink === null && hoveredNode === null ? 0.6 : isHovered ? 0.9 : 0.15}
+                        strokeDasharray="8 32"
+                        style={{
+                          cursor: 'pointer',
+                          animation: `flowDash ${animDuration}s linear infinite`,
+                          transition: 'stroke-opacity 0.2s',
+                          pointerEvents: 'none',
+                        }}
+                      />
                       <title>
                         {`${(link.source as any).name} → ${(link.target as any).name}\n${formatBytes(link.value)} · ${(link.packets || 0).toLocaleString()} pkts`}
                       </title>
-                    </path>
+                    </g>
                   )
                 })}
 
