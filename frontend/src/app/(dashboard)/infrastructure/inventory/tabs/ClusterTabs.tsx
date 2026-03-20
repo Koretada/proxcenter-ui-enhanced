@@ -2071,6 +2071,19 @@ export default function ClusterTabs(props: any) {
                                   <Typography variant="body2" fontWeight={600}>
                                     {clusterCephData.pgmap?.bytes_total ? formatBytes(clusterCephData.pgmap.bytes_total) : '—'}
                                   </Typography>
+                                  <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', mt: 1 }}>{t('dashboard.widgets.provisioned')}</Typography>
+                                  <Typography variant="body2" fontWeight={600} sx={{ color: (() => {
+                                    const provBytes = (allVms || []).reduce((sum: number, vm: any) => sum + (Number(vm.maxdisk) || 0), 0)
+                                    const totalBytes = clusterCephData.pgmap?.bytes_total || 0
+                                    return totalBytes > 0 && provBytes > totalBytes ? 'warning.main' : 'text.primary'
+                                  })() }}>
+                                    {(() => {
+                                      const provBytes = (allVms || []).reduce((sum: number, vm: any) => sum + (Number(vm.maxdisk) || 0), 0)
+                                      const totalBytes = clusterCephData.pgmap?.bytes_total || 0
+                                      const pct = totalBytes > 0 ? Math.round((provBytes / totalBytes) * 100) : 0
+                                      return `${formatBytes(provBytes)} (${pct}%)`
+                                    })()}
+                                  </Typography>
                                 </Box>
                               </Box>
                             </CardContent>
