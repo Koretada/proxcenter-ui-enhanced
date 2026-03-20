@@ -51,6 +51,7 @@
     "memShort": "Mém",
     "memory": "Mémoire",
     "details": "Détails",
+    "connection": "Connexion",
     "configuration": "Configuration",
     "confirmDelete": "Confirmer la suppression",
     "deleteConfirmation": "Êtes-vous sûr de vouloir supprimer cet élément ?",

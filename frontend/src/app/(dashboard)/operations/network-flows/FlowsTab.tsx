@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts'
 
@@ -139,6 +139,28 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
   const [dstSearch, setDstSearch] = useState('')
 
   const primaryColor = theme.palette.primary.main
+
+  // Derive node names & IPs for the selected connection to filter sFlow data
+  const connectionNodes = useMemo(() => {
+    const agents = nodeAgents.filter(n => n.connectionId === connectionId)
+    return {
+      names: new Set(agents.map(a => a.node)),
+      ips: new Set(agents.map(a => a.ip)),
+    }
+  }, [nodeAgents, connectionId])
+
+  // Filter sFlow data by selected connection's nodes (if we have agent info)
+  const filteredTalkers = useMemo(() => {
+    if (connectionNodes.names.size === 0) return topTalkers
+    return topTalkers.filter(t => !t.node || connectionNodes.names.has(t.node))
+  }, [topTalkers, connectionNodes])
+
+  const filteredPairs = useMemo(() => {
+    if (connectionNodes.names.size === 0) return topPairs
+    // Keep pairs where at least one side has a matching VM
+    const talkerVmids = new Set(filteredTalkers.map(t => t.vmid))
+    return topPairs.filter(p => talkerVmids.has(p.src_vmid) || talkerVmids.has(p.dst_vmid))
+  }, [topPairs, filteredTalkers, connectionNodes])
 
   // Handle port bar click
   const handlePortClick = useCallback(async (port: TopPort) => {
@@ -471,7 +493,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
               <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, textAlign: 'center' }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>{t('networkFlows.activeVms')}</Typography>
                 <Typography variant="h5" fontWeight={800} color="primary">
-                  {status?.active_vms || topTalkers.length}
+                  {filteredTalkers.length || status?.active_vms || 0}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">{t('networkFlows.withTraffic')}</Typography>
               </CardContent>
@@ -480,7 +502,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
               <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, textAlign: 'center' }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>{t('networkFlows.totalBandwidth')}</Typography>
                 <Typography variant="h5" fontWeight={800} color="primary">
-                  {topTalkers.length > 0 ? formatBytes(topTalkers.reduce((sum, t) => sum + t.bytes_in + t.bytes_out, 0)) : '0 B'}
+                  {filteredTalkers.length > 0 ? formatBytes(filteredTalkers.reduce((sum, t) => sum + t.bytes_in + t.bytes_out, 0)) : '0 B'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">{t('networkFlows.currentWindow')}</Typography>
               </CardContent>
@@ -521,7 +543,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
                     sx: { fontSize: '0.8rem', height: 32 }
                   }}
                 />
-                {topTalkers.length === 0 ? (
+                {filteredTalkers.length === 0 ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, py: 4, opacity: 0.5 }}>
                     <CircularProgress size={16} />
                     <Typography variant="body2">{t('networkFlows.waitingForData')}</Typography>
@@ -537,7 +559,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {topTalkers.filter(t => !talkerSearch || (t.vm_name || `VM ${t.vmid}`).toLowerCase().includes(talkerSearch.toLowerCase()) || String(t.vmid).includes(talkerSearch)).map((talker) => (
+                        {filteredTalkers.filter(t => !talkerSearch || (t.vm_name || `VM ${t.vmid}`).toLowerCase().includes(talkerSearch.toLowerCase()) || String(t.vmid).includes(talkerSearch)).map((talker) => (
                           <TableRow key={talker.vmid} hover sx={{ cursor: 'pointer' }} onClick={() => setSelectedVM(talker)}>
                             <TableCell sx={{ py: 0.75, fontSize: '0.8rem' }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -788,7 +810,7 @@ export default function FlowsTab({ connectionId, connectionName }: FlowsTabProps
               </Box>
 
               {/* Related pairs */}
-              {topPairs.filter(p => p.src_vmid === selectedVM.vmid || p.dst_vmid === selectedVM.vmid).length > 0 && (
+              {filteredPairs.filter(p => p.src_vmid === selectedVM.vmid || p.dst_vmid === selectedVM.vmid).length > 0 && (
                 <Box>
                   <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
                     <i className="ri-arrow-left-right-line" style={{ fontSize: 14, marginRight: 6 }} />

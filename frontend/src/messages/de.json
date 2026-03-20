@@ -52,6 +52,7 @@
     "description": "Beschreibung",
     "date": "Datum",
     "details": "Details",
+    "connection": "Verbindung",
     "storage": "Storage",
     "node": "Node",
     "more": "Mehr",
