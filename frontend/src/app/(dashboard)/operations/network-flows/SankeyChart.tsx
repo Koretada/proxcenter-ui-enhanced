@@ -131,35 +131,26 @@ export default function SankeyChart() {
     return () => clearInterval(interval)
   }, [])
 
-  // Observe container size — fit within viewport without scroll
+  // Track width via ResizeObserver (only width — height is CSS-driven)
   useEffect(() => {
     if (!containerRef.current) return
-
-    const computeHeight = () => {
-      if (!containerRef.current) return 500
-      // Calculate remaining space: viewport height minus the top position of the container minus some padding
-      const rect = containerRef.current.getBoundingClientRect()
-      return Math.max(300, window.innerHeight - rect.top - 32)
-    }
-
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
-        const w = Math.max(600, entry.contentRect.width)
-        setDimensions({ width: w, height: computeHeight() })
+        setDimensions(prev => ({
+          ...prev,
+          width: Math.max(600, entry.contentRect.width),
+        }))
       }
     })
     observer.observe(containerRef.current)
-
-    // Also recalculate on window resize
-    const onResize = () => {
-      if (!containerRef.current) return
-      const w = Math.max(600, containerRef.current.clientWidth)
-      setDimensions({ width: w, height: computeHeight() })
-    }
-    window.addEventListener('resize', onResize)
-
-    return () => { observer.disconnect(); window.removeEventListener('resize', onResize) }
+    return () => observer.disconnect()
   }, [])
+
+  // Compute height from available viewport space
+  const svgHeight = useMemo(() => {
+    // tabs ~48 + card header ~40 + card padding ~16 + page padding ~16 + header ~64 = ~184
+    return Math.max(300, Math.min(700, dimensions.width * 0.45))
+  }, [dimensions.width])
 
   // Build Sankey data
   const sankeyData = useMemo(() => {
@@ -227,7 +218,7 @@ export default function SankeyChart() {
 
     const margin = { top: 30, right: 20, bottom: 10, left: 20 }
     const width = dimensions.width - margin.left - margin.right
-    const height = dimensions.height - margin.top - margin.bottom
+    const height = svgHeight - margin.top - margin.bottom
 
     try {
       const sankeyGenerator = sankey<SankeyNodeData, SankeyLinkData>()
@@ -248,7 +239,7 @@ export default function SankeyChart() {
     } catch {
       return null
     }
-  }, [sankeyData, dimensions])
+  }, [sankeyData, dimensions, svgHeight])
 
   // Total bytes for percentage calculations
   const totalBytes = useMemo(() => {
@@ -398,18 +389,18 @@ export default function SankeyChart() {
 
   return (
     <>
-      <Card variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, flexShrink: 0 }}>
+      <Card variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
             <i className="ri-flow-chart" style={{ fontSize: 16, marginRight: 6 }} />
             {t('networkFlows.flowDiagram')}
           </Typography>
 
-          <Box ref={containerRef} sx={{ width: '100%', minWidth: 0, flex: 1, overflow: 'hidden' }}>
+          <Box ref={containerRef} sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
             <svg
               width="100%"
-              height="100%"
-              viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+              height={svgHeight}
+              viewBox={`0 0 ${dimensions.width} ${svgHeight}`}
               preserveAspectRatio="xMidYMid meet"
               style={{ display: 'block' }}
             >
