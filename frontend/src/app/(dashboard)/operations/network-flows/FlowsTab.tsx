@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts'
 
@@ -148,36 +148,70 @@ export default function FlowsTab() {
   // Sparkline data for top talkers (keyed by vmid)
   const [sparklineData, setSparklineData] = useState<Map<number, { time: number; total: number }[]>>(new Map())
 
-  // Fetch sparklines for top 10 talkers whenever topTalkers changes
+  // Fetch sparklines for top talkers — only fetch VMs we don't have yet, refresh every 60s
+  const sparklineRef = useRef<Map<number, { time: number; total: number }[]>>(new Map())
+  const sparklineTimerRef = useRef<number>(0)
+
   useEffect(() => {
     if (topTalkers.length === 0) return
     let cancelled = false
-    const top10 = topTalkers.slice(0, 10)
-    const now = Math.floor(Date.now() / 1000)
-    const from = now - 1800 // last 30 minutes
 
-    Promise.all(
-      top10.map(async (talker) => {
-        try {
-          const data = await fetchSFlow('timeseries/vm', {
-            vmid: String(talker.vmid),
-            from: String(from),
-            to: String(now),
-          })
-          const points = Array.isArray(data)
-            ? data.map((d: any) => ({ time: d.time ?? d.t ?? 0, total: (d.bytes_in ?? 0) + (d.bytes_out ?? 0) }))
-            : []
-          return [talker.vmid, points] as [number, { time: number; total: number }[]]
-        } catch {
-          return [talker.vmid, []] as [number, { time: number; total: number }[]]
-        }
+    const fetchMissing = async () => {
+      const top10 = topTalkers.slice(0, 10)
+      const now = Math.floor(Date.now() / 1000)
+      const from = now - 1800 // last 30 minutes
+      const staleThreshold = now - 60 // refresh if data older than 60s
+
+      // Determine which VMs need fetching (missing or stale)
+      const toFetch = top10.filter(t => {
+        const existing = sparklineRef.current.get(t.vmid)
+        if (!existing || existing.length === 0) return true
+        const lastPoint = existing[existing.length - 1]?.time || 0
+        return lastPoint < staleThreshold
       })
-    ).then((results) => {
-      if (cancelled) return
-      setSparklineData(new Map(results))
-    })
 
-    return () => { cancelled = true }
+      if (toFetch.length === 0) return
+
+      const results = await Promise.all(
+        toFetch.map(async (talker) => {
+          try {
+            const data = await fetchSFlow('timeseries/vm', {
+              vmid: String(talker.vmid),
+              from: String(from),
+              to: String(now),
+            })
+            const points = Array.isArray(data)
+              ? data.map((d: any) => ({ time: d.time ?? d.t ?? 0, total: (d.bytes_in ?? 0) + (d.bytes_out ?? 0) }))
+              : []
+            return [talker.vmid, points] as [number, { time: number; total: number }[]]
+          } catch {
+            return [talker.vmid, []] as [number, { time: number; total: number }[]]
+          }
+        })
+      )
+
+      if (cancelled) return
+
+      // Merge with existing data
+      const merged = new Map(sparklineRef.current)
+      for (const [vmid, points] of results) {
+        merged.set(vmid, points)
+      }
+      sparklineRef.current = merged
+      setSparklineData(new Map(merged))
+    }
+
+    fetchMissing()
+    // Also refresh all sparklines periodically
+    sparklineTimerRef.current = window.setInterval(() => {
+      sparklineRef.current = new Map() // force full refresh
+      fetchMissing()
+    }, 60000)
+
+    return () => {
+      cancelled = true
+      clearInterval(sparklineTimerRef.current)
+    }
   }, [topTalkers])
 
   // Fetch VM time-series when VM dialog opens
