@@ -172,6 +172,42 @@ export default function TimeSeriesChart() {
     return Array.from(timeMap.values()).sort((a, b) => a.time - b.time)
   }, [multiData])
 
+  // Compute bandwidth (bytes/s) from consecutive volume points — single VM
+  const singleBandwidthData = useMemo(() => {
+    if (singleData.length < 2) return []
+    return singleData.slice(1).map((p, i) => {
+      const prev = singleData[i]
+      const dt = p.time - prev.time
+      if (dt <= 0) return null
+      return {
+        time: p.time,
+        bps_in: (p.bytes_in || 0) / dt,
+        bps_out: (p.bytes_out || 0) / dt,
+      }
+    }).filter(Boolean) as { time: number; bps_in: number; bps_out: number }[]
+  }, [singleData])
+
+  // Compute bandwidth (bytes/s) from consecutive volume points — multi VM
+  const mergedMultiBandwidthData = useMemo(() => {
+    if (multiData.length === 0) return []
+
+    const timeMap = new Map<number, Record<string, number>>()
+    for (const vm of multiData) {
+      const pts = vm.points
+      for (let i = 1; i < pts.length; i++) {
+        const dt = pts[i].time - pts[i - 1].time
+        if (dt <= 0) continue
+        const bps = ((pts[i].bytes_in || 0) + (pts[i].bytes_out || 0)) / dt
+        if (!timeMap.has(pts[i].time)) timeMap.set(pts[i].time, { time: pts[i].time })
+        timeMap.get(pts[i].time)![`vm_${vm.vmid}_bps`] = bps
+      }
+    }
+
+    return Array.from(timeMap.values()).sort((a, b) => a.time - b.time)
+  }, [multiData])
+
+  const formatBandwidth = (v: number) => `${formatBytes(v)}/s`
+
   const hasData = isMultiVM ? mergedMultiData.length > 0 : singleData.length > 0
 
   return (
@@ -312,7 +348,7 @@ export default function TimeSeriesChart() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
               <Typography variant="subtitle2" fontWeight={700}>
                 <i className="ri-line-chart-line" style={{ fontSize: 16, marginRight: 6 }} />
-                {selectedVMs[0].vm_name || `VM ${selectedVMs[0].vmid}`} — Bandwidth
+                {selectedVMs[0].vm_name || `VM ${selectedVMs[0].vmid}`} — {t('networkFlows.trafficVolume')}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Chip label="↓ In" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${theme.palette.success.main}20`, color: theme.palette.success.main }} />
@@ -340,7 +376,42 @@ export default function TimeSeriesChart() {
         </Card>
       )}
 
-      {/* Multi VM Chart — Total bandwidth per VM */}
+      {/* Single VM Bandwidth Chart — bytes/s */}
+      {selectedVMs.length === 1 && singleBandwidthData.length > 0 && (
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                <i className="ri-speed-line" style={{ fontSize: 16, marginRight: 6 }} />
+                {selectedVMs[0].vm_name || `VM ${selectedVMs[0].vmid}`} — {t('networkFlows.bandwidthRate')}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Chip label="↓ In" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${theme.palette.success.main}20`, color: theme.palette.success.main }} />
+                <Chip label="↑ Out" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: `${theme.palette.warning.main}20`, color: theme.palette.warning.main }} />
+              </Box>
+            </Box>
+
+            <Box sx={{ height: 350 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={singleBandwidthData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} />
+                  <XAxis dataKey="time" tickFormatter={formatTime} tick={{ fontSize: 10 }} stroke={theme.palette.text.secondary} />
+                  <YAxis tickFormatter={formatBandwidth} tick={{ fontSize: 10 }} width={80} stroke={theme.palette.text.secondary} />
+                  <RechartsTooltip
+                    labelFormatter={(v) => new Date(Number(v) * 1000).toLocaleString()}
+                    formatter={(v: number, name: string) => [formatBandwidth(v), name === 'bps_in' ? '↓ Inbound' : '↑ Outbound']}
+                    contentStyle={{ backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary, fontSize: 12, borderRadius: 8 }}
+                  />
+                  <Area type="monotone" dataKey="bps_in" stroke={theme.palette.success.main} fill={theme.palette.success.main} fillOpacity={0.2} strokeWidth={2} isAnimationActive={false} />
+                  <Area type="monotone" dataKey="bps_out" stroke={theme.palette.warning.main} fill={theme.palette.warning.main} fillOpacity={0.2} strokeWidth={2} isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Multi VM Volume Chart — Total bytes per VM */}
       {selectedVMs.length > 1 && mergedMultiData.length > 0 && (
         <Card variant="outlined" sx={{ borderRadius: 2 }}>
           <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
@@ -382,6 +453,62 @@ export default function TimeSeriesChart() {
                         type="monotone"
                         dataKey={`vm_${vm.vmid}_total`}
                         name={`vm_${vm.vmid}_total`}
+                        stroke={color}
+                        fill={color}
+                        fillOpacity={0.15}
+                        strokeWidth={2}
+                        isAnimationActive={false}
+                      />
+                    )
+                  })}
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Multi VM Bandwidth Chart — bytes/s per VM */}
+      {selectedVMs.length > 1 && mergedMultiBandwidthData.length > 0 && (
+        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                <i className="ri-speed-line" style={{ fontSize: 16, marginRight: 6 }} />
+                {t('networkFlows.multiVmBandwidthRate')} ({selectedVMs.length} VMs)
+              </Typography>
+            </Box>
+
+            <Box sx={{ height: 350 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={mergedMultiBandwidthData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} />
+                  <XAxis dataKey="time" tickFormatter={formatTime} tick={{ fontSize: 10 }} stroke={theme.palette.text.secondary} />
+                  <YAxis tickFormatter={formatBandwidth} tick={{ fontSize: 10 }} width={80} stroke={theme.palette.text.secondary} />
+                  <RechartsTooltip
+                    labelFormatter={(v) => new Date(Number(v) * 1000).toLocaleString()}
+                    formatter={(v: number, name: string) => {
+                      const vm = multiData.find(m => `vm_${m.vmid}_bps` === name)
+                      return [formatBandwidth(v), vm?.vm_name || name]
+                    }}
+                    contentStyle={{ backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary, fontSize: 12, borderRadius: 8 }}
+                  />
+                  <Legend
+                    formatter={(value: string) => {
+                      const vm = multiData.find(m => `vm_${m.vmid}_bps` === value)
+                      return vm?.vm_name || value
+                    }}
+                    wrapperStyle={{ fontSize: 11 }}
+                  />
+                  {multiData.map((vm) => {
+                    const colorIdx = selectedVMs.findIndex(s => s.vmid === vm.vmid)
+                    const color = VM_COLORS[(colorIdx >= 0 ? colorIdx : 0) % VM_COLORS.length]
+                    return (
+                      <Area
+                        key={vm.vmid}
+                        type="monotone"
+                        dataKey={`vm_${vm.vmid}_bps`}
+                        name={`vm_${vm.vmid}_bps`}
                         stroke={color}
                         fill={color}
                         fillOpacity={0.15}
