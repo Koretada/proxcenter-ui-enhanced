@@ -3,8 +3,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { sankey, sankeyLinkHorizontal } from 'd3-sankey'
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-
 import {
   Box,
   Card,
@@ -117,24 +115,6 @@ export default function SankeyChart() {
   const [hoveredNode, setHoveredNode] = useState<number | null>(null)
   const [containerWidth, setContainerWidth] = useState(typeof window !== 'undefined' ? window.innerWidth - 300 : 900)
   const [detail, setDetail] = useState<DetailData | null>(null)
-  const [linkTimeSeries, setLinkTimeSeries] = useState<Array<{ time: number; bytes_in: number }>>([])
-  const [linkTsLoading, setLinkTsLoading] = useState(false)
-
-  // Fetch IP pair time-series when a link detail is opened
-  useEffect(() => {
-    if (!detail || detail.type !== 'link') { setLinkTimeSeries([]); return }
-    if (!detail.srcIP || !detail.dstIP) return
-    setLinkTsLoading(true)
-    const now = new Date()
-    const from = new Date(now.getTime() - 60 * 60 * 1000)
-    const query = new URLSearchParams({ endpoint: 'timeseries/ip', src_ip: detail.srcIP, dst_ip: detail.dstIP, from: from.toISOString(), to: now.toISOString() })
-    fetch(`/api/v1/orchestrator/sflow?${query}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setLinkTimeSeries(Array.isArray(d) ? d : []))
-      .catch(() => setLinkTimeSeries([]))
-      .finally(() => setLinkTsLoading(false))
-  }, [detail])
-
   useEffect(() => {
     fetchIPPairs().then(data => {
       setPairs(data)
@@ -747,36 +727,6 @@ export default function SankeyChart() {
                 </Box>
               )}
 
-              {/* Mini Time Series */}
-              <Box>
-                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                  <i className="ri-line-chart-line" style={{ fontSize: 14, marginRight: 6 }} />
-                  {t('networkFlows.timeSeries')} (1h)
-                </Typography>
-                {linkTsLoading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={20} /></Box>
-                ) : linkTimeSeries.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', py: 2, opacity: 0.4 }}>
-                    <Typography variant="caption">{t('networkFlows.noTimeSeriesData')}</Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ height: 140 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={linkTimeSeries.map(p => ({ time: p.time * 1000, bytes: p.bytes_in || 0 }))}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-                        <XAxis dataKey="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} tick={{ fontSize: 10 }} />
-                        <YAxis tickFormatter={(v) => formatBytes(v)} tick={{ fontSize: 10 }} width={55} />
-                        <RechartsTooltip
-                          labelFormatter={(v) => new Date(v as number).toLocaleTimeString()}
-                          formatter={(value: number) => [formatBytes(value), 'Traffic']}
-                          contentStyle={{ fontSize: 11, borderRadius: 8, backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary }}
-                        />
-                        <Area type="monotone" dataKey="bytes" stroke={theme.palette.primary.main} fill={`${theme.palette.primary.main}30`} strokeWidth={1.5} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </Box>
-                )}
-              </Box>
             </DialogContent>
           </>
         )}
