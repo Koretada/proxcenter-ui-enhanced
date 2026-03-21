@@ -587,6 +587,7 @@ export interface AlertThresholds {
   memory_critical: number
   storage_warning: number
   storage_critical: number
+  snapshot_max_age_days: number
 }
 
 export interface AlertsResponse {

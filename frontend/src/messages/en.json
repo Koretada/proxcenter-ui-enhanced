@@ -389,7 +389,9 @@
     "resolvedStatus": "Resolved",
     "allSeverities": "All severities",
     "criticalSeverity": "Critical",
-    "thresholdsConfig": "Alert thresholds configuration",
+    "thresholdsConfig": "Alert Thresholds",
+    "resourceUsage": "Resource Usage",
+    "maintenance": "Maintenance",
     "memory": "Memory",
     "storage": "Storage",
     "rulesDescription": "Rules allow you to trigger alerts on Proxmox events (tasks, logs)",
@@ -422,7 +424,11 @@
     "lastSeen": "Last seen",
     "occurrences": "occurrence(s)",
     "cpu": "CPU",
-    "warningCriticalFormat": "Warning: {warning}% | Critical: {critical}%"
+    "warningCriticalFormat": "Warning: {warning}% | Critical: {critical}%",
+    "snapshotAge": "Stale Snapshots",
+    "snapshotAgeDesc": "Alert when VM snapshots exceed this age",
+    "snapshotDays": "days",
+    "snapshotDisabled": "Disabled"
   },
   "inventory": {
     "title": "Inventory",
@@ -1405,6 +1411,7 @@
     "gcType": "GC",
     "tapeType": "Tape",
     "warningLabel": "Warning",
+    "criticalLabel": "Critical",
     "storagePrefix": "Storage",
     "datastorePrefix": "Datastore",
     "trendsTitle": "Backup Trends",

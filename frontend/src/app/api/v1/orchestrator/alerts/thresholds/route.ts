@@ -28,7 +28,8 @@ return NextResponse.json(response.data)
         memory_warning: 85,
         memory_critical: 95,
         storage_warning: 80,
-        storage_critical: 90
+        storage_critical: 90,
+        snapshot_max_age_days: 7
       })
     }
 

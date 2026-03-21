@@ -389,7 +389,9 @@
     "resolvedStatus": "已解决",
     "allSeverities": "所有严重级别",
     "criticalSeverity": "严重",
-    "thresholdsConfig": "告警阈值配置",
+    "thresholdsConfig": "告警阈值",
+    "resourceUsage": "资源使用",
+    "maintenance": "维护",
     "memory": "内存",
     "storage": "存储",
     "rulesDescription": "规则允许您在 Proxmox 事件（任务、日志）上触发告警",
@@ -422,7 +424,11 @@
     "lastSeen": "最后出现",
     "occurrences": "次",
     "cpu": "CPU",
-    "warningCriticalFormat": "警告：{warning}% | 严重：{critical}%"
+    "warningCriticalFormat": "警告：{warning}% | 严重：{critical}%",
+    "snapshotAge": "过期快照",
+    "snapshotAgeDesc": "当快照超过此天数时发出警报",
+    "snapshotDays": "天",
+    "snapshotDisabled": "已禁用"
   },
   "inventory": {
     "title": "资源清单",
@@ -1405,6 +1411,7 @@
     "gcType": "GC",
     "tapeType": "磁带",
     "warningLabel": "警告",
+    "criticalLabel": "严重",
     "storagePrefix": "存储",
     "datastorePrefix": "数据存储",
     "trendsTitle": "备份趋势",
