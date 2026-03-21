@@ -54,6 +54,7 @@ import { useLicense, Features } from '@/contexts/LicenseContext'
 import SnapshotsTab from '@/components/SnapshotsTab'
 import NodeFirewallTab from '@/components/NodeFirewallTab'
 import ComplianceTab from '@/components/ComplianceTab'
+import NetworkInterfaceDialog from '@/components/network/NetworkInterfaceDialog'
 
 import type { InventorySelection, DetailsPayload, RrdTimeframe, SeriesPoint, Status } from '../types'
 import { formatBps, formatTime, formatUptime, parseMarkdown, parseNodeId, parseVmId, cpuPct, pct, buildSeriesFromRrd, fetchRrd, tagColor } from '../helpers'
@@ -205,6 +206,14 @@ export default function NodeTabs(props: any) {
   const { hasFeature } = useLicense()
   const changeTrackingAvailable = hasFeature(Features.CHANGE_TRACKING)
   const complianceAvailable = hasFeature(Features.COMPLIANCE)
+
+  // Network interface dialog state
+  const [networkDialogOpen, setNetworkDialogOpen] = useState(false)
+  const [networkDialogMode, setNetworkDialogMode] = useState<'create' | 'edit' | 'view'>('view')
+  const [networkDialogIface, setNetworkDialogIface] = useState<any>(null)
+  const [networkApplying, setNetworkApplying] = useState(false)
+  const [networkReverting, setNetworkReverting] = useState(false)
+  const [networkError, setNetworkError] = useState('')
 
   // Ceph OSD Flags state for Node Ceph OSD sub-tab
   const [nodeCephOsdFlags, setNodeCephOsdFlags] = useState<string[]>([])
@@ -1281,11 +1290,55 @@ export default function NodeTabs(props: any) {
                                 <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <Typography variant="subtitle2" fontWeight={700}>Network Interfaces</Typography>
                                   <Box sx={{ display: 'flex', gap: 1 }}>
-                                    <Button size="small" variant="outlined" disabled startIcon={<i className="ri-add-line" style={{ fontSize: 14 }} />}>Create</Button>
-                                    <Button size="small" variant="outlined" disabled startIcon={<i className="ri-refresh-line" style={{ fontSize: 14 }} />}>Revert</Button>
-                                    <Button size="small" variant="outlined" disabled startIcon={<i className="ri-check-line" style={{ fontSize: 14 }} />}>Apply</Button>
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      startIcon={<i className="ri-add-line" style={{ fontSize: 14 }} />}
+                                      onClick={() => { setNetworkDialogMode('create'); setNetworkDialogIface(null); setNetworkDialogOpen(true) }}
+                                    >
+                                      Create
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      disabled={networkReverting}
+                                      startIcon={networkReverting ? <CircularProgress size={14} /> : <i className="ri-refresh-line" style={{ fontSize: 14 }} />}
+                                      onClick={async () => {
+                                        const { connId, node } = parseNodeId(selection?.id || '')
+                                        setNetworkReverting(true)
+                                        setNetworkError('')
+                                        try {
+                                          const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/network`, { method: 'DELETE' })
+                                          if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Failed to revert') }
+                                          setNodeSystemLoaded(false)
+                                        } catch (e: any) { setNetworkError(e?.message || 'Revert failed') }
+                                        finally { setNetworkReverting(false) }
+                                      }}
+                                    >
+                                      Revert
+                                    </Button>
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      disabled={networkApplying}
+                                      startIcon={networkApplying ? <CircularProgress size={14} /> : <i className="ri-check-line" style={{ fontSize: 14 }} />}
+                                      onClick={async () => {
+                                        const { connId, node } = parseNodeId(selection?.id || '')
+                                        setNetworkApplying(true)
+                                        setNetworkError('')
+                                        try {
+                                          const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/network`, { method: 'PUT' })
+                                          if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Failed to apply') }
+                                          setNodeSystemLoaded(false)
+                                        } catch (e: any) { setNetworkError(e?.message || 'Apply failed') }
+                                        finally { setNetworkApplying(false) }
+                                      }}
+                                    >
+                                      Apply
+                                    </Button>
                                   </Box>
                                 </Box>
+                                {networkError && <Alert severity="error" sx={{ mx: 2, mt: 1 }} onClose={() => setNetworkError('')}>{networkError}</Alert>}
                                 {(nodeSystemData.network?.length || 0) > 0 ? (
                                   <TableContainer sx={{ maxHeight: 400 }}>
                                     <Table size="small" stickyHeader>
@@ -1303,12 +1356,17 @@ export default function NodeTabs(props: any) {
                                       </TableHead>
                                       <TableBody>
                                         {nodeSystemData.network.map((iface: any, idx: number) => (
-                                          <TableRow key={idx} hover>
+                                          <TableRow
+                                            key={idx}
+                                            hover
+                                            sx={{ cursor: 'pointer' }}
+                                            onClick={() => { setNetworkDialogMode('edit'); setNetworkDialogIface(iface); setNetworkDialogOpen(true) }}
+                                          >
                                             <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{iface.iface}</TableCell>
                                             <TableCell>
-                                              <Chip 
-                                                size="small" 
-                                                label={iface.type} 
+                                              <Chip
+                                                size="small"
+                                                label={iface.type}
                                                 color={iface.type === 'bridge' ? 'primary' : iface.type === 'bond' ? 'secondary' : 'default'}
                                                 sx={{ height: 20, fontSize: 10 }}
                                               />
@@ -1333,6 +1391,41 @@ export default function NodeTabs(props: any) {
                                     <Typography variant="body2">No network interfaces found</Typography>
                                   </Box>
                                 )}
+
+                                {/* Network Interface Dialog */}
+                                <NetworkInterfaceDialog
+                                  open={networkDialogOpen}
+                                  onClose={() => setNetworkDialogOpen(false)}
+                                  mode={networkDialogMode}
+                                  iface={networkDialogIface}
+                                  allInterfaces={nodeSystemData.network || []}
+                                  onSave={async (formData) => {
+                                    const { connId, node } = parseNodeId(selection?.id || '')
+                                    const base = `/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/network`
+                                    if (networkDialogMode === 'create') {
+                                      const res = await fetch(base, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(formData),
+                                      })
+                                      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Failed to create') }
+                                    } else {
+                                      const res = await fetch(`${base}/${encodeURIComponent(formData.iface)}`, {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify(formData),
+                                      })
+                                      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Failed to update') }
+                                    }
+                                    setNodeSystemLoaded(false)
+                                  }}
+                                  onDelete={async (ifaceName) => {
+                                    const { connId, node } = parseNodeId(selection?.id || '')
+                                    const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/network/${encodeURIComponent(ifaceName)}`, { method: 'DELETE' })
+                                    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Failed to delete') }
+                                    setNodeSystemLoaded(false)
+                                  }}
+                                />
                               </CardContent>
                             </Card>
                           )}
