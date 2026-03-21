@@ -370,6 +370,7 @@ pull_and_init() {
     # Create volumes
     docker volume create proxcenter_data > /dev/null 2>&1 || true
     docker volume create orchestrator_data > /dev/null 2>&1 || true
+    docker volume create influxdb_data > /dev/null 2>&1 || true
 
     # Init data directory — bypass entrypoint, pass dummy NEXTAUTH_SECRET to suppress warning
     docker run --rm --user root --entrypoint "" \
