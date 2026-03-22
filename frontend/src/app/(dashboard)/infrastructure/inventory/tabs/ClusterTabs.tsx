@@ -326,6 +326,40 @@ export default function ClusterTabs(props: any) {
     return map
   }, [clusterRrdNodeNames])
 
+  // Lazy-load subscription status when Nodes tab is opened
+  const [nodeSubscriptions, setNodeSubscriptions] = useState<Record<string, string>>({})
+  const [subscriptionsLoaded, setSubscriptionsLoaded] = useState(false)
+  useEffect(() => {
+    if (clusterTab !== 1 || !connId || subscriptionsLoaded || !data.nodesData?.length) return
+    setSubscriptionsLoaded(true)
+
+    const onlineNodes = (data.nodesData as any[]).filter((n: any) => n.status === 'online')
+    if (onlineNodes.length === 0) return
+
+    ;(async () => {
+      const updates: Record<string, string> = {}
+      await Promise.all(onlineNodes.map(async (node: any) => {
+        try {
+          const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node.node)}/subscription`, { cache: 'no-store' })
+          if (res.ok) {
+            const json = await res.json()
+            updates[node.node] = json?.data?.status || 'notfound'
+          }
+        } catch { /* ignore */ }
+      }))
+      if (Object.keys(updates).length > 0) setNodeSubscriptions(updates)
+    })()
+  }, [clusterTab, connId, subscriptionsLoaded, data.nodesData?.length])
+
+  // Reset subscription loaded flag on selection change
+  useEffect(() => { setSubscriptionsLoaded(false); setNodeSubscriptions({}) }, [selection?.id])
+
+  // Enrich nodesData with subscription info for NodesTable
+  const enrichedNodesData = useMemo(() => {
+    if (!data.nodesData || Object.keys(nodeSubscriptions).length === 0) return data.nodesData
+    return (data.nodesData as any[]).map((n: any) => nodeSubscriptions[n.node] ? { ...n, subscription: nodeSubscriptions[n.node] } : n)
+  }, [data.nodesData, nodeSubscriptions])
+
   // Fetch Ceph OSD flags when in summary tab and ceph is available
   useEffect(() => {
     if (clusterTab !== 0 || !['HEALTH_OK', 'HEALTH_WARN', 'HEALTH_ERR'].includes(data.cephHealth) || !connId) return
@@ -1272,7 +1306,7 @@ export default function ClusterTabs(props: any) {
                 {/* Onglet Nodes - Index 1 */}
                 {clusterTab === 1 && data.nodesData.length > 0 && (
                   <NodesTable
-                    nodes={data.nodesData as NodeRow[]}
+                    nodes={enrichedNodesData as NodeRow[]}
                     compact
                     maxHeight="auto"
                     onNodeClick={(node) => {

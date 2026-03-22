@@ -387,19 +387,6 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
     const memPctVal = totalMaxMem > 0 ? pct(totalMem, totalMaxMem) : 0
     const diskPctVal = totalMaxDisk > 0 ? pct(totalDisk, totalMaxDisk) : 0
 
-    // Fetch subscription status for each online node in parallel
-    const subscriptionMap: Record<string, string> = {}
-    await Promise.all(nodes.filter((n: any) => n.status === 'online').map(async (n: any) => {
-      try {
-        const res = await fetch(`/api/v1/connections/${encodeURIComponent(sel.id)}/nodes/${encodeURIComponent(n.node)}/subscription`, { cache: 'no-store' })
-        if (res.ok) {
-          const json = await res.json()
-          const sub = json?.data
-          subscriptionMap[n.node] = sub?.status || 'notfound'
-        }
-      } catch { /* ignore */ }
-    }))
-
     const nodesData = nodes.map((n: any) => {
       const vmCount = guests.filter((g: any) => g.node === n.node).length
 
@@ -415,7 +402,6 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
         vms: vmCount,
         uptime: Number(n.uptime ?? 0),
         ip: n.ip || undefined,
-        subscription: subscriptionMap[n.node] || undefined,
       }
     })
 
@@ -503,12 +489,11 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
     }
 
     // Node is online — fetch all details in parallel
-    const [statusR, resourcesR, versionR, subscriptionR, updatesR, maintenanceR] = await Promise.all([
+    // Only fetch essential data for Summary tab — subscription, apt, maintenance are deferred to their tabs
+    const [statusR, resourcesR, versionR, maintenanceR] = await Promise.all([
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/status`, { cache: 'no-store' }).catch(() => null),
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/resources`, { cache: 'no-store' }).catch(() => null),
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/version`, { cache: 'no-store' }).catch(() => null),
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/subscription`, { cache: 'no-store' }).catch(() => null),
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/apt`, { cache: 'no-store' }).catch(() => null),
       fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/maintenance`, { cache: 'no-store' }).catch(() => null),
     ])
 
@@ -555,24 +540,6 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
     if (versionR && versionR.ok) {
       try {
         versionData = safeJson<any>(await versionR.json())
-      } catch {}
-    }
-
-    let subscriptionData: any = null
-
-    if (subscriptionR && subscriptionR.ok) {
-      try {
-        const subResponse = await subscriptionR.json()
-        subscriptionData = subResponse?.data || null
-      } catch {}
-    }
-
-    let updatesData: any[] = []
-
-    if (updatesR && updatesR.ok) {
-      try {
-        const updResponse = await updatesR.json()
-        updatesData = updResponse?.data || []
       } catch {}
     }
 
@@ -678,8 +645,7 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
         loadAvg,
         ioDelay,
         ksmSharing,
-        updates: updatesData || [],
-        subscription: subscriptionData,
+        updates: [],
         maintenance: maintenanceValue,
       },
       vmsData,

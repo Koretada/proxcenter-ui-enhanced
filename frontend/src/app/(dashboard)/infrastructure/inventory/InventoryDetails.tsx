@@ -1321,7 +1321,7 @@ export default function InventoryDetails({
     newSnapshotRam, setNewSnapshotRam,
     loadSnapshots, createSnapshot, deleteSnapshot, rollbackSnapshot,
     resetSnapshots,
-  } = useSnapshots({ selection, t, toast, data, setConfirmAction, setConfirmActionLoading })
+  } = useSnapshots({ selection, detailTab, t, toast, data, setConfirmAction, setConfirmActionLoading })
 
   // ==================== TASKS (Historique des tâches) ====================
   const {
@@ -1514,30 +1514,20 @@ return () => {
 
   const canShowRrd = selection && (selection.type === 'node' || selection.type === 'vm') && !data?.isTemplate
 
-  // Charger les backups quand on sélectionne une VM (pré-chargement pour le badge)
+  // Charger les backups quand l'onglet Backups est ouvert (lazy loading)
   useEffect(() => {
-    // Charger les backups uniquement si la sélection a changé
-    // On utilise une ref pour tracker l'ID de la dernière sélection chargée
-    if (selection?.type !== 'vm') {
-      backupsLoadedForIdRef.current = null
+    if (selection?.type !== 'vm' || detailTab !== 5) {
       return
     }
 
     const currentSelectionId = selection.id
-
-    // Si on a déjà chargé pour cette sélection, ne pas recharger
-    if (backupsLoadedForIdRef.current === currentSelectionId) {
-      return
-    }
-
-    // Marquer comme chargé pour cette sélection AVANT d'appeler loadBackups
-    // pour éviter les doubles appels
+    if (backupsLoadedForIdRef.current === currentSelectionId) return
     backupsLoadedForIdRef.current = currentSelectionId
 
     const { type, vmid } = parseVmId(selection.id)
     loadBackups(vmid, type)
     setBackupsPreloaded(true)
-  }, [selection?.type, selection?.id, loadBackups])
+  }, [selection?.type, selection?.id, detailTab, loadBackups])
 
   // Note: snapshot preloading is handled inside useSnapshots hook
 
@@ -1717,12 +1707,12 @@ return
     }
   }, [addCephReplicationDialogOpen, cephClustersLoading, cephClusters.length, selection?.id])
 
-  // Charger les données HA du cluster dès la sélection (pour avoir la version) et quand on sélectionne l'onglet HA
+  // Charger les données HA du cluster quand l'onglet HA est ouvert (lazy loading)
   useEffect(() => {
-    if (selection?.type === 'cluster' && !clusterHaLoaded && !clusterHaLoading) {
+    if (selection?.type === 'cluster' && clusterTab === 5 && !clusterHaLoaded && !clusterHaLoading) {
       loadClusterHa(selection.id)
     }
-  }, [selection?.type, selection?.id, clusterHaLoaded, clusterHaLoading, loadClusterHa])
+  }, [selection?.type, selection?.id, clusterTab, clusterHaLoaded, clusterHaLoading, loadClusterHa])
 
   // Charger la config du cluster quand on sélectionne l'onglet Cluster
   useEffect(() => {

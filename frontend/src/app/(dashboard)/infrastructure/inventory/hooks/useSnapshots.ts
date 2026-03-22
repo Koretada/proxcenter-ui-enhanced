@@ -24,6 +24,7 @@ type ConfirmAction = {
 
 interface UseSnapshotsParams {
   selection: InventorySelection | null
+  detailTab?: number
   t: (key: string) => string
   toast: Toast
   data: any
@@ -37,6 +38,7 @@ interface UseSnapshotsParams {
 
 export function useSnapshots({
   selection,
+  detailTab,
   t,
   toast,
   data,
@@ -222,12 +224,12 @@ export function useSnapshots({
     setSnapshotsError(null)
   }, [])
 
-  // Pre-load snapshots when a VM is selected (for badge count)
+  // Load snapshots when Snapshots tab is opened (lazy loading)
   useEffect(() => {
-    if (selection?.type === 'vm' && !snapshotsLoaded && !snapshotsLoading) {
+    if (selection?.type === 'vm' && detailTab === 4 && !snapshotsLoaded && !snapshotsLoading) {
       loadSnapshots()
     }
-  }, [selection?.type, selection?.id, snapshotsLoaded, snapshotsLoading, loadSnapshots])
+  }, [selection?.type, selection?.id, detailTab, snapshotsLoaded, snapshotsLoading, loadSnapshots])
 
   return {
     snapshots,
