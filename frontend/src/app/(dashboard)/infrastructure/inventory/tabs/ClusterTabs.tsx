@@ -89,6 +89,7 @@ export default function ClusterTabs(props: any) {
   const [cephFlagToggling, setCephFlagToggling] = useState<string | null>(null)
   const [refreshingUpdates, setRefreshingUpdates] = useState(false)
   const theme = useTheme()
+  const chartTooltipStyle = { backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, color: theme.palette.text.primary }
   const toast = useToast()
 
   const {
@@ -808,7 +809,7 @@ export default function ClusterTabs(props: any) {
                     </Box>
 
                     {/* Ceph OSD Flags */}
-                    {['HEALTH_OK', 'HEALTH_WARN', 'HEALTH_ERR'].includes(data.cephHealth) && (
+                    {['HEALTH_OK', 'HEALTH_WARN', 'HEALTH_ERR'].includes(data.cephHealth) && cephOsdFlags.length > 0 && (
                       <Card variant="outlined" sx={{ mb: 2 }}>
                         <CardContent sx={{ py: 1.5, px: 2 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -1105,7 +1106,7 @@ export default function ClusterTabs(props: any) {
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
-                                <Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [`${Number(v).toFixed(1)}%`, name.replace('cpu_', '')]} />
+                                <Tooltip contentStyle={chartTooltipStyle} labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [`${Number(v).toFixed(1)}%`, name.replace('cpu_', '')]} />
                                 {clusterRrdNodeNames.map(name => (
                                   <Area key={name} type="monotone" dataKey={`cpu_${name}`} stroke={nodeColors[name]} fill={`url(#cGradCpu_${name})`} strokeWidth={1.5} isAnimationActive={false} connectNulls />
                                 ))}
@@ -1140,7 +1141,7 @@ export default function ClusterTabs(props: any) {
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
-                                <Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [`${Number(v).toFixed(1)}%`, name.replace('ram_', '')]} />
+                                <Tooltip contentStyle={chartTooltipStyle} labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [`${Number(v).toFixed(1)}%`, name.replace('ram_', '')]} />
                                 {clusterRrdNodeNames.map(name => (
                                   <Area key={name} type="monotone" dataKey={`ram_${name}`} stroke={nodeColors[name]} fill={`url(#cGradRam_${name})`} strokeWidth={1.5} isAnimationActive={false} connectNulls />
                                 ))}
@@ -1175,7 +1176,7 @@ export default function ClusterTabs(props: any) {
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
-                                <Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [formatBps(Number(v)), name.replace('netIn_', '').replace('netOut_', '') + (name.startsWith('netIn_') ? ' In' : ' Out')]} />
+                                <Tooltip contentStyle={chartTooltipStyle} labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [formatBps(Number(v)), name.replace('netIn_', '').replace('netOut_', '') + (name.startsWith('netIn_') ? ' In' : ' Out')]} />
                                 {clusterRrdNodeNames.map(name => (
                                   <Area key={`in_${name}`} type="monotone" dataKey={`netIn_${name}`} stroke={nodeColors[name]} fill={`url(#cGradNet_${name})`} strokeWidth={1.5} isAnimationActive={false} connectNulls />
                                 ))}
@@ -1214,7 +1215,7 @@ export default function ClusterTabs(props: any) {
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis tick={{ fontSize: 9 }} width={30} domain={[0, 'auto']} />
-                                <Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [Number(v).toFixed(2), name.replace('load_', '')]} />
+                                <Tooltip contentStyle={chartTooltipStyle} labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [Number(v).toFixed(2), name.replace('load_', '')]} />
                                 {clusterRrdNodeNames.map(name => (
                                   <Area key={name} type="monotone" dataKey={`load_${name}`} stroke={nodeColors[name]} fill={`url(#cGradLoad_${name})`} strokeWidth={1.5} isAnimationActive={false} connectNulls />
                                 ))}

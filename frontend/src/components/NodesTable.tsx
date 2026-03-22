@@ -235,8 +235,8 @@ function NodesTable({
         headerName: t('inventory.support'),
         width: 110,
         renderCell: (params) => {
-          const sub = params.row.subscription
-          const label = sub === 'active' ? 'Active' : sub === 'notfound' ? 'Community' : sub || 'N/A'
+          const sub = (params.row.subscription || '').toLowerCase()
+          const label = sub === 'active' ? 'Active' : (sub === 'notfound' || sub === 'unknown' || sub === '') ? 'Community' : sub
           const color = sub === 'active' ? 'success' : 'default'
           return <Chip size="small" label={label} color={color as any} sx={{ height: 20, fontSize: 10 }} />
         }

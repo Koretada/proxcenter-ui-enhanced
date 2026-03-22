@@ -2810,21 +2810,6 @@ return vm?.isCluster ?? false
                     onTagsChange={setLocalTags}
                   />
 
-                  {/* Hardware summary */}
-                  {data.cpuInfo && (
-                    <Typography variant="caption" noWrap sx={{ color: 'primary.main', fontFamily: 'monospace', fontSize: '0.7rem', flexShrink: 0, flex: 1, textAlign: 'center' }}>
-                      {(data.cpuInfo.sockets || 1) * (data.cpuInfo.cores || 1)} vCPU
-                      {' / '}
-                      {data.memoryInfo?.memory >= 1024
-                        ? `${(data.memoryInfo.memory / 1024).toFixed(data.memoryInfo.memory % 1024 === 0 ? 0 : 1)} GB`
-                        : `${data.memoryInfo?.memory || 0} MB`}
-                      {' / '}
-                      {data.networkInfo?.length || 0} NIC
-                      {' / '}
-                      {data.disksInfo?.filter((d: any) => !d.isCdrom).length || 0} Disk{(data.disksInfo?.filter((d: any) => !d.isCdrom).length || 0) > 1 ? 's' : ''}
-                    </Typography>
-                  )}
-
                   {/* Refresh + Actions — poussées à droite */}
                   <Box sx={{ ml: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <MuiTooltip title={t('common.refresh')}>

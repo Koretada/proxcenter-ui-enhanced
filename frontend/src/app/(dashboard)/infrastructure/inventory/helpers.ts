@@ -387,11 +387,23 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
     const memPctVal = totalMaxMem > 0 ? pct(totalMem, totalMaxMem) : 0
     const diskPctVal = totalMaxDisk > 0 ? pct(totalDisk, totalMaxDisk) : 0
 
+    // Fetch subscription status for each online node in parallel
+    const subscriptionMap: Record<string, string> = {}
+    await Promise.all(nodes.filter((n: any) => n.status === 'online').map(async (n: any) => {
+      try {
+        const res = await fetch(`/api/v1/connections/${encodeURIComponent(sel.id)}/nodes/${encodeURIComponent(n.node)}/subscription`, { cache: 'no-store' })
+        if (res.ok) {
+          const json = await res.json()
+          const sub = json?.data
+          subscriptionMap[n.node] = sub?.status || 'notfound'
+        }
+      } catch { /* ignore */ }
+    }))
+
     const nodesData = nodes.map((n: any) => {
       const vmCount = guests.filter((g: any) => g.node === n.node).length
 
-
-return {
+      return {
         id: `${sel.id}:${n.node}`,
         connId: sel.id,
         node: n.node,
@@ -403,6 +415,7 @@ return {
         vms: vmCount,
         uptime: Number(n.uptime ?? 0),
         ip: n.ip || undefined,
+        subscription: subscriptionMap[n.node] || undefined,
       }
     })
 

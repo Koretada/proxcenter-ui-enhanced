@@ -75,6 +75,8 @@ import { SaveIcon, AddIcon, CloseIcon } from '../components/IconWrappers'
 export default function VmDetailTabs(props: any) {
   const t = useTranslations()
   const locale = useLocale()
+  const theme = useTheme()
+  const chartTooltipStyle = { backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, color: theme.palette.text.primary }
   const [cpuFlagsOpen, setCpuFlagsOpen] = useState(false)
   const [hwSections, setHwSections] = useState<Set<string>>(new Set(['cpu', 'memory', 'disks', 'network', 'other']))
   const toggleHwSection = (section: string) => setHwSections(prev => {
@@ -469,7 +471,7 @@ export default function VmDetailTabs(props: any) {
                                   </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
-                                  <Tooltip
+                                  <Tooltip contentStyle={chartTooltipStyle}
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'CPU']}
                                   />
@@ -495,7 +497,7 @@ export default function VmDetailTabs(props: any) {
                                   </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
-                                  <Tooltip
+                                  <Tooltip contentStyle={chartTooltipStyle}
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'Memory']}
                                   />
@@ -525,7 +527,7 @@ export default function VmDetailTabs(props: any) {
                                   </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
-                                  <Tooltip
+                                  <Tooltip contentStyle={chartTooltipStyle}
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any, name: string) => [formatBps(Number(v)), name === 'netInBps' ? 'In' : 'Out']}
                                   />
@@ -557,7 +559,7 @@ export default function VmDetailTabs(props: any) {
                                     </defs>
                                     <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                     <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
-                                    <Tooltip
+                                    <Tooltip contentStyle={chartTooltipStyle}
                                       labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                       formatter={(v: any, name: string) => [formatBps(Number(v)), name === 'diskReadBps' ? 'Read' : 'Write']}
                                     />
