@@ -9,7 +9,7 @@ function StatusChip({ status }: { status: Status }) {
     unknown: { icon: 'ri-question-line', color: '#9e9e9e' },
   }
 
-  const { icon, color } = map[status]
+  const { icon, color } = map[status] || map.unknown
 
   return <i className={icon} style={{ fontSize: 18, color, flexShrink: 0 }} />
 }

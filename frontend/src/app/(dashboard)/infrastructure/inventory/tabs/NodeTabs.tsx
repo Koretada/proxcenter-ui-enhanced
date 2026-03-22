@@ -524,13 +524,19 @@ export default function NodeTabs(props: any) {
                           <Box sx={{ height: 160 }}>
                             <ResponsiveContainer width="100%" height="100%">
                               <AreaChart data={series}>
+                                <defs>
+                                  <linearGradient id="nGradCpu" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                    <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
                                 <Tooltip
                                   labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                   formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'CPU']}
                                 />
-                                <Area type="monotone" dataKey="cpuPct" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} />
+                                <Area type="monotone" dataKey="cpuPct" stroke={primaryColor} fill="url(#nGradCpu)" strokeWidth={1.5} isAnimationActive={false} />
                               </AreaChart>
                             </ResponsiveContainer>
                           </Box>
@@ -544,13 +550,19 @@ export default function NodeTabs(props: any) {
                           <Box sx={{ height: 160 }}>
                             <ResponsiveContainer width="100%" height="100%">
                               <AreaChart data={series}>
+                                <defs>
+                                  <linearGradient id="nGradRam" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                    <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
                                 <Tooltip
                                   labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                   formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'Memory']}
                                 />
-                                <Area type="monotone" dataKey="ramPct" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} />
+                                <Area type="monotone" dataKey="ramPct" stroke={primaryColor} fill="url(#nGradRam)" strokeWidth={1.5} isAnimationActive={false} />
                               </AreaChart>
                             </ResponsiveContainer>
                           </Box>
@@ -564,14 +576,24 @@ export default function NodeTabs(props: any) {
                           <Box sx={{ height: 160 }}>
                             <ResponsiveContainer width="100%" height="100%">
                               <AreaChart data={series}>
+                                <defs>
+                                  <linearGradient id="nGradNetIn" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                    <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                  </linearGradient>
+                                  <linearGradient id="nGradNetOut" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={primaryColorLight} stopOpacity={0.35} />
+                                    <stop offset="100%" stopColor={primaryColorLight} stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
                                 <Tooltip
                                   labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                   formatter={(v: any, name: string) => [formatBps(Number(v)), name === 'netInBps' ? 'In' : 'Out']}
                                 />
-                                <Area type="monotone" dataKey="netInBps" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="netInBps" connectNulls />
-                                <Area type="monotone" dataKey="netOutBps" stroke={primaryColorLight} fill={primaryColorLight} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="netOutBps" connectNulls />
+                                <Area type="monotone" dataKey="netInBps" stroke={primaryColor} fill="url(#nGradNetIn)" strokeWidth={1.5} isAnimationActive={false} name="netInBps" connectNulls />
+                                <Area type="monotone" dataKey="netOutBps" stroke={primaryColorLight} fill="url(#nGradNetOut)" strokeWidth={1.5} isAnimationActive={false} name="netOutBps" connectNulls />
                               </AreaChart>
                             </ResponsiveContainer>
                           </Box>
@@ -586,24 +608,40 @@ export default function NodeTabs(props: any) {
                             <ResponsiveContainer width="100%" height="100%">
                               {selection?.type === 'node' ? (
                                 <AreaChart data={series}>
+                                  <defs>
+                                    <linearGradient id="nGradLoad" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                      <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                    </linearGradient>
+                                  </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis tick={{ fontSize: 9 }} width={30} domain={[0, 'auto']} />
                                   <Tooltip
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any) => [Number(v).toFixed(2), 'Load']}
                                   />
-                                  <Area type="monotone" dataKey="loadAvg" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} connectNulls />
+                                  <Area type="monotone" dataKey="loadAvg" stroke={primaryColor} fill="url(#nGradLoad)" strokeWidth={1.5} isAnimationActive={false} connectNulls />
                                 </AreaChart>
                               ) : (
                                 <AreaChart data={series}>
+                                  <defs>
+                                    <linearGradient id="nGradDiskRead" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                      <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                    </linearGradient>
+                                    <linearGradient id="nGradDiskWrite" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={primaryColorLight} stopOpacity={0.35} />
+                                      <stop offset="100%" stopColor={primaryColorLight} stopOpacity={0} />
+                                    </linearGradient>
+                                  </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
                                   <Tooltip
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any, name: string) => [formatBps(Number(v)), name === 'diskReadBps' ? 'Read' : 'Write']}
                                   />
-                                  <Area type="monotone" dataKey="diskReadBps" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="diskReadBps" connectNulls />
-                                  <Area type="monotone" dataKey="diskWriteBps" stroke={primaryColorLight} fill={primaryColorLight} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="diskWriteBps" connectNulls />
+                                  <Area type="monotone" dataKey="diskReadBps" stroke={primaryColor} fill="url(#nGradDiskRead)" strokeWidth={1.5} isAnimationActive={false} name="diskReadBps" connectNulls />
+                                  <Area type="monotone" dataKey="diskWriteBps" stroke={primaryColorLight} fill="url(#nGradDiskWrite)" strokeWidth={1.5} isAnimationActive={false} name="diskWriteBps" connectNulls />
                                 </AreaChart>
                               )}
                             </ResponsiveContainer>

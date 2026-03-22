@@ -53,6 +53,10 @@ type EditDiskDialogProps = {
     replicate?: boolean
     aio?: string
     ro?: boolean
+    mbps_rd?: number
+    mbps_wr?: number
+    iops_rd?: number
+    iops_wr?: number
     isCdrom?: boolean
     isUnused?: boolean
     rawValue?: string
@@ -147,6 +151,10 @@ export function EditDiskDialog({ open, onClose, onSave, onDelete, onResize, onMo
       setSkipReplication(disk.replicate === false)
       setAsyncIo(disk.aio || 'io_uring')
       setReadOnly(disk.ro || false)
+      setMbpsRd(disk.mbps_rd ? String(disk.mbps_rd) : '')
+      setMbpsWr(disk.mbps_wr ? String(disk.mbps_wr) : '')
+      setIopsRd(disk.iops_rd ? String(disk.iops_rd) : '')
+      setIopsWr(disk.iops_wr ? String(disk.iops_wr) : '')
 
       // Initialiser la taille pour le resize
       const sizeMatch = disk.size.match(/(\d+(?:\.\d+)?)\s*(G|T|M)?/i)
@@ -316,22 +324,30 @@ return
     setError(null)
 
     try {
-      const options: string[] = []
+      // Extract the volume part (storage:image) and size from rawValue
+      // rawValue looks like "local-lvm:vm-102-disk-0,size=32G,cache=writeback,..."
+      const raw = disk.rawValue || ''
+      const rawParts = raw.split(',')
+      // Keep volume (first part) and size
+      const baseParts: string[] = [rawParts[0]]
+      const sizeParam = rawParts.find(p => p.startsWith('size='))
+      if (sizeParam) baseParts.push(sizeParam)
 
-      if (cache !== 'none') options.push(`cache=${cache}`)
-      if (discard) options.push('discard=on')
-      if (iothread) options.push('iothread=1')
-      if (ssdEmulation) options.push('ssd=1')
-      if (!backup) options.push('backup=0')
-      if (skipReplication) options.push('replicate=0')
-      if (asyncIo !== 'io_uring') options.push(`aio=${asyncIo}`)
-      if (readOnly) options.push('ro=1')
-      if (mbpsRd) options.push(`mbps_rd=${mbpsRd}`)
-      if (mbpsWr) options.push(`mbps_wr=${mbpsWr}`)
-      if (iopsRd) options.push(`iops_rd=${iopsRd}`)
-      if (iopsWr) options.push(`iops_wr=${iopsWr}`)
+      // Build new options
+      if (cache !== 'none') baseParts.push(`cache=${cache}`)
+      if (discard) baseParts.push('discard=on')
+      if (iothread) baseParts.push('iothread=1')
+      if (ssdEmulation) baseParts.push('ssd=1')
+      if (!backup) baseParts.push('backup=0')
+      if (skipReplication) baseParts.push('replicate=0')
+      if (asyncIo !== 'io_uring') baseParts.push(`aio=${asyncIo}`)
+      if (readOnly) baseParts.push('ro=1')
+      if (mbpsRd) baseParts.push(`mbps_rd=${mbpsRd}`)
+      if (mbpsWr) baseParts.push(`mbps_wr=${mbpsWr}`)
+      if (iopsRd) baseParts.push(`iops_rd=${iopsRd}`)
+      if (iopsWr) baseParts.push(`iops_wr=${iopsWr}`)
 
-      await onSave({ options })
+      await onSave(baseParts.join(','))
       onClose()
     } catch (e: any) {
       setError(e.message || t('errors.updateError'))
@@ -697,7 +713,7 @@ return
         {tab === 2 && onResize && (
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity="info" icon={<i className="ri-information-line" />}>
-              <span dangerouslySetInnerHTML={{ __html: t('hardware.resizeInfo', { size: disk.size }) }} />
+              {t.rich('hardware.resizeInfo', { size: disk.size, strong: (chunks) => <strong>{chunks}</strong> })}
             </Alert>
 
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
@@ -738,7 +754,7 @@ return
         {tab === 3 && onMoveStorage && (
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity="info" icon={<i className="ri-information-line" />}>
-              <span dangerouslySetInnerHTML={{ __html: t('hardware.moveDiskTo', { storage: disk.storage }) }} />
+              {t.rich('hardware.moveDiskTo', { storage: disk.storage, strong: (chunks) => <strong>{chunks}</strong> })}
             </Alert>
 
             {storagesLoading ? (

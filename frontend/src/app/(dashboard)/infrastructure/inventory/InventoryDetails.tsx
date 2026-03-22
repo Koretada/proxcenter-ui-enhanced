@@ -107,6 +107,7 @@ import { ViewMode, AllVmItem, HostItem, PoolItem, TagItem } from './InventoryTre
 import NetworkDetailPanel from './components/NetworkDetailPanel'
 import TagManager from './components/TagManager'
 import VmActions from './components/VmActions'
+import NodeActions from './components/NodeActions'
 import UsageBar from './components/UsageBar'
 import ConsolePreview from './components/ConsolePreview'
 import StatusChip from './components/StatusChip'
@@ -389,6 +390,8 @@ export default function InventoryDetails({
   externalHypervisors = [],
   externalDialogRequest,
   onExternalDialogHandled,
+  nodeActionRequest,
+  onNodeActionHandled,
 }: {
   selection: InventorySelection | null
   onSelect?: (sel: InventorySelection) => void
@@ -415,6 +418,8 @@ export default function InventoryDetails({
   externalHypervisors?: { id: string; name: string; type: string; vms?: { vmid: string; name: string; status: string }[] }[]
   externalDialogRequest?: { type: 'createVm' | 'createLxc'; connId: string; node: string; ts: number } | null
   onExternalDialogHandled?: () => void
+  nodeActionRequest?: { action: 'reboot' | 'shutdown'; connId: string; node: string; ts: number } | null
+  onNodeActionHandled?: () => void
 }) {
   const t = useTranslations()
   const dateLocale = getDateLocale(useLocale())
@@ -465,6 +470,15 @@ export default function InventoryDetails({
   const [savingMemory, setSavingMemory] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [exitMaintenanceDialogOpen, setExitMaintenanceDialogOpen] = useState(false)
+  const [nodeActionDialog, setNodeActionDialog] = useState<{ action: 'reboot' | 'shutdown'; nodeName: string; connId?: string; node?: string } | null>(null)
+  const [nodeActionBusy, setNodeActionBusy] = useState(false)
+  const [nodeActionStep, setNodeActionStep] = useState<string | null>(null)
+  const [nodeActionMigrateTarget, setNodeActionMigrateTarget] = useState('')
+  const [nodeActionFailedVms, setNodeActionFailedVms] = useState<{ vmid: string; name: string; connId: string; type: string; node: string; error: string }[]>([])
+  const [nodeActionShutdownFailed, setNodeActionShutdownFailed] = useState(false)
+  const [nodeActionLocalVms, setNodeActionLocalVms] = useState<Set<string>>(new Set())
+  const [nodeActionStorageLoading, setNodeActionStorageLoading] = useState(false)
+  const [nodeActionShutdownLocal, setNodeActionShutdownLocal] = useState(false)
   const [esxiMigrateVm, setEsxiMigrateVm] = useState<{ vmid: string; name: string; connId: string; connName: string; cpu?: number; memoryMB?: number; committed?: number; guestOS?: string; licenseFull?: boolean; hostType?: string } | null>(null)
   const [migTargetConn, setMigTargetConn] = useState('')
   const [migTargetNode, setMigTargetNode] = useState('')
@@ -565,6 +579,81 @@ export default function InventoryDetails({
       onExternalDialogHandled?.()
     }
   }, [externalDialogRequest, onExternalDialogHandled])
+
+  const lastNodeActionTs = useRef(0)
+  useEffect(() => {
+    if (nodeActionRequest && nodeActionRequest.ts !== lastNodeActionTs.current) {
+      lastNodeActionTs.current = nodeActionRequest.ts
+      setNodeActionMigrateTarget('')
+      setNodeActionFailedVms([])
+      setNodeActionShutdownFailed(false)
+      setNodeActionDialog({ action: nodeActionRequest.action, nodeName: nodeActionRequest.node, connId: nodeActionRequest.connId, node: nodeActionRequest.node })
+      onNodeActionHandled?.()
+    }
+  }, [nodeActionRequest, onNodeActionHandled])
+
+  // Check which running VMs are on local storage when node action dialog opens
+  const emptySet = useMemo(() => new Set<string>(), [])
+  useEffect(() => {
+    if (!nodeActionDialog) return
+    const connId = nodeActionDialog.connId || ''
+    const nodeName = nodeActionDialog.node || ''
+    if (!connId || !nodeName) return
+
+    // Only for cluster nodes
+    const hasOtherNodes = hosts.filter(h => h.connId === connId && h.node !== nodeName).length > 0
+    if (!hasOtherNodes) return
+
+    const runningVms = allVms.filter(vm =>
+      vm.connId === connId && vm.node === nodeName && vm.status === 'running' && !vm.template
+    )
+    if (runningVms.length === 0) return
+
+    // Build shared storage set from clusterStorages
+    const cs = clusterStorages.find(c => c.connId === connId)
+    const sharedSet = new Set<string>()
+    if (cs) {
+      for (const s of cs.sharedStorages) sharedSet.add(s.storage)
+      for (const n of cs.nodes) {
+        for (const s of n.storages) {
+          if (s.shared) sharedSet.add(s.storage)
+        }
+      }
+    }
+
+    let alive = true
+    setNodeActionStorageLoading(true)
+
+    ;(async () => {
+      const localKeys = new Set<string>()
+      const batchSize = 5
+      for (let i = 0; i < runningVms.length; i += batchSize) {
+        const batch = runningVms.slice(i, i + batchSize)
+        await Promise.all(batch.map(async (vm) => {
+          try {
+            const res = await fetch(`/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/config`)
+            if (!res.ok) return
+            const json = await res.json()
+            const config = json.data || {}
+            for (const [key, val] of Object.entries(config)) {
+              if (/^(scsi|virtio|ide|sata|efidisk)\d+$/.test(key) && typeof val === 'string' && !val.includes('media=cdrom') && val !== 'none') {
+                const storageName = val.split(':')[0]
+                if (storageName && storageName !== 'none' && !sharedSet.has(storageName)) {
+                  localKeys.add(`${vm.connId}:${vm.vmid}`)
+                  break
+                }
+              }
+            }
+          } catch { /* ignore */ }
+        }))
+      }
+      if (!alive) return
+      setNodeActionLocalVms(localKeys)
+      setNodeActionStorageLoading(false)
+    })()
+
+    return () => { alive = false }
+  }, [nodeActionDialog?.connId, nodeActionDialog?.node, nodeActionDialog?.action])
 
   // Merge createDefaults with external overrides
   const effectiveCreateDefaults = useMemo(() => {
@@ -2228,6 +2317,22 @@ return
     }
   }
 
+  // Sync detail panel status from allVms (updated by tree optimistic updates / SSE)
+  const selectedVmFromList = useMemo(() => {
+    if (!selection || selection.type !== 'vm') return null
+    const { connId, vmid } = parseVmId(selection.id)
+    return allVms.find(v => v.connId === connId && String(v.vmid) === String(vmid)) || null
+  }, [selection, allVms])
+
+  useEffect(() => {
+    if (!selectedVmFromList || !data) return
+    const liveStatus = selectedVmFromList.status
+    if (liveStatus && liveStatus !== data.vmRealStatus) {
+      const mappedStatus = (liveStatus === 'running' ? 'ok' : liveStatus === 'paused' ? 'warn' : 'crit') as any
+      setData({ ...data, status: mappedStatus, vmRealStatus: liveStatus })
+    }
+  }, [selectedVmFromList?.status])
+
   // Status de la VM pour les actions et la console
   const vmStatus = data?.vmRealStatus || data?.status
   const vmState = data?.vmRealStatus || data?.status
@@ -2851,8 +2956,8 @@ return vm?.isCluster ?? false
                 </Box>
               )}
 
-              {/* Refresh + Boutons Create VM/LXC pour clusters et hosts */}
-              {(selection?.type === 'cluster' || selection?.type === 'node') && (
+              {/* Refresh + Boutons Create VM/LXC pour clusters et hosts (hidden when node offline) */}
+              {(selection?.type === 'cluster' || (selection?.type === 'node' && data.status !== 'crit')) && (
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: data.hostInfo?.uptime ? 2 : 'auto' }}>
                   <MuiTooltip title={t('common.refresh')}>
                     <IconButton size="small" onClick={refreshData} disabled={refreshing} sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' }, '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } }, ...(refreshing && { '& i': { animation: 'spin 1s linear infinite' } }) }}>
@@ -2877,12 +2982,42 @@ return vm?.isCluster ?? false
                   >
                     {t('common.create')} LXC
                   </Button>
+                  {selection?.type === 'node' && (
+                    <>
+                      <Divider orientation="vertical" flexItem />
+                      <NodeActions
+                        disabled={nodeActionBusy}
+                        onReboot={() => { const { connId, node } = parseNodeId(selection!.id); setNodeActionDialog({ action: 'reboot', nodeName: data.title, connId, node }) }}
+                        onShutdown={() => { const { connId, node } = parseNodeId(selection!.id); setNodeActionDialog({ action: 'shutdown', nodeName: data.title, connId, node }) }}
+                      />
+                    </>
+                  )}
                 </Stack>
               )}
             </Box>
           )}
 
-          {selection?.type === 'node' && data.hostInfo?.maintenance && (
+          {/* Node offline placeholder */}
+          {selection?.type === 'node' && data.status === 'crit' && (
+            <Box sx={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 2, height: '100%', minHeight: 'calc(100vh - 250px)',
+            }}>
+              <img
+                src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'}
+                alt=""
+                style={{ width: 80, height: 80, opacity: 0.3 }}
+              />
+              <Typography variant="h6" fontWeight={700} sx={{ opacity: 0.6 }}>
+                {t('inventory.nodeOffline')}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.5, textAlign: 'center', maxWidth: 320 }}>
+                {t('inventory.nodeOfflineDesc')}
+              </Typography>
+            </Box>
+          )}
+
+          {selection?.type === 'node' && data.hostInfo?.maintenance && data.status !== 'crit' && (
             <>
               <Alert
                 severity="warning"
@@ -2973,7 +3108,8 @@ return vm?.isCluster ?? false
             </>
           )}
 
-          {selection?.type !== 'ext' && selection?.type !== 'ext-type' && selection?.type !== 'extvm' && selection?.type !== 'storage' && !data.isTemplate && (<>
+
+          {!(selection?.type === 'node' && data.status === 'crit') && selection?.type !== 'ext' && selection?.type !== 'ext-type' && selection?.type !== 'extvm' && selection?.type !== 'storage' && !data.isTemplate && (<>
           <Divider sx={{ flexShrink: 0 }} />
 
           <Box sx={{ flexShrink: 0 }}>
@@ -3079,7 +3215,7 @@ return vm?.isCluster ?? false
 
 
           {/* Node Tabs */}
-          {selection?.type === 'node' && data.vmsData && (
+          {selection?.type === 'node' && data.vmsData && data.status !== 'crit' && (
             <NodeTabs
               {...{canShowRrd, clusterConfigLoaded, clusterConfigLoading, cveAvailable, data, deleteReplicationDialogOpen, deletingReplicationJob,
                 dnsFormData, editDnsDialogOpen, editHostsDialogOpen, editTimeDialogOpen, editingReplicationJob,
@@ -4560,11 +4696,343 @@ return vm?.isCluster ?? false
             )
           })()}
 
-          <Typography variant="caption" sx={{ color: 'text.secondary', opacity: 0.95 }}>
-            {t('inventoryPage.lastUpdated')} {data.lastUpdated}
-          </Typography>
+          {data.lastUpdated && (
+            <Typography variant="caption" sx={{ color: 'text.secondary', opacity: 0.95 }}>
+              {t('inventoryPage.lastUpdated')} {data.lastUpdated}
+            </Typography>
+          )}
         </Stack>
       ) : null}
+
+      {/* Node Reboot/Shutdown confirmation dialog */}
+      {(() => {
+        const resolvedConnId = nodeActionDialog?.connId || (selection?.type === 'node' ? parseNodeId(selection.id).connId : '')
+        const resolvedNode = nodeActionDialog?.node || (selection?.type === 'node' ? parseNodeId(selection.id).node : '')
+        const runningVmsOnNode = allVms.filter(vm =>
+          vm.connId === resolvedConnId && vm.node === resolvedNode && vm.status === 'running' && !vm.template
+        )
+        const otherOnlineNodes = hosts.filter(h =>
+          h.connId === resolvedConnId && h.node !== resolvedNode
+        )
+        const isClusterNode = otherOnlineNodes.length > 0
+        return (
+                <Dialog
+                  open={nodeActionDialog !== null}
+                  onClose={() => { if (!nodeActionBusy) { setNodeActionDialog(null); setNodeActionStep(null); setNodeActionMigrateTarget(''); setNodeActionFailedVms([]); setNodeActionShutdownFailed(false); setNodeActionShutdownLocal(false) } }}
+                  maxWidth="sm"
+                  fullWidth
+                >
+                  <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{
+                      width: 40, height: 40, borderRadius: 2,
+                      bgcolor: nodeActionDialog?.action === 'reboot' ? 'rgba(245,158,11,0.12)' : 'rgba(198,40,40,0.12)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <i
+                        className={nodeActionDialog?.action === 'reboot' ? 'ri-restart-line' : 'ri-shut-down-line'}
+                        style={{ fontSize: 22, color: nodeActionDialog?.action === 'reboot' ? '#f59e0b' : '#c62828' }}
+                      />
+                    </Box>
+                    {nodeActionDialog?.action === 'reboot' ? t('inventory.nodeReboot') : t('inventory.nodeShutdown')}
+                  </DialogTitle>
+                  <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <DialogContentText>
+                      <strong>{nodeActionDialog?.nodeName}</strong> &mdash;{' '}
+                      {nodeActionDialog?.action === 'reboot'
+                        ? t('inventory.confirmNodeReboot')
+                        : t('inventory.confirmNodeShutdown')}
+                    </DialogContentText>
+  
+                    {/* Running VMs info */}
+                    {runningVmsOnNode.length > 0 ? (() => {
+                      const sharedVms = isClusterNode ? runningVmsOnNode.filter(vm => !nodeActionLocalVms.has(`${vm.connId}:${vm.vmid}`)) : []
+                      const localVms = isClusterNode ? runningVmsOnNode.filter(vm => nodeActionLocalVms.has(`${vm.connId}:${vm.vmid}`)) : runningVmsOnNode
+
+                      return (<>
+                      {/* Loading storage check */}
+                      {nodeActionStorageLoading && isClusterNode && (
+                        <Alert severity="info" icon={<CircularProgress size={18} />}>
+                          <Typography variant="body2">{t('inventory.nodeActionAnalyzingStorage')}</Typography>
+                        </Alert>
+                      )}
+
+                      {/* Shared storage VMs — will be auto-migrated */}
+                      {!nodeActionStorageLoading && isClusterNode && sharedVms.length > 0 && (
+                        <Alert severity="success" icon={<i className="ri-upload-2-line" style={{ fontSize: 20 }} />}>
+                          <Typography variant="body2" fontWeight={600}>
+                            {t('inventory.nodeActionSharedVms', { count: sharedVms.length })}
+                          </Typography>
+                          <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {sharedVms.slice(0, 8).map(vm => (
+                              <Chip key={`${vm.connId}:${vm.vmid}`} size="small" label={`${vm.vmid} ${vm.name}`}
+                                icon={<i className={vm.type === 'lxc' ? 'ri-instance-line' : 'ri-computer-line'} style={{ fontSize: 14 }} />}
+                                variant="outlined" color="success" />
+                            ))}
+                            {sharedVms.length > 8 && <Chip size="small" label={`+${sharedVms.length - 8}`} variant="outlined" />}
+                          </Box>
+                        </Alert>
+                      )}
+
+                      {/* Local storage VMs — cannot be migrated */}
+                      {!nodeActionStorageLoading && localVms.length > 0 && (
+                        <Alert severity={isClusterNode ? 'warning' : 'info'} icon={<i className={isClusterNode ? 'ri-hard-drive-2-line' : 'ri-computer-line'} style={{ fontSize: 20 }} />}>
+                          <Typography variant="body2" fontWeight={600}>
+                            {isClusterNode
+                              ? t('inventory.nodeActionLocalVms', { count: localVms.length })
+                              : t('inventory.nodeActionRunningVms', { count: localVms.length })}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.85 }}>
+                            {isClusterNode
+                              ? t('inventory.nodeActionLocalVmsDesc')
+                              : t('inventory.nodeActionStandaloneShutdownDesc')}
+                          </Typography>
+                          <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {localVms.slice(0, 8).map(vm => (
+                              <Chip key={`${vm.connId}:${vm.vmid}`} size="small" label={`${vm.vmid} ${vm.name}`}
+                                icon={<i className={vm.type === 'lxc' ? 'ri-instance-line' : 'ri-computer-line'} style={{ fontSize: 14 }} />}
+                                variant="outlined" color="warning" />
+                            ))}
+                            {localVms.length > 8 && <Chip size="small" label={`+${localVms.length - 8}`} variant="outlined" />}
+                          </Box>
+                          {isClusterNode && (
+                            <Box
+                              onClick={() => !nodeActionBusy && setNodeActionShutdownLocal(!nodeActionShutdownLocal)}
+                              sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1, cursor: nodeActionBusy ? 'default' : 'pointer' }}
+                            >
+                              <Checkbox size="small" checked={nodeActionShutdownLocal} disabled={nodeActionBusy} sx={{ p: 0 }} />
+                              <Typography variant="body2">{t('inventory.nodeActionShutdownLocalOption')}</Typography>
+                            </Box>
+                          )}
+                        </Alert>
+                      )}
+
+                      {/* Target node selector — only if there are VMs to migrate */}
+                      {!nodeActionStorageLoading && isClusterNode && sharedVms.length > 0 && (
+                        <FormControl fullWidth size="small">
+                          <InputLabel>{t('inventory.nodeActionMigrateTarget')}</InputLabel>
+                          <Select
+                            value={nodeActionMigrateTarget}
+                            label={t('inventory.nodeActionMigrateTarget')}
+                            onChange={(e) => setNodeActionMigrateTarget(e.target.value)}
+                            disabled={nodeActionBusy}
+                          >
+                            {otherOnlineNodes.map(h => (
+                              <MenuItem key={h.node} value={h.node}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 14, height: 14, opacity: 0.8 }} />
+                                  {h.node}
+                                </Box>
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      )}
+
+                      {/* Failed VMs after migration attempt */}
+                      {nodeActionFailedVms.length > 0 && (
+                        <Alert severity="error" icon={<i className="ri-error-warning-line" style={{ fontSize: 20 }} />}>
+                          <Typography variant="body2" fontWeight={600}>
+                            {t('inventory.nodeActionMigrateFailed', { count: nodeActionFailedVms.length })}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.85 }}>
+                            {t('inventory.nodeActionMigrateFailedDesc')}
+                          </Typography>
+                          <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {nodeActionFailedVms.map(vm => (
+                              <MuiTooltip key={vm.vmid} title={vm.error}>
+                                <Chip size="small" label={`${vm.vmid} ${vm.name}`} variant="outlined" color="error" />
+                              </MuiTooltip>
+                            ))}
+                          </Box>
+                          <Box
+                            onClick={() => !nodeActionBusy && setNodeActionShutdownFailed(!nodeActionShutdownFailed)}
+                              sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1, cursor: nodeActionBusy ? 'default' : 'pointer' }}
+                            >
+                              <Checkbox size="small" checked={nodeActionShutdownFailed} disabled={nodeActionBusy} sx={{ p: 0 }} />
+                              <Typography variant="body2">{t('inventory.nodeActionShutdownFailedOption')}</Typography>
+                            </Box>
+                          </Alert>
+                        )}
+                    </>)
+                    })() : (
+                      <Alert severity="success" icon={<i className="ri-checkbox-circle-line" style={{ fontSize: 20 }} />}>
+                        <Typography variant="body2">{t('inventory.nodeActionNoRunningVms')}</Typography>
+                      </Alert>
+                    )}
+  
+                    {/* Maintenance mode info */}
+                    {isClusterNode && (
+                      <Alert severity="info" icon={<i className="ri-tools-line" style={{ fontSize: 20 }} />} sx={{ mt: 0 }}>
+                        <Typography variant="body2">{t('inventory.nodeActionMaintenanceAuto')}</Typography>
+                      </Alert>
+                    )}
+  
+                    {/* Progress steps */}
+                    {nodeActionStep && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                        <CircularProgress size={18} />
+                        <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{nodeActionStep}</Typography>
+                      </Box>
+                    )}
+                  </DialogContent>
+                  <DialogActions>
+                    <Button
+                      onClick={() => { setNodeActionDialog(null); setNodeActionStep(null); setNodeActionMigrateTarget(''); setNodeActionFailedVms([]); setNodeActionShutdownFailed(false) }}
+                      color="inherit"
+                      disabled={nodeActionBusy}
+                    >
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color={nodeActionDialog?.action === 'reboot' ? 'warning' : 'error'}
+                      disabled={(() => {
+                        if (nodeActionBusy || nodeActionStorageLoading) return true
+                        if (nodeActionFailedVms.length > 0 && !nodeActionShutdownFailed) return true
+                        if (isClusterNode && runningVmsOnNode.length > 0) {
+                          const hasShared = runningVmsOnNode.length > nodeActionLocalVms.size
+                          const hasLocal = nodeActionLocalVms.size > 0
+                          if (hasShared && !nodeActionMigrateTarget) return true
+                          if (hasLocal && !nodeActionShutdownLocal) return true
+                        }
+                        return false
+                      })()}
+                      startIcon={nodeActionBusy ? <CircularProgress size={16} /> : undefined}
+                      onClick={async () => {
+                        if (!nodeActionDialog || !resolvedConnId || !resolvedNode) return
+                        setNodeActionBusy(true)
+                        const connId = resolvedConnId
+                        const node = resolvedNode
+  
+                        try {
+                          // Step 1: Handle running VMs
+                          if (runningVmsOnNode.length > 0) {
+                            if (isClusterNode) {
+                              // Migrate shared-storage VMs
+                              const sharedVms = runningVmsOnNode.filter(vm => !nodeActionLocalVms.has(`${vm.connId}:${vm.vmid}`))
+                              const localVms = runningVmsOnNode.filter(vm => nodeActionLocalVms.has(`${vm.connId}:${vm.vmid}`))
+
+                              if (sharedVms.length > 0 && nodeActionMigrateTarget && nodeActionFailedVms.length === 0) {
+                                setNodeActionStep(t('inventory.nodeActionMigratingStep', { done: 0, total: sharedVms.length }))
+                                let done = 0
+                                const failed: { vmid: string; name: string; connId: string; type: string; node: string; error: string }[] = []
+                                const batchSize = 3
+                                for (let i = 0; i < sharedVms.length; i += batchSize) {
+                                  const batch = sharedVms.slice(i, i + batchSize)
+                                  await Promise.all(batch.map(async (vm) => {
+                                    try {
+                                      const url = `/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/migrate`
+                                      const res = await fetch(url, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ target: nodeActionMigrateTarget, online: true }),
+                                      })
+                                      if (!res.ok) {
+                                        const err = await res.json().catch(() => ({}))
+                                        failed.push({ vmid: vm.vmid, name: vm.name, connId: vm.connId, type: vm.type, node: vm.node, error: err?.error || `HTTP ${res.status}` })
+                                      }
+                                    } catch (e: any) {
+                                      failed.push({ vmid: vm.vmid, name: vm.name, connId: vm.connId, type: vm.type, node: vm.node, error: e?.message || 'Unknown error' })
+                                    }
+                                    done++
+                                    setNodeActionStep(t('inventory.nodeActionMigratingStep', { done, total: sharedVms.length }))
+                                  }))
+                                }
+                                if (failed.length > 0) {
+                                  setNodeActionFailedVms(failed)
+                                  setNodeActionStep(null)
+                                  setNodeActionBusy(false)
+                                  return
+                                }
+                              } else if (nodeActionFailedVms.length > 0 && nodeActionShutdownFailed) {
+                                // Shutdown VMs that failed migration
+                                setNodeActionStep(t('inventory.nodeActionShutdownVmsStep', { done: 0, total: nodeActionFailedVms.length }))
+                                let done = 0
+                                for (const vm of nodeActionFailedVms) {
+                                  const url = `/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/shutdown`
+                                  await fetch(url, { method: 'POST' }).catch(() => {})
+                                  done++
+                                  setNodeActionStep(t('inventory.nodeActionShutdownVmsStep', { done, total: nodeActionFailedVms.length }))
+                                }
+                                setNodeActionStep(t('inventory.nodeActionWaitingVmsStop'))
+                                await new Promise(resolve => setTimeout(resolve, 5000))
+                              }
+
+                              // Shutdown local-storage VMs (user checked the option)
+                              if (localVms.length > 0 && nodeActionShutdownLocal) {
+                                setNodeActionStep(t('inventory.nodeActionShutdownVmsStep', { done: 0, total: localVms.length }))
+                                let done = 0
+                                for (const vm of localVms) {
+                                  const url = `/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/shutdown`
+                                  await fetch(url, { method: 'POST' }).catch(() => {})
+                                  done++
+                                  setNodeActionStep(t('inventory.nodeActionShutdownVmsStep', { done, total: localVms.length }))
+                                }
+                                setNodeActionStep(t('inventory.nodeActionWaitingVmsStop'))
+                                await new Promise(resolve => setTimeout(resolve, 5000))
+                              }
+                            } else {
+                              // Standalone: shutdown all VMs
+                              setNodeActionStep(t('inventory.nodeActionShutdownVmsStep', { done: 0, total: runningVmsOnNode.length }))
+                              let done = 0
+                              const batchSize = 5
+                              for (let i = 0; i < runningVmsOnNode.length; i += batchSize) {
+                                const batch = runningVmsOnNode.slice(i, i + batchSize)
+                                await Promise.all(batch.map(async (vm) => {
+                                  const url = `/api/v1/connections/${encodeURIComponent(vm.connId)}/guests/${vm.type}/${encodeURIComponent(vm.node)}/${encodeURIComponent(vm.vmid)}/shutdown`
+                                  await fetch(url, { method: 'POST' }).catch(() => {})
+                                  done++
+                                  setNodeActionStep(t('inventory.nodeActionShutdownVmsStep', { done, total: runningVmsOnNode.length }))
+                                }))
+                              }
+                              setNodeActionStep(t('inventory.nodeActionWaitingVmsStop'))
+                              await new Promise(resolve => setTimeout(resolve, 5000))
+                            }
+                          }
+  
+                          // Step 2: Enter maintenance mode (cluster only)
+                          if (isClusterNode) {
+                            setNodeActionStep(t('inventory.nodeActionMaintenanceStep'))
+                            try {
+                              await fetch(
+                                `/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/maintenance`,
+                                { method: 'POST' }
+                              )
+                            } catch {
+                              // Non-blocking
+                            }
+                          }
+  
+                          // Step 3: Execute reboot/shutdown
+                          setNodeActionStep(t('inventory.nodeActionExecuteStep', { action: nodeActionDialog.action }))
+                          const res = await fetch(
+                            `/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/status`,
+                            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: nodeActionDialog.action }) }
+                          )
+                          const json = await res.json()
+                          if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`)
+  
+                          toast.success(nodeActionDialog.action === 'reboot' ? t('inventory.nodeRebootSuccess') : t('inventory.nodeShutdownSuccess'))
+                          setNodeActionDialog(null)
+                          setNodeActionStep(null)
+                          setNodeActionMigrateTarget('')
+                          setNodeActionFailedVms([])
+                          setNodeActionShutdownFailed(false)
+                          fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
+                        } catch (e: any) {
+                          toast.error(`${t('common.error')}: ${e?.message || e}`)
+                          setNodeActionStep(null)
+                        } finally {
+                          setNodeActionBusy(false)
+                        }
+                      }}
+                    >
+                      {t('common.confirm')}
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+        )
+      })()}
 
       {/* Dialog Créer VM */}
       <CreateVmDialog

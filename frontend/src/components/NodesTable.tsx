@@ -92,6 +92,7 @@ export type NodeRow = {
   uptime?: number
   version?: string
   ip?: string
+  subscription?: string
 }
 
 export type BulkAction = 'start-all' | 'stop-all' | 'shutdown-all' | 'migrate-all'
@@ -228,6 +229,17 @@ function NodesTable({
             {secondsToUptime(params.row.uptime)}
           </Typography>
         )
+      },
+      {
+        field: 'subscription',
+        headerName: t('inventory.support'),
+        width: 110,
+        renderCell: (params) => {
+          const sub = params.row.subscription
+          const label = sub === 'active' ? 'Active' : sub === 'notfound' ? 'Community' : sub || 'N/A'
+          const color = sub === 'active' ? 'success' : 'default'
+          return <Chip size="small" label={label} color={color as any} sx={{ height: 20, fontSize: 10 }} />
+        }
       },
     ]
 

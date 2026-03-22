@@ -461,13 +461,19 @@ export default function VmDetailTabs(props: any) {
                             <Box sx={{ height: 160 }}>
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={series}>
+                                  <defs>
+                                    <linearGradient id="gradCpu" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                      <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                    </linearGradient>
+                                  </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
                                   <Tooltip
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'CPU']}
                                   />
-                                  <Area type="monotone" dataKey="cpuPct" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} />
+                                  <Area type="monotone" dataKey="cpuPct" stroke={primaryColor} fill="url(#gradCpu)" strokeWidth={1.5} isAnimationActive={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
                             </Box>
@@ -481,13 +487,19 @@ export default function VmDetailTabs(props: any) {
                             <Box sx={{ height: 160 }}>
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={series}>
+                                  <defs>
+                                    <linearGradient id="gradRam" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                      <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                    </linearGradient>
+                                  </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
                                   <Tooltip
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'Memory']}
                                   />
-                                  <Area type="monotone" dataKey="ramPct" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} />
+                                  <Area type="monotone" dataKey="ramPct" stroke={primaryColor} fill="url(#gradRam)" strokeWidth={1.5} isAnimationActive={false} />
                                 </AreaChart>
                               </ResponsiveContainer>
                             </Box>
@@ -501,14 +513,24 @@ export default function VmDetailTabs(props: any) {
                             <Box sx={{ height: 160 }}>
                               <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={series}>
+                                  <defs>
+                                    <linearGradient id="gradNetIn" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                      <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                    </linearGradient>
+                                    <linearGradient id="gradNetOut" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={primaryColorLight} stopOpacity={0.35} />
+                                      <stop offset="100%" stopColor={primaryColorLight} stopOpacity={0} />
+                                    </linearGradient>
+                                  </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
                                   <Tooltip
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any, name: string) => [formatBps(Number(v)), name === 'netInBps' ? 'In' : 'Out']}
                                   />
-                                  <Area type="monotone" dataKey="netInBps" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="netInBps" connectNulls />
-                                  <Area type="monotone" dataKey="netOutBps" stroke={primaryColorLight} fill={primaryColorLight} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="netOutBps" connectNulls />
+                                  <Area type="monotone" dataKey="netInBps" stroke={primaryColor} fill="url(#gradNetIn)" strokeWidth={1.5} isAnimationActive={false} name="netInBps" connectNulls />
+                                  <Area type="monotone" dataKey="netOutBps" stroke={primaryColorLight} fill="url(#gradNetOut)" strokeWidth={1.5} isAnimationActive={false} name="netOutBps" connectNulls />
                                 </AreaChart>
                               </ResponsiveContainer>
                             </Box>
@@ -523,14 +545,24 @@ export default function VmDetailTabs(props: any) {
                               <ResponsiveContainer width="100%" height="100%">
                                 {(
                                   <AreaChart data={series}>
+                                    <defs>
+                                      <linearGradient id="gradDiskRead" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                                        <stop offset="100%" stopColor={primaryColor} stopOpacity={0} />
+                                      </linearGradient>
+                                      <linearGradient id="gradDiskWrite" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={primaryColorLight} stopOpacity={0.35} />
+                                        <stop offset="100%" stopColor={primaryColorLight} stopOpacity={0} />
+                                      </linearGradient>
+                                    </defs>
                                     <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                     <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
                                     <Tooltip
                                       labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                       formatter={(v: any, name: string) => [formatBps(Number(v)), name === 'diskReadBps' ? 'Read' : 'Write']}
                                     />
-                                    <Area type="monotone" dataKey="diskReadBps" stroke={primaryColor} fill={primaryColor} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="diskReadBps" connectNulls />
-                                    <Area type="monotone" dataKey="diskWriteBps" stroke={primaryColorLight} fill={primaryColorLight} fillOpacity={0.4} strokeWidth={1.5} isAnimationActive={false} name="diskWriteBps" connectNulls />
+                                    <Area type="monotone" dataKey="diskReadBps" stroke={primaryColor} fill="url(#gradDiskRead)" strokeWidth={1.5} isAnimationActive={false} name="diskReadBps" connectNulls />
+                                    <Area type="monotone" dataKey="diskWriteBps" stroke={primaryColorLight} fill="url(#gradDiskWrite)" strokeWidth={1.5} isAnimationActive={false} name="diskWriteBps" connectNulls />
                                   </AreaChart>
                                 )}
                               </ResponsiveContainer>
@@ -1234,10 +1266,11 @@ export default function VmDetailTabs(props: any) {
                                   <ListItemButton
                                     key={idx}
                                     sx={{
-                                      bgcolor: 'action.hover',
+                                      bgcolor: net.linkDown ? 'rgba(245,158,11,0.08)' : 'action.hover',
                                       borderRadius: 1,
                                       mb: 1,
-                                      '&:last-child': { mb: 0 }
+                                      '&:last-child': { mb: 0 },
+                                      ...(net.linkDown && { borderLeft: '3px solid', borderColor: 'warning.main' }),
                                     }}
                                     onClick={() => {
                                       setSelectedNetwork({
@@ -1256,15 +1289,24 @@ export default function VmDetailTabs(props: any) {
                                   }}
                                 >
                                   <ListItemIcon sx={{ minWidth: 40 }}>
-                                    <i className="ri-router-fill" style={{ fontSize: 24, opacity: 0.7 }} />
+                                    <i className={net.linkDown ? 'ri-wifi-off-line' : 'ri-wifi-line'} style={{ fontSize: 24, opacity: 0.7, color: net.linkDown ? '#f59e0b' : undefined }} />
                                   </ListItemIcon>
                                   <ListItemText
                                     primary={
                                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Typography variant="body2" fontWeight={600}>
+                                        <Typography variant="body2" fontWeight={600} sx={{ opacity: net.linkDown ? 0.6 : 1 }}>
                                           {net.id}
                                         </Typography>
                                         <Chip label={net.model} size="small" sx={{ height: 20, fontSize: 11 }} />
+                                        {net.linkDown && (
+                                          <Chip
+                                            icon={<i className="ri-link-unlink" style={{ fontSize: 12 }} />}
+                                            label="Disconnected"
+                                            size="small"
+                                            color="warning"
+                                            sx={{ height: 20, fontSize: 11 }}
+                                          />
+                                        )}
                                         {net.firewall && (
                                           <Chip
                                             icon={<i className="ri-shield-check-line" style={{ fontSize: 12 }} />}

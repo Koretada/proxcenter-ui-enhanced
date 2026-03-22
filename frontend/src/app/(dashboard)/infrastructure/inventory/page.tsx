@@ -70,6 +70,9 @@ export default function InventoryPage() {
   // Create VM/LXC dialog requests from tree context menu
   const [createDialogRequest, setCreateDialogRequest] = useState<{ type: 'createVm' | 'createLxc'; connId: string; node: string; ts: number } | null>(null)
 
+  // Node action requests from tree context menu (reboot/shutdown)
+  const [nodeActionRequest, setNodeActionRequest] = useState<{ action: 'reboot' | 'shutdown'; connId: string; node: string; ts: number } | null>(null)
+
 
   // Données brutes des VMs (depuis InventoryTree) et données enrichies (IP, snapshots, uptime)
   const [rawVms, setRawVms] = useState<AllVmItem[]>([])
@@ -280,12 +283,15 @@ return () => setPageInfo('', '', '')
     setPendingActionVmIds(prev => { const next = new Set(prev); next.delete(`${connId}:${vmid}`); return next })
   }, [])
 
-  // Optimistic update: immediately reflect expected VM status in rawVms
+  const [treeOptimisticVmStatus, setTreeOptimisticVmStatus] = useState<((connId: string, vmid: string, status: string) => void) | null>(null)
+
+  // Optimistic update: immediately reflect expected VM status in rawVms + tree clusters
   const onOptimisticVmStatus = useCallback((connId: string, vmid: string, status: string) => {
     setRawVms(prev => prev.map(vm =>
       vm.connId === connId && String(vm.vmid) === String(vmid) ? { ...vm, status } : vm
     ))
-  }, [])
+    treeOptimisticVmStatus?.(connId, vmid, status)
+  }, [treeOptimisticVmStatus])
 
   // Charger les favoris
   const loadFavorites = useCallback(async () => {
@@ -350,6 +356,10 @@ return () => setPageInfo('', '', '')
 
   const handleRefreshRef = useCallback((refresh: () => void) => {
     setRefreshTree(() => refresh)
+  }, [])
+
+  const handleOptimisticRef = useCallback((fn: (connId: string, vmid: string, status: string) => void) => {
+    setTreeOptimisticVmStatus(() => fn)
   }, [])
 
   const loadConnections = async () => {
@@ -544,6 +554,7 @@ return () => setPageInfo('', '', '')
               selected={selection}
               onSelect={(sel) => setSelection(sel)}
               onRefreshRef={handleRefreshRef}
+              onOptimisticVmStatusRef={handleOptimisticRef}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               onAllVmsChange={setRawVms}
@@ -562,6 +573,7 @@ return () => setPageInfo('', '', '')
               allowedViewModes={allowedViewModes}
               onCreateVm={(connId, node) => setCreateDialogRequest({ type: 'createVm', connId, node, ts: Date.now() })}
               onCreateLxc={(connId, node) => setCreateDialogRequest({ type: 'createLxc', connId, node, ts: Date.now() })}
+              onNodeAction={(connId, node, action) => setNodeActionRequest({ action, connId, node, ts: Date.now() })}
               onStoragesChange={setClusterStorages}
               onExternalHypervisorsChange={setExternalHypervisors}
             />
@@ -644,6 +656,8 @@ return () => setPageInfo('', '', '')
             externalHypervisors={externalHypervisors}
             externalDialogRequest={createDialogRequest}
             onExternalDialogHandled={() => setCreateDialogRequest(null)}
+            nodeActionRequest={nodeActionRequest}
+            onNodeActionHandled={() => setNodeActionRequest(null)}
             onRefresh={async () => {
               if (refreshTree) {
                 refreshTree()

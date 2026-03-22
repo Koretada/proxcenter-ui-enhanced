@@ -262,8 +262,70 @@ export default function ClusterTabs(props: any) {
     setExecutingAll(false)
   }, [clusterRecs, mutateRecs, toast, t])
 
-  // Fetch Ceph OSD flags when in summary tab and ceph is available
+  // Fetch RRD data for all nodes when in Summary tab
   const connId = selection?.type === 'cluster' ? selection.id : ''
+  const [clusterNodeRrd, setClusterNodeRrd] = useState<Record<string, any[]>>({})
+  const [clusterNodeRrdLoading, setClusterNodeRrdLoading] = useState(false)
+  const clusterNodeRrdTf = 'hour'
+
+  useEffect(() => {
+    if (clusterTab !== 0 || !connId || !data.nodesData?.length) return
+    const onlineNodes = (data.nodesData as any[]).filter((n: any) => n.status === 'online')
+    if (onlineNodes.length === 0) return
+
+    let cancelled = false
+    setClusterNodeRrdLoading(true)
+
+    ;(async () => {
+      const result: Record<string, any[]> = {}
+      await Promise.all(onlineNodes.map(async (node: any) => {
+        try {
+          const raw = await fetchRrd(connId, `/nodes/${node.node}`, clusterNodeRrdTf)
+          if (!cancelled) result[node.node] = buildSeriesFromRrd(raw)
+        } catch { /* ignore */ }
+      }))
+      if (!cancelled) {
+        setClusterNodeRrd(result)
+        setClusterNodeRrdLoading(false)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [clusterTab, connId, data.nodesData?.length])
+
+  // Merge RRD data into unified series with per-node keys
+  const clusterRrdSeries = useMemo(() => {
+    const nodeNames = Object.keys(clusterNodeRrd)
+    if (nodeNames.length === 0) return []
+
+    // Collect all timestamps
+    const tsMap = new Map<number, any>()
+    for (const nodeName of nodeNames) {
+      for (const point of clusterNodeRrd[nodeName] || []) {
+        if (!point.t) continue
+        if (!tsMap.has(point.t)) tsMap.set(point.t, { t: point.t })
+        const row = tsMap.get(point.t)!
+        if (point.cpuPct !== undefined) row[`cpu_${nodeName}`] = point.cpuPct
+        if (point.ramPct !== undefined) row[`ram_${nodeName}`] = point.ramPct
+        if (point.netInBps !== undefined) row[`netIn_${nodeName}`] = point.netInBps
+        if (point.netOutBps !== undefined) row[`netOut_${nodeName}`] = point.netOutBps
+        if (point.loadAvg !== undefined) row[`load_${nodeName}`] = point.loadAvg
+      }
+    }
+    return Array.from(tsMap.values()).sort((a, b) => a.t - b.t)
+  }, [clusterNodeRrd])
+
+  const clusterRrdNodeNames = useMemo(() => Object.keys(clusterNodeRrd), [clusterNodeRrd])
+
+  // Colors for each node — distinct palette
+  const nodeColors = useMemo(() => {
+    const palette = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#8b5cf6', '#14b8a6']
+    const map: Record<string, string> = {}
+    clusterRrdNodeNames.forEach((name, i) => { map[name] = palette[i % palette.length] })
+    return map
+  }, [clusterRrdNodeNames])
+
+  // Fetch Ceph OSD flags when in summary tab and ceph is available
   useEffect(() => {
     if (clusterTab !== 0 || !['HEALTH_OK', 'HEALTH_WARN', 'HEALTH_ERR'].includes(data.cephHealth) || !connId) return
     let cancelled = false
@@ -1021,110 +1083,161 @@ export default function ClusterTabs(props: any) {
                       </Card>
                     )}
 
-                    {/* Section Nodes Table */}
-                    <Card variant="outlined">
-                      <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-                        <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
-                          <Typography variant="subtitle2" color="primary" fontWeight={700}>
-                            {t('inventory.nodesLabel')}
+                    {/* Section Nodes Table removed — now in dedicated Nodes tab */}
+                    {/* Cluster RRD Charts — all nodes overlaid */}
+                    {clusterRrdSeries.length > 0 && (
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mt: 2 }}>
+                        {/* CPU Usage */}
+                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                          <Typography variant="caption" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                            {t('inventory.cpuUsage')}
                           </Typography>
+                          <Box sx={{ height: 180 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={clusterRrdSeries}>
+                                <defs>
+                                  {clusterRrdNodeNames.map(name => (
+                                    <linearGradient key={name} id={`cGradCpu_${name}`} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={nodeColors[name]} stopOpacity={0.25} />
+                                      <stop offset="100%" stopColor={nodeColors[name]} stopOpacity={0} />
+                                    </linearGradient>
+                                  ))}
+                                </defs>
+                                <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
+                                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
+                                <Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [`${Number(v).toFixed(1)}%`, name.replace('cpu_', '')]} />
+                                {clusterRrdNodeNames.map(name => (
+                                  <Area key={name} type="monotone" dataKey={`cpu_${name}`} stroke={nodeColors[name]} fill={`url(#cGradCpu_${name})`} strokeWidth={1.5} isAnimationActive={false} connectNulls />
+                                ))}
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5, flexWrap: 'wrap' }}>
+                            {clusterRrdNodeNames.map(name => (
+                              <Box key={name} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: nodeColors[name] }} />
+                                <Typography variant="caption" sx={{ fontSize: 10 }}>{name}</Typography>
+                              </Box>
+                            ))}
+                          </Box>
                         </Box>
-                        <TableContainer>
-                              <Table size="small">
-                                <TableHead>
-                                  <TableRow>
-                                    <TableCell sx={{ fontWeight: 700 }}>{t('common.name')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>{t('inventory.id')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>{t('inventory.onlineHeader')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>{t('inventory.support')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>{t('inventory.serverAddress')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>{t('inventory.cpuUsageHeader')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>{t('inventory.memoryUsageHeader')}</TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>{t('inventory.uptime')}</TableCell>
-                                  </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                  {(data.nodesData as any[])?.map((node: any, idx: number) => {
-                                    // node.cpu et node.ram sont déjà des pourcentages (0-100)
-                                    const cpuPercent = node.cpu || 0
-                                    const memPercent = node.ram || 0
-                                    const formatUptime = (seconds: number) => {
-                                      const days = Math.floor(seconds / 86400)
-                                      const hours = Math.floor((seconds % 86400) / 3600)
-                                      const mins = Math.floor((seconds % 3600) / 60)
-                                      const secs = Math.floor(seconds % 60)
-                                      if (days > 0) return `${days} days ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-                                      return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-                                    }
-                                    return (
-                                      <TableRow key={idx} hover sx={{ cursor: 'pointer' }} onClick={() => onSelect?.({ type: 'node', id: node.id })}>
-                                        <TableCell sx={{ fontWeight: 600 }}>
-                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} style={{ opacity: 0.8 }} />
-                                            {node.node || node.name}
-                                          </Box>
-                                        </TableCell>
-                                        <TableCell>{idx + 1}</TableCell>
-                                        <TableCell>
-                                          {node.status === 'maintenance' ? (
-                                            <i className="ri-tools-fill" style={{ fontSize: 16, color: '#ff9800' }} />
-                                          ) : node.status === 'online' ? (
-                                            <i className="ri-check-line" style={{ color: '#4caf50' }} />
-                                          ) : (
-                                            <i className="ri-close-line" style={{ color: '#f44336' }} />
-                                          )}
-                                        </TableCell>
-                                        <TableCell>
-                                          <Chip size="small" label={t('cluster.community')} sx={{ height: 20, fontSize: 10 }} />
-                                        </TableCell>
-                                        <TableCell sx={{ fontSize: 12 }}>{node.ip || '-'}</TableCell>
-                                        <TableCell>
-                                          <Box sx={{ position: 'relative', width: 60 }}>
-                                            <LinearProgress
-                                              variant="determinate"
-                                              value={cpuPercent}
-                                              sx={{
-                                                height: 14,
-                                                borderRadius: 0,
-                                                bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)',
-                                                '& .MuiLinearProgress-bar': {
-                                                  borderRadius: 0,
-                                                  background: 'linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%)',
-                                                  backgroundSize: cpuPercent > 0 ? `${(100 / cpuPercent) * 100}% 100%` : '100% 100%',
-                                                }
-                                              }}
-                                            />
-                                            <Typography variant="caption" sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>{cpuPercent}%</Typography>
-                                          </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                          <Box sx={{ position: 'relative', width: 60 }}>
-                                            <LinearProgress
-                                              variant="determinate"
-                                              value={memPercent}
-                                              sx={{
-                                                height: 14,
-                                                borderRadius: 0,
-                                                bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)',
-                                                '& .MuiLinearProgress-bar': {
-                                                  borderRadius: 0,
-                                                  background: 'linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%)',
-                                                  backgroundSize: memPercent > 0 ? `${(100 / memPercent) * 100}% 100%` : '100% 100%',
-                                                }
-                                              }}
-                                            />
-                                            <Typography variant="caption" sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>{memPercent}%</Typography>
-                                          </Box>
-                                        </TableCell>
-                                        <TableCell sx={{ fontSize: 12 }}>{node.uptime ? formatUptime(node.uptime) : '-'}</TableCell>
-                                      </TableRow>
-                                    )
-                                  })}
-                                </TableBody>
-                              </Table>
-                        </TableContainer>
-                      </CardContent>
-                    </Card>
+
+                        {/* Memory Usage */}
+                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                          <Typography variant="caption" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                            {t('inventory.memoryUsage')}
+                          </Typography>
+                          <Box sx={{ height: 180 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={clusterRrdSeries}>
+                                <defs>
+                                  {clusterRrdNodeNames.map(name => (
+                                    <linearGradient key={name} id={`cGradRam_${name}`} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={nodeColors[name]} stopOpacity={0.25} />
+                                      <stop offset="100%" stopColor={nodeColors[name]} stopOpacity={0} />
+                                    </linearGradient>
+                                  ))}
+                                </defs>
+                                <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
+                                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
+                                <Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [`${Number(v).toFixed(1)}%`, name.replace('ram_', '')]} />
+                                {clusterRrdNodeNames.map(name => (
+                                  <Area key={name} type="monotone" dataKey={`ram_${name}`} stroke={nodeColors[name]} fill={`url(#cGradRam_${name})`} strokeWidth={1.5} isAnimationActive={false} connectNulls />
+                                ))}
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5, flexWrap: 'wrap' }}>
+                            {clusterRrdNodeNames.map(name => (
+                              <Box key={name} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: nodeColors[name] }} />
+                                <Typography variant="caption" sx={{ fontSize: 10 }}>{name}</Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        </Box>
+
+                        {/* Network Traffic */}
+                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                          <Typography variant="caption" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                            {t('inventory.networkTrafficChart')}
+                          </Typography>
+                          <Box sx={{ height: 180 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={clusterRrdSeries}>
+                                <defs>
+                                  {clusterRrdNodeNames.map(name => (
+                                    <linearGradient key={name} id={`cGradNet_${name}`} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={nodeColors[name]} stopOpacity={0.25} />
+                                      <stop offset="100%" stopColor={nodeColors[name]} stopOpacity={0} />
+                                    </linearGradient>
+                                  ))}
+                                </defs>
+                                <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
+                                <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
+                                <Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [formatBps(Number(v)), name.replace('netIn_', '').replace('netOut_', '') + (name.startsWith('netIn_') ? ' In' : ' Out')]} />
+                                {clusterRrdNodeNames.map(name => (
+                                  <Area key={`in_${name}`} type="monotone" dataKey={`netIn_${name}`} stroke={nodeColors[name]} fill={`url(#cGradNet_${name})`} strokeWidth={1.5} isAnimationActive={false} connectNulls />
+                                ))}
+                                {clusterRrdNodeNames.map(name => (
+                                  <Area key={`out_${name}`} type="monotone" dataKey={`netOut_${name}`} stroke={nodeColors[name]} fill="none" strokeWidth={1} strokeDasharray="4 2" isAnimationActive={false} connectNulls />
+                                ))}
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5, flexWrap: 'wrap' }}>
+                            {clusterRrdNodeNames.map(name => (
+                              <Box key={name} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: nodeColors[name] }} />
+                                <Typography variant="caption" sx={{ fontSize: 10 }}>{name}</Typography>
+                                <Typography variant="caption" sx={{ fontSize: 9, opacity: 0.5 }}>(— in, ⋯ out)</Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        </Box>
+
+                        {/* Server Load */}
+                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                          <Typography variant="caption" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                            {t('inventory.serverLoad')}
+                          </Typography>
+                          <Box sx={{ height: 180 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={clusterRrdSeries}>
+                                <defs>
+                                  {clusterRrdNodeNames.map(name => (
+                                    <linearGradient key={name} id={`cGradLoad_${name}`} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={nodeColors[name]} stopOpacity={0.25} />
+                                      <stop offset="100%" stopColor={nodeColors[name]} stopOpacity={0} />
+                                    </linearGradient>
+                                  ))}
+                                </defs>
+                                <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
+                                <YAxis tick={{ fontSize: 9 }} width={30} domain={[0, 'auto']} />
+                                <Tooltip labelFormatter={v => new Date(Number(v)).toLocaleString()} formatter={(v: any, name: string) => [Number(v).toFixed(2), name.replace('load_', '')]} />
+                                {clusterRrdNodeNames.map(name => (
+                                  <Area key={name} type="monotone" dataKey={`load_${name}`} stroke={nodeColors[name]} fill={`url(#cGradLoad_${name})`} strokeWidth={1.5} isAnimationActive={false} connectNulls />
+                                ))}
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5, flexWrap: 'wrap' }}>
+                            {clusterRrdNodeNames.map(name => (
+                              <Box key={name} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: nodeColors[name] }} />
+                                <Typography variant="caption" sx={{ fontSize: 10 }}>{name}</Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        </Box>
+                      </Box>
+                    )}
+                    {clusterNodeRrdLoading && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2, opacity: 0.6 }}>
+                        <CircularProgress size={16} />
+                        <Typography variant="caption">{t('common.loading')}</Typography>
+                      </Box>
+                    )}
                   </Box>
                 )}
 

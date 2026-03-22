@@ -455,16 +455,8 @@ return {
   if (sel.type === 'node') {
     const { connId, node } = parseNodeId(sel.id)
 
-    const [nodesR, statusR, resourcesR, versionR, subscriptionR, updatesR, maintenanceR] = await Promise.all([
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes`, { cache: 'no-store' }),
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/status`, { cache: 'no-store' }).catch(() => null),
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/resources`, { cache: 'no-store' }).catch(() => null),
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/version`, { cache: 'no-store' }).catch(() => null),
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/subscription`, { cache: 'no-store' }).catch(() => null),
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/apt`, { cache: 'no-store' }).catch(() => null),
-      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/maintenance`, { cache: 'no-store' }).catch(() => null),
-    ])
-
+    // First: fetch nodes list to check if node is online
+    const nodesR = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes`, { cache: 'no-store' })
     let nodes: any[]
     try {
       nodes = asArray<any>(safeJson(await nodesR.json()))
@@ -476,6 +468,36 @@ return {
     if (!n) throw new Error('Node not found')
 
     const isCluster = nodes.length > 1
+    const isOnline = n.status === 'online'
+
+    // If node is offline, return minimal payload immediately (no slow API calls)
+    if (!isOnline) {
+      return {
+        kindLabel: 'HOST',
+        title: node,
+        subtitle: '',
+        breadcrumb: ['Infrastructure', 'Inventaire', node],
+        status: 'crit' as Status,
+        tags: [],
+        kpis: [],
+        metrics: {},
+        vmsData: [],
+        properties: [],
+        lastUpdated: '',
+        hostInfo: { uptime: 0 },
+        isCluster,
+      } satisfies DetailsPayload
+    }
+
+    // Node is online — fetch all details in parallel
+    const [statusR, resourcesR, versionR, subscriptionR, updatesR, maintenanceR] = await Promise.all([
+      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/status`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/resources`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/version`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/subscription`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/apt`, { cache: 'no-store' }).catch(() => null),
+      fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/maintenance`, { cache: 'no-store' }).catch(() => null),
+    ])
 
     let vmsData: DetailsPayload['vmsData'] = []
 
@@ -784,6 +806,16 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
               format: isCdrom ? 'cdrom' : (diskStr.includes('format=') ? diskStr.match(/format=(\w+)/)?.[1] : 'raw'),
               cache: diskStr.match(/cache=(\w+)/)?.[1],
               iothread: diskStr.includes('iothread=1'),
+              discard: diskStr.includes('discard=on'),
+              ssd: diskStr.includes('ssd=1'),
+              backup: !diskStr.includes('backup=0'),
+              replicate: !diskStr.includes('replicate=0'),
+              aio: diskStr.match(/aio=(\w+)/)?.[1],
+              ro: diskStr.includes('ro=1'),
+              mbps_rd: diskStr.match(/mbps_rd=(\d+)/)?.[1] ? Number(diskStr.match(/mbps_rd=(\d+)/)?.[1]) : undefined,
+              mbps_wr: diskStr.match(/mbps_wr=(\d+)/)?.[1] ? Number(diskStr.match(/mbps_wr=(\d+)/)?.[1]) : undefined,
+              iops_rd: diskStr.match(/iops_rd=(\d+)/)?.[1] ? Number(diskStr.match(/iops_rd=(\d+)/)?.[1]) : undefined,
+              iops_wr: diskStr.match(/iops_wr=(\d+)/)?.[1] ? Number(diskStr.match(/iops_wr=(\d+)/)?.[1]) : undefined,
               isCdrom,
               rawValue: String(diskStr),
             })
@@ -803,8 +835,11 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
               if (k === 'bridge') netInfoItem.bridge = v
               else if (k === 'tag') netInfoItem.tag = Number(v)
               else if (k === 'firewall') netInfoItem.firewall = v === '1'
+              else if (k === 'link_down') netInfoItem.linkDown = v === '1'
               else if (k === 'rate') netInfoItem.rate = Number(v)
-              else if (['virtio', 'e1000', 'rtl8139', 'vmxnet3'].includes(k)) {
+              else if (k === 'mtu') netInfoItem.mtu = Number(v)
+              else if (k === 'queues') netInfoItem.queues = Number(v)
+              else if (['virtio', 'e1000', 'e1000e', 'rtl8139', 'vmxnet3'].includes(k)) {
                 netInfoItem.model = k
                 netInfoItem.macaddr = v
               }

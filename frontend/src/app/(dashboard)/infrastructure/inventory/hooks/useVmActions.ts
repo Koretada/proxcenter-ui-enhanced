@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { NodeRow, BulkAction } from '@/components/NodesTable'
 import type { VmRow } from '@/components/VmsTable'
@@ -107,6 +107,12 @@ export function useVmActions({
   setConfirmActionLoading,
   setActionBusy,
 }: UseVmActionsParams) {
+
+  // Keep a ref to latest data/setData so closures always see current values
+  const dataRef = useRef(data)
+  const setDataRef = useRef(setData)
+  useEffect(() => { dataRef.current = data }, [data])
+  useEffect(() => { setDataRef.current = setData }, [setData])
 
   // ── Internal state ──────────────────────────────────────────────────
 
@@ -660,11 +666,17 @@ export function useVmActions({
             }
             if (optimisticStatus[action]) {
               onOptimisticVmStatus?.(connId, vmid, optimisticStatus[action])
+              // Also update the detail panel immediately
+              if (dataRef.current) {
+                const s = optimisticStatus[action]
+                const mappedStatus = (s === 'running' ? 'ok' : s === 'paused' ? 'warn' : 'crit') as any
+                setDataRef.current({ ...dataRef.current, status: mappedStatus, vmRealStatus: s })
+              }
             }
 
             const refreshAll = () => {
               fetchDetails(selection).then(payload => {
-                setData(payload)
+                setDataRef.current(payload)
                 setLocalTags(payload.tags || [])
               })
             }
@@ -679,7 +691,7 @@ export function useVmActions({
                 onSuccess: () => {
                   refreshAll()
                   fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
-                  setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
+                  setTimeout(() => onVmActionEnd?.(connId, vmid), 500)
                 },
                 onError: () => {
                   onVmActionEnd?.(connId, vmid)
@@ -689,7 +701,7 @@ export function useVmActions({
               toast.success(t(`vmActions.${action}Success`))
               refreshAll()
               fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
-              setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
+              setTimeout(() => onVmActionEnd?.(connId, vmid), 500)
             }
 
             setConfirmAction(null)
@@ -727,11 +739,16 @@ export function useVmActions({
       }
       if (optimisticStatus[action]) {
         onOptimisticVmStatus?.(connId, vmid, optimisticStatus[action])
+        if (dataRef.current) {
+          const s = optimisticStatus[action]
+          const mappedStatus = (s === 'running' ? 'ok' : s === 'paused' ? 'warn' : 'crit') as any
+          setDataRef.current({ ...dataRef.current, status: mappedStatus, vmRealStatus: s })
+        }
       }
 
       const refreshAll = () => {
         fetchDetails(selection).then(payload => {
-          setData(payload)
+          setDataRef.current(payload)
           setLocalTags(payload.tags || [])
         })
       }
@@ -746,7 +763,7 @@ export function useVmActions({
           onSuccess: () => {
             refreshAll()
             fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
-            setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
+            setTimeout(() => onVmActionEnd?.(connId, vmid), 500)
           },
           onError: () => {
             onVmActionEnd?.(connId, vmid)
@@ -756,7 +773,7 @@ export function useVmActions({
         toast.success(t(`vmActions.${action}Success`))
         refreshAll()
         fetch('/api/v1/inventory/poll', { method: 'POST' }).catch(() => {})
-        setTimeout(() => onVmActionEnd?.(connId, vmid), 2000)
+        setTimeout(() => onVmActionEnd?.(connId, vmid), 500)
       }
     } catch (e: any) {
       onVmActionEnd?.(connId, vmid)

@@ -10,6 +10,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Collapse,
@@ -271,6 +272,7 @@ type Props = {
   selected: InventorySelection | null
   onSelect: (sel: InventorySelection | null) => void
   onRefreshRef?: (refresh: () => void) => void  // callback pour exposer la fonction refresh
+  onOptimisticVmStatusRef?: (fn: (connId: string, vmid: string, status: string) => void) => void
   viewMode?: ViewMode  // viewMode contrôlé depuis le parent
   onViewModeChange?: (mode: ViewMode) => void  // callback quand le mode change
   onAllVmsChange?: (vms: AllVmItem[]) => void  // callback pour passer toutes les VMs
@@ -289,6 +291,7 @@ type Props = {
   allowedViewModes?: Set<ViewMode>  // RBAC-filtered view modes (all if not provided)
   onCreateVm?: (connId: string, node: string) => void  // callback to open Create VM dialog
   onCreateLxc?: (connId: string, node: string) => void  // callback to open Create LXC dialog
+  onNodeAction?: (connId: string, node: string, action: 'reboot' | 'shutdown') => void
   onStoragesChange?: (storages: TreeClusterStorage[]) => void
   onExternalHypervisorsChange?: (hypervisors: { id: string; name: string; type: string; vms?: { vmid: string; name: string; status: string; cpu?: number; memory_size_MiB?: number; guest_OS?: string }[] }[]) => void
 }
@@ -402,6 +405,7 @@ type NodeContextMenu = {
   connId: string
   node: string
   maintenance?: string
+  sshEnabled?: boolean
 } | null
 
 // Seuils d'alerte (en pourcentage)
@@ -803,7 +807,7 @@ function safeJson<T>(x: any): T {
   return (x?.data ?? x) as T
 }
 
-export default function InventoryTree({ selected, onSelect, onRefreshRef, viewMode: controlledViewMode, onViewModeChange, onAllVmsChange, onHostsChange, onPoolsChange, onTagsChange, onPbsServersChange, favorites: propFavorites, onToggleFavorite, migratingVmIds, pendingActionVmIds, onRefresh, refreshLoading, onCollapse, isCollapsed, allowedViewModes, onCreateVm, onCreateLxc, onStoragesChange, onExternalHypervisorsChange }: Props) {
+export default function InventoryTree({ selected, onSelect, onRefreshRef, onOptimisticVmStatusRef, viewMode: controlledViewMode, onViewModeChange, onAllVmsChange, onHostsChange, onPoolsChange, onTagsChange, onPbsServersChange, favorites: propFavorites, onToggleFavorite, migratingVmIds, pendingActionVmIds, onRefresh, refreshLoading, onCollapse, isCollapsed, allowedViewModes, onCreateVm, onCreateLxc, onNodeAction, onStoragesChange, onExternalHypervisorsChange }: Props) {
   const t = useTranslations()
   const theme = useTheme()
   const router = useRouter()
@@ -943,6 +947,26 @@ return next
     }
   }, [onRefreshRef])
 
+  useEffect(() => {
+    if (onOptimisticVmStatusRef) {
+      onOptimisticVmStatusRef((connId: string, vmid: string, status: string) => {
+        setClusters(prev => prev.map(clu => {
+          if (clu.connId !== connId) return clu
+          let changed = false
+          const nodes = clu.nodes.map(n => {
+            const vms = n.vms.map(vm => {
+              if (String(vm.vmid) !== String(vmid)) return vm
+              changed = true
+              return { ...vm, status }
+            })
+            return changed ? { ...n, vms } : n
+          })
+          return changed ? { ...clu, nodes } : clu
+        }))
+      })
+    }
+  }, [onOptimisticVmStatusRef])
+
   // Menu contextuel VM
   const [contextMenu, setContextMenu] = useState<VmContextMenu>(null)
   const [actionBusy, setActionBusy] = useState(false)
@@ -1078,6 +1102,11 @@ return next
   const [maintenanceBusy, setMaintenanceBusy] = useState(false)
   const [maintenanceTarget, setMaintenanceTarget] = useState<{ connId: string; node: string; maintenance?: string } | null>(null)
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null)
+  const [maintenanceLocalVms, setMaintenanceLocalVms] = useState<Set<string>>(new Set())
+  const [maintenanceStorageLoading, setMaintenanceStorageLoading] = useState(false)
+  const [maintenanceMigrateTarget, setMaintenanceMigrateTarget] = useState('')
+  const [maintenanceShutdownLocal, setMaintenanceShutdownLocal] = useState(false)
+  const [maintenanceStep, setMaintenanceStep] = useState<string | null>(null)
   // Bulk action dialog state
   const [bulkActionDialog, setBulkActionDialog] = useState<{
     open: boolean
@@ -1191,7 +1220,8 @@ return next
     event: React.MouseEvent,
     connId: string,
     node: string,
-    maintenance?: string
+    maintenance?: string,
+    sshEnabled?: boolean
   ) => {
     event.preventDefault()
     event.stopPropagation()
@@ -1201,6 +1231,7 @@ return next
       connId,
       node,
       maintenance,
+      sshEnabled,
     })
   }
 
@@ -1216,6 +1247,57 @@ return next
     handleCloseNodeContextMenu()
   }
 
+  // Check storage when entering maintenance
+  useEffect(() => {
+    if (!maintenanceTarget || maintenanceTarget.maintenance) return // skip for exit maintenance
+    const { connId, node } = maintenanceTarget
+
+    const otherNodes = clusters.find(c => c.connId === connId)?.nodes.filter(n => n.node !== node) || []
+    if (otherNodes.length === 0) return // standalone
+
+    const runningVms = getNodeVms(connId, node).filter(v => v.status === 'running')
+    if (runningVms.length === 0) return
+
+    const cs = clusterStorages.find(c => c.connId === connId)
+    const sharedSet = new Set<string>()
+    if (cs) {
+      for (const s of cs.sharedStorages) sharedSet.add(s.storage)
+      for (const n of cs.nodes) for (const s of n.storages) if (s.shared) sharedSet.add(s.storage)
+    }
+
+    let alive = true
+    setMaintenanceStorageLoading(true)
+
+    ;(async () => {
+      const localKeys = new Set<string>()
+      for (let i = 0; i < runningVms.length; i += 5) {
+        const batch = runningVms.slice(i, i + 5)
+        await Promise.all(batch.map(async (vm) => {
+          try {
+            const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/guests/${vm.type}/${encodeURIComponent(node)}/${encodeURIComponent(vm.vmid)}/config`)
+            if (!res.ok) return
+            const json = await res.json()
+            const config = json.data || {}
+            for (const [key, val] of Object.entries(config)) {
+              if (/^(scsi|virtio|ide|sata|efidisk)\d+$/.test(key) && typeof val === 'string' && !val.includes('media=cdrom') && val !== 'none') {
+                const storageName = val.split(':')[0]
+                if (storageName && storageName !== 'none' && !sharedSet.has(storageName)) {
+                  localKeys.add(`${connId}:${vm.vmid}`)
+                  break
+                }
+              }
+            }
+          } catch { /* ignore */ }
+        }))
+      }
+      if (!alive) return
+      setMaintenanceLocalVms(localKeys)
+      setMaintenanceStorageLoading(false)
+    })()
+
+    return () => { alive = false }
+  }, [maintenanceTarget?.connId, maintenanceTarget?.node, maintenanceTarget?.maintenance])
+
   const handleMaintenanceConfirm = async () => {
     if (!maintenanceTarget) return
     const { connId, node, maintenance } = maintenanceTarget
@@ -1224,6 +1306,48 @@ return next
     setMaintenanceBusy(true)
     setMaintenanceError(null)
     try {
+      // When entering maintenance: handle VMs first
+      if (entering) {
+        const runningVms = getNodeVms(connId, node).filter(v => v.status === 'running')
+        const otherNodes = clusters.find(c => c.connId === connId)?.nodes.filter(n => n.node !== node) || []
+        const isCluster = otherNodes.length > 0
+
+        if (runningVms.length > 0 && isCluster) {
+          const sharedVms = runningVms.filter(v => !maintenanceLocalVms.has(`${connId}:${v.vmid}`))
+          const localVms = runningVms.filter(v => maintenanceLocalVms.has(`${connId}:${v.vmid}`))
+
+          // Migrate shared-storage VMs
+          if (sharedVms.length > 0 && maintenanceMigrateTarget) {
+            setMaintenanceStep(t('inventory.nodeActionMigratingStep', { done: 0, total: sharedVms.length }))
+            let done = 0
+            for (let i = 0; i < sharedVms.length; i += 3) {
+              const batch = sharedVms.slice(i, i + 3)
+              await Promise.all(batch.map(async (vm) => {
+                try {
+                  const url = `/api/v1/connections/${encodeURIComponent(connId)}/guests/${vm.type}/${encodeURIComponent(node)}/${encodeURIComponent(vm.vmid)}/migrate`
+                  await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: maintenanceMigrateTarget, online: true }) })
+                } catch { /* ignore */ }
+                done++
+                setMaintenanceStep(t('inventory.nodeActionMigratingStep', { done, total: sharedVms.length }))
+              }))
+            }
+          }
+
+          // Shutdown local-storage VMs
+          if (localVms.length > 0 && maintenanceShutdownLocal) {
+            setMaintenanceStep(t('inventory.nodeActionShutdownVmsStep', { done: 0, total: localVms.length }))
+            let done = 0
+            for (const vm of localVms) {
+              const url = `/api/v1/connections/${encodeURIComponent(connId)}/guests/${vm.type}/${encodeURIComponent(node)}/${encodeURIComponent(vm.vmid)}/shutdown`
+              await fetch(url, { method: 'POST' }).catch(() => {})
+              done++
+              setMaintenanceStep(t('inventory.nodeActionShutdownVmsStep', { done, total: localVms.length }))
+            }
+          }
+        }
+        setMaintenanceStep(t('inventory.nodeActionMaintenanceStep'))
+      }
+
       const res = await fetch(
         `/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/maintenance`,
         { method: entering ? 'POST' : 'DELETE' }
@@ -1234,9 +1358,13 @@ return next
         return
       }
       setMaintenanceTarget(null)
+      setMaintenanceStep(null)
+      setMaintenanceMigrateTarget('')
+      setMaintenanceShutdownLocal(false)
       setReloadTick(x => x + 1)
     } catch (e: any) {
       setMaintenanceError(e?.message || t('inventory.unknownError'))
+      setMaintenanceStep(null)
     } finally {
       setMaintenanceBusy(false)
     }
@@ -3155,7 +3283,7 @@ return (
               <TreeItem
                 key={`${clu.connId}:${n.node}`}
                 itemId={`node:${clu.connId}:${n.node}`}
-                onContextMenu={(e) => handleNodeContextMenu(e, clu.connId, n.node, n.maintenance)}
+                onContextMenu={(e) => handleNodeContextMenu(e, clu.connId, n.node, n.maintenance, clu.sshEnabled)}
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                     <StatusIcon status={n.status} type="node" maintenance={n.maintenance} />
@@ -3259,7 +3387,7 @@ return (
                 <TreeItem
                   key={`${clu.connId}:${n.node}`}
                   itemId={`node:${clu.connId}:${n.node}`}
-                  onContextMenu={(e) => handleNodeContextMenu(e, clu.connId, n.node, n.maintenance)}
+                  onContextMenu={(e) => handleNodeContextMenu(e, clu.connId, n.node, n.maintenance, clu.sshEnabled)}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                       <StatusIcon status={n.status} type="node" maintenance={n.maintenance} />
@@ -3834,9 +3962,10 @@ return (
             ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
             : undefined
         }
+        slotProps={{ paper: { sx: { '& .MuiListItemIcon-root': { minWidth: 36, mr: 1 } } } }}
       >
         {/* Header du menu */}
-        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'action.hover', borderBottom: '1px solid', borderColor: 'divider' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             {contextMenu && (
               <i
@@ -3848,9 +3977,6 @@ return (
               {contextMenu?.name}
             </Typography>
           </Box>
-          <Typography variant="caption" sx={{ opacity: 0.6 }}>
-            {contextMenu?.template ? 'TEMPLATE' : contextMenu?.type?.toUpperCase()} • #{contextMenu?.vmid}
-          </Typography>
         </Box>
 
         {/* Menu pour TEMPLATE */}
@@ -4044,21 +4170,26 @@ return (
             ? { top: nodeContextMenu.mouseY, left: nodeContextMenu.mouseX }
             : undefined
         }
+        slotProps={{ paper: { sx: { '& .MuiListItemIcon-root': { minWidth: 36, mr: 1 } } } }}
       >
-        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="subtitle2" fontWeight={900}>
-            {nodeContextMenu?.node}
-          </Typography>
-          <Typography variant="caption" sx={{ opacity: 0.6 }}>
-            NODE
-          </Typography>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'action.hover', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            <img
+              src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'}
+              alt=""
+              style={{ width: 16, height: 16, opacity: 0.8 }}
+            />
+            <Typography variant="subtitle2" fontWeight={900}>
+              {nodeContextMenu?.node}
+            </Typography>
+          </Box>
         </Box>
         {onCreateVm && (
           <MenuItem onClick={() => {
             if (nodeContextMenu) onCreateVm(nodeContextMenu.connId, nodeContextMenu.node)
             handleCloseNodeContextMenu()
           }}>
-            <ListItemIcon sx={{ minWidth: 32 }}>
+            <ListItemIcon sx={{ minWidth: 36 }}>
               <i className="ri-computer-line" style={{ fontSize: 18, color: '#3b82f6' }} />
             </ListItemIcon>
             <ListItemText>{t('inventory.createVm.title')}</ListItemText>
@@ -4069,7 +4200,7 @@ return (
             if (nodeContextMenu) onCreateLxc(nodeContextMenu.connId, nodeContextMenu.node)
             handleCloseNodeContextMenu()
           }}>
-            <ListItemIcon sx={{ minWidth: 32 }}>
+            <ListItemIcon sx={{ minWidth: 36 }}>
               <i className="ri-instance-line" style={{ fontSize: 18, color: '#a855f7' }} />
             </ListItemIcon>
             <ListItemText>{t('inventory.createLxc.title')}</ListItemText>
@@ -4079,26 +4210,26 @@ return (
           if (nodeContextMenu) handleOpenShell(nodeContextMenu.connId, nodeContextMenu.node)
           handleCloseNodeContextMenu()
         }}>
-          <ListItemIcon sx={{ minWidth: 32 }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
             <i className="ri-terminal-box-line" style={{ fontSize: 18 }} />
           </ListItemIcon>
           <ListItemText>{t('inventory.tabShell')}</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={() => handleBulkActionClick('start-all')}>
-          <ListItemIcon sx={{ minWidth: 32 }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
             <PlayArrowIcon fontSize="small" sx={{ color: 'success.main' }} />
           </ListItemIcon>
           <ListItemText>{t('bulkActions.startAllVms')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => handleBulkActionClick('shutdown-all')}>
-          <ListItemIcon sx={{ minWidth: 32 }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
             <PowerSettingsNewIcon fontSize="small" sx={{ color: 'warning.main' }} />
           </ListItemIcon>
           <ListItemText>{t('bulkActions.shutdownAllVms')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => handleBulkActionClick('migrate-all')}>
-          <ListItemIcon sx={{ minWidth: 32 }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
             <MoveUpIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>{t('bulkActions.migrateAllVms')}</ListItemText>
@@ -4106,75 +4237,214 @@ return (
 
         <Divider />
 
+        <MenuItem onClick={() => {
+          if (nodeContextMenu) onNodeAction?.(nodeContextMenu.connId, nodeContextMenu.node, 'reboot')
+          handleCloseNodeContextMenu()
+        }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <i className="ri-restart-line" style={{ fontSize: 18, color: '#f59e0b' }} />
+          </ListItemIcon>
+          <ListItemText>{t('inventory.nodeReboot')}</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          if (nodeContextMenu) onNodeAction?.(nodeContextMenu.connId, nodeContextMenu.node, 'shutdown')
+          handleCloseNodeContextMenu()
+        }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <i className="ri-shut-down-line" style={{ fontSize: 18, color: '#c62828' }} />
+          </ListItemIcon>
+          <ListItemText>{t('inventory.nodeShutdown')}</ListItemText>
+        </MenuItem>
+
+        <Divider />
+
         <MenuItem
-          onClick={handleMaintenanceClick}
-          disabled={maintenanceBusy}
+          onClick={nodeContextMenu?.sshEnabled ? handleMaintenanceClick : undefined}
+          disabled={maintenanceBusy || !nodeContextMenu?.sshEnabled}
+          sx={!nodeContextMenu?.sshEnabled ? { opacity: 0.5 } : undefined}
         >
-          <ListItemIcon sx={{ minWidth: 32 }}>
-            <i className={nodeContextMenu?.maintenance ? 'ri-play-circle-line' : 'ri-tools-fill'} style={{ fontSize: 20, color: nodeContextMenu?.maintenance ? '#4caf50' : '#ff9800' }} />
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <i className={nodeContextMenu?.maintenance ? 'ri-play-circle-line' : 'ri-tools-fill'} style={{ fontSize: 20, color: !nodeContextMenu?.sshEnabled ? undefined : nodeContextMenu?.maintenance ? '#4caf50' : '#ff9800' }} />
           </ListItemIcon>
           <ListItemText>
             {nodeContextMenu?.maintenance ? t('inventory.exitMaintenance') : t('inventory.enterMaintenance')}
           </ListItemText>
         </MenuItem>
+        {!nodeContextMenu?.sshEnabled && (
+          <Typography variant="caption" sx={{ px: 2, pb: 1, display: 'block', opacity: 0.5 }}>
+            <i className="ri-ssh-line" style={{ fontSize: 12, marginRight: 4, verticalAlign: 'middle' }} />
+            {t('inventory.maintenanceRequiresSsh')}
+          </Typography>
+        )}
       </Menu>
 
       {/* Dialog confirmation maintenance */}
-      <Dialog
-        open={maintenanceTarget !== null}
-        onClose={() => setMaintenanceTarget(null)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{
-            width: 40, height: 40, borderRadius: 2,
-            bgcolor: maintenanceTarget?.maintenance ? 'rgba(76,175,80,0.12)' : 'rgba(255,152,0,0.12)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <i
-              className={maintenanceTarget?.maintenance ? 'ri-play-circle-line' : 'ri-tools-fill'}
-              style={{ fontSize: 22, color: maintenanceTarget?.maintenance ? '#4caf50' : '#ff9800' }}
-            />
-          </Box>
-          {maintenanceTarget?.maintenance ? t('inventory.exitMaintenance') : t('inventory.enterMaintenance')}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {maintenanceTarget?.maintenance
-              ? t('inventory.confirmExitMaintenance')
-              : t('inventory.confirmEnterMaintenance')}
-          </DialogContentText>
-          <Typography variant="body2" fontWeight={600} sx={{ mt: 1.5 }}>
-            {t('inventory.node')}: {maintenanceTarget?.node}
-          </Typography>
-          <Typography variant="caption" sx={{ display: 'block', mt: 1, opacity: 0.6 }}>
-            {t('inventory.maintenanceRequiresSsh')}
-          </Typography>
-          {maintenanceError && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {maintenanceError}
-            </Alert>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={() => setMaintenanceTarget(null)}
-            color="inherit"
-          >
-            {t('common.cancel')}
-          </Button>
-          <Button
-            onClick={handleMaintenanceConfirm}
-            variant="contained"
-            color={maintenanceTarget?.maintenance ? 'success' : 'warning'}
-            disabled={maintenanceBusy}
-            startIcon={maintenanceBusy ? <CircularProgress size={16} /> : undefined}
-          >
-            {t('common.confirm')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {(() => {
+        const entering = maintenanceTarget && !maintenanceTarget.maintenance
+        const mConnId = maintenanceTarget?.connId || ''
+        const mNode = maintenanceTarget?.node || ''
+        const mRunningVms = entering ? getNodeVms(mConnId, mNode).filter(v => v.status === 'running') : []
+        const mOtherNodes = entering ? (clusters.find(c => c.connId === mConnId)?.nodes.filter(n => n.node !== mNode) || []) : []
+        const mIsCluster = mOtherNodes.length > 0
+        const mSharedVms = mIsCluster ? mRunningVms.filter(v => !maintenanceLocalVms.has(`${mConnId}:${v.vmid}`)) : []
+        const mLocalVms = mIsCluster ? mRunningVms.filter(v => maintenanceLocalVms.has(`${mConnId}:${v.vmid}`)) : mRunningVms
+
+        return (
+        <Dialog
+          open={maintenanceTarget !== null}
+          onClose={() => { if (!maintenanceBusy) { setMaintenanceTarget(null); setMaintenanceStep(null); setMaintenanceMigrateTarget(''); setMaintenanceShutdownLocal(false) } }}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{
+              width: 40, height: 40, borderRadius: 2,
+              bgcolor: maintenanceTarget?.maintenance ? 'rgba(76,175,80,0.12)' : 'rgba(255,152,0,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <i
+                className={maintenanceTarget?.maintenance ? 'ri-play-circle-line' : 'ri-tools-fill'}
+                style={{ fontSize: 22, color: maintenanceTarget?.maintenance ? '#4caf50' : '#ff9800' }}
+              />
+            </Box>
+            {maintenanceTarget?.maintenance ? t('inventory.exitMaintenance') : t('inventory.enterMaintenance')}
+          </DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <DialogContentText>
+              {maintenanceTarget?.maintenance
+                ? t('inventory.confirmExitMaintenance')
+                : t('inventory.confirmEnterMaintenance')}
+            </DialogContentText>
+
+            {/* VM handling — only when entering maintenance with running VMs */}
+            {entering && mRunningVms.length > 0 && mIsCluster && (<>
+              {/* Loading storage check */}
+              {maintenanceStorageLoading && (
+                <Alert severity="info" icon={<CircularProgress size={18} />}>
+                  <Typography variant="body2">{t('inventory.nodeActionAnalyzingStorage')}</Typography>
+                </Alert>
+              )}
+
+              {/* Shared storage VMs */}
+              {!maintenanceStorageLoading && mSharedVms.length > 0 && (
+                <Alert severity="success" icon={<i className="ri-upload-2-line" style={{ fontSize: 20 }} />}>
+                  <Typography variant="body2" fontWeight={600}>
+                    {t('inventory.nodeActionSharedVms', { count: mSharedVms.length })}
+                  </Typography>
+                  <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {mSharedVms.slice(0, 8).map(vm => (
+                      <Chip key={`${mConnId}:${vm.vmid}`} size="small" label={`${vm.vmid} ${vm.name}`}
+                        icon={<i className={vm.type === 'lxc' ? 'ri-instance-line' : 'ri-computer-line'} style={{ fontSize: 14 }} />}
+                        variant="outlined" color="success" />
+                    ))}
+                    {mSharedVms.length > 8 && <Chip size="small" label={`+${mSharedVms.length - 8}`} variant="outlined" />}
+                  </Box>
+                </Alert>
+              )}
+
+              {/* Local storage VMs */}
+              {!maintenanceStorageLoading && mLocalVms.length > 0 && (
+                <Alert severity="warning" icon={<i className="ri-hard-drive-2-line" style={{ fontSize: 20 }} />}>
+                  <Typography variant="body2" fontWeight={600}>
+                    {t('inventory.nodeActionLocalVms', { count: mLocalVms.length })}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.85 }}>
+                    {t('inventory.nodeActionLocalVmsDesc')}
+                  </Typography>
+                  <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {mLocalVms.slice(0, 8).map(vm => (
+                      <Chip key={`${mConnId}:${vm.vmid}`} size="small" label={`${vm.vmid} ${vm.name}`}
+                        icon={<i className={vm.type === 'lxc' ? 'ri-instance-line' : 'ri-computer-line'} style={{ fontSize: 14 }} />}
+                        variant="outlined" color="warning" />
+                    ))}
+                    {mLocalVms.length > 8 && <Chip size="small" label={`+${mLocalVms.length - 8}`} variant="outlined" />}
+                  </Box>
+                  <Box
+                    onClick={() => !maintenanceBusy && setMaintenanceShutdownLocal(!maintenanceShutdownLocal)}
+                    sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1, cursor: maintenanceBusy ? 'default' : 'pointer' }}
+                  >
+                    <Checkbox size="small" checked={maintenanceShutdownLocal} disabled={maintenanceBusy} sx={{ p: 0 }} />
+                    <Typography variant="body2">{t('inventory.nodeActionShutdownLocalOption')}</Typography>
+                  </Box>
+                </Alert>
+              )}
+
+              {/* Target node selector */}
+              {!maintenanceStorageLoading && mSharedVms.length > 0 && (
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('inventory.nodeActionMigrateTarget')}</InputLabel>
+                  <Select
+                    value={maintenanceMigrateTarget}
+                    label={t('inventory.nodeActionMigrateTarget')}
+                    onChange={(e) => setMaintenanceMigrateTarget(e.target.value)}
+                    disabled={maintenanceBusy}
+                  >
+                    {mOtherNodes.map(n => (
+                      <MenuItem key={n.node} value={n.node}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 14, height: 14, opacity: 0.8 }} />
+                          {n.node}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </>)}
+
+            {/* Standalone with running VMs */}
+            {entering && mRunningVms.length > 0 && !mIsCluster && (
+              <Alert severity="info" icon={<i className="ri-information-line" style={{ fontSize: 20 }} />}>
+                <Typography variant="body2">
+                  {t('inventory.nodeActionRunningVms', { count: mRunningVms.length })}
+                </Typography>
+              </Alert>
+            )}
+
+            <Typography variant="caption" sx={{ opacity: 0.6 }}>
+              {t('inventory.maintenanceRequiresSsh')}
+            </Typography>
+
+            {/* Progress steps */}
+            {maintenanceStep && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={18} />
+                <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{maintenanceStep}</Typography>
+              </Box>
+            )}
+
+            {maintenanceError && (
+              <Alert severity="error">{maintenanceError}</Alert>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={() => { setMaintenanceTarget(null); setMaintenanceStep(null); setMaintenanceMigrateTarget(''); setMaintenanceShutdownLocal(false) }}
+              color="inherit"
+              disabled={maintenanceBusy}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={handleMaintenanceConfirm}
+              variant="contained"
+              color={maintenanceTarget?.maintenance ? 'success' : 'warning'}
+              disabled={(() => {
+                if (maintenanceBusy || maintenanceStorageLoading) return true
+                if (entering && mRunningVms.length > 0 && mIsCluster) {
+                  if (mSharedVms.length > 0 && !maintenanceMigrateTarget) return true
+                  if (mLocalVms.length > 0 && !maintenanceShutdownLocal) return true
+                }
+                return false
+              })()}
+              startIcon={maintenanceBusy ? <CircularProgress size={16} /> : undefined}
+            >
+              {t('common.confirm')}
+            </Button>
+          </DialogActions>
+        </Dialog>
+        )
+      })()}
 
       {/* Dialog confirmation bulk action */}
       <Dialog
@@ -4226,7 +4496,12 @@ return (
                 onChange={(e) => setBulkActionDialog(prev => ({ ...prev, targetNode: e.target.value }))}
               >
                 {getOtherNodes(bulkActionDialog.connId, bulkActionDialog.node).map(n => (
-                  <MenuItem key={n} value={n}>{n}</MenuItem>
+                  <MenuItem key={n} value={n}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 14, height: 14, opacity: 0.8 }} />
+                      {n}
+                    </Box>
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
