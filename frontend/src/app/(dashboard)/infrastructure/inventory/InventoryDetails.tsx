@@ -1514,9 +1514,10 @@ return () => {
 
   const canShowRrd = selection && (selection.type === 'node' || selection.type === 'vm') && !data?.isTemplate
 
-  // Charger les backups quand l'onglet Backups est ouvert (lazy loading)
+  // Charger les backups quand on sélectionne une VM
   useEffect(() => {
-    if (selection?.type !== 'vm' || detailTab !== 5) {
+    if (selection?.type !== 'vm') {
+      backupsLoadedForIdRef.current = null
       return
     }
 
@@ -1527,7 +1528,7 @@ return () => {
     const { type, vmid } = parseVmId(selection.id)
     loadBackups(vmid, type)
     setBackupsPreloaded(true)
-  }, [selection?.type, selection?.id, detailTab, loadBackups])
+  }, [selection?.type, selection?.id, loadBackups])
 
   // Note: snapshot preloading is handled inside useSnapshots hook
 
@@ -1709,14 +1710,14 @@ return
 
   // Charger les données HA du cluster quand l'onglet HA est ouvert (lazy loading)
   useEffect(() => {
-    if (selection?.type === 'cluster' && clusterTab === 5 && !clusterHaLoaded && !clusterHaLoading) {
+    if (selection?.type === 'cluster' && clusterTab === 3 && !clusterHaLoaded && !clusterHaLoading) {
       loadClusterHa(selection.id)
     }
   }, [selection?.type, selection?.id, clusterTab, clusterHaLoaded, clusterHaLoading, loadClusterHa])
 
   // Charger la config du cluster quand on sélectionne l'onglet Cluster
   useEffect(() => {
-    if (selection?.type === 'cluster' && clusterTab === 12 && !clusterConfigLoaded && !clusterConfigLoading) {
+    if (selection?.type === 'cluster' && clusterTab === 10 && !clusterConfigLoaded && !clusterConfigLoading) {
       loadClusterConfig(selection.id?.split(':')[0] || '')
     }
   }, [selection?.type, selection?.id, clusterTab, clusterConfigLoaded, clusterConfigLoading, loadClusterConfig])
@@ -3129,7 +3130,7 @@ return vm?.isCluster ?? false
           {selection?.type === 'vm' && (
             <VmDetailTabs
               {...{addCephReplicationDialogOpen, addReplicationDialogOpen, availableTargetNodes, backToArchives, backToBackupsList,
-                backups, backupsError, backupsLoading, backupsStats, backupsWarnings, balloon,
+                backups, backupsError, backupsLoading, backupsPreloaded, backupsStats, backupsWarnings, balloon,
                 balloonEnabled, browseArchive, canPreview, canShowRrd, cephClusters, cephClustersLoading,
                 cephReplicationJobs, cephReplicationSchedule, compatibleStorages, cpuCores, cpuLimit,
                 cpuFlags, cpuLimitEnabled, cpuModified, cpuSockets, cpuType, createSnapshot,
@@ -3170,7 +3171,7 @@ return vm?.isCluster ?? false
             <ClusterTabs
               {...{allVms, cephTrends, clusterActionError, clusterActionLoading, clusterCephData,
                 clusterCephLoading, clusterCephPerf, clusterCephPerfFiltered, clusterCephTimeframe, clusterConfig,
-                clusterConfigLoading, clusterHaGroups, clusterHaLoading, clusterHaResources, clusterHaRules,
+                clusterConfigLoaded, clusterConfigLoading, clusterHaGroups, clusterHaLoaded, clusterHaLoading, clusterHaResources, clusterHaRules,
                 clusterNotesContent, clusterNotesEditMode, clusterNotesLoading, clusterNotesSaving, clusterPveMajorVersion,
                 clusterStorageData, clusterStorageLoading, clusterTab, createClusterDialogOpen, data,
                 error, expandedClusterNodes, favorites, handleCreateCluster, handleJoinCluster, handleNodeBulkAction,

@@ -103,8 +103,10 @@ export default function ClusterTabs(props: any) {
     clusterCephPerfFiltered,
     clusterCephTimeframe,
     clusterConfig,
+    clusterConfigLoaded,
     clusterConfigLoading,
     clusterHaGroups,
+    clusterHaLoaded,
     clusterHaLoading,
     clusterHaResources,
     clusterHaRules,
@@ -1444,7 +1446,7 @@ export default function ClusterTabs(props: any) {
                 {/* Onglet HA - Index 3 */}
                 {clusterTab === 3 && (
                   <Box sx={{ p: 2 }}>
-                    {clusterHaLoading ? (
+                    {(clusterHaLoading || !clusterHaLoaded) ? (
                       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                         <CircularProgress size={24} />
                       </Box>
@@ -3322,7 +3324,7 @@ export default function ClusterTabs(props: any) {
                 {/* Onglet Cluster - Index 10 */}
                 {clusterTab === 10 && (
                   <Box sx={{ p: 2 }}>
-                    {clusterConfigLoading ? (
+                    {(clusterConfigLoading || !clusterConfigLoaded) ? (
                       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                         <CircularProgress size={24} />
                       </Box>

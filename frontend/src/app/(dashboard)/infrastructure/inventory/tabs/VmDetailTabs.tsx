@@ -100,6 +100,7 @@ export default function VmDetailTabs(props: any) {
     backups,
     backupsError,
     backupsLoading,
+    backupsPreloaded,
     backupsStats,
     backupsWarnings,
     balloon,
