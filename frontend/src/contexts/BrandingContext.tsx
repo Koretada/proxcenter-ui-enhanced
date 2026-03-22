@@ -12,6 +12,10 @@ export interface BrandingConfig {
   footerText: string
   browserTitle: string
   poweredByVisible: boolean
+  showGithubStars: boolean
+  showWhatsNew: boolean
+  showAbout: boolean
+  showSubscription: boolean
 }
 
 const DEFAULT_BRANDING: BrandingConfig = {
@@ -24,6 +28,10 @@ const DEFAULT_BRANDING: BrandingConfig = {
   footerText: '',
   browserTitle: '',
   poweredByVisible: true,
+  showGithubStars: true,
+  showWhatsNew: true,
+  showAbout: true,
+  showSubscription: true,
 }
 
 interface BrandingContextValue {

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import DOMPurify from 'dompurify'
+import { useBranding } from '@/contexts/BrandingContext'
 
 import {
   Alert,
@@ -63,6 +64,9 @@ import InventorySummary from '../components/InventorySummary'
 
 export default function NodeTabs(props: any) {
   const t = useTranslations()
+  const theme = useTheme()
+  const { branding } = useBranding()
+  const chartTooltipStyle = { backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, color: theme.palette.text.primary }
 
   const {
     clusterConfigLoaded,
@@ -532,7 +536,7 @@ export default function NodeTabs(props: any) {
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
-                                <Tooltip
+                                <Tooltip contentStyle={chartTooltipStyle}
                                   labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                   formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'CPU']}
                                 />
@@ -558,7 +562,7 @@ export default function NodeTabs(props: any) {
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
-                                <Tooltip
+                                <Tooltip contentStyle={chartTooltipStyle}
                                   labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                   formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'Memory']}
                                 />
@@ -588,7 +592,7 @@ export default function NodeTabs(props: any) {
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
-                                <Tooltip
+                                <Tooltip contentStyle={chartTooltipStyle}
                                   labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                   formatter={(v: any, name: string) => [formatBps(Number(v)), name === 'netInBps' ? 'In' : 'Out']}
                                 />
@@ -616,7 +620,7 @@ export default function NodeTabs(props: any) {
                                   </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis tick={{ fontSize: 9 }} width={30} domain={[0, 'auto']} />
-                                  <Tooltip
+                                  <Tooltip contentStyle={chartTooltipStyle}
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any) => [Number(v).toFixed(2), 'Load']}
                                   />
@@ -636,7 +640,7 @@ export default function NodeTabs(props: any) {
                                   </defs>
                                   <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                   <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
-                                  <Tooltip
+                                  <Tooltip contentStyle={chartTooltipStyle}
                                     labelFormatter={v => new Date(Number(v)).toLocaleString()}
                                     formatter={(v: any, name: string) => [formatBps(Number(v)), name === 'diskReadBps' ? 'Read' : 'Write']}
                                   />
@@ -3212,7 +3216,7 @@ export default function NodeTabs(props: any) {
                         </Box>
 
                         {/* Informations de subscription */}
-                        <Card variant="outlined">
+                        {(!branding.enabled || branding.showSubscription !== false) && (<><Card variant="outlined">
                           <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
                             <TableContainer>
                               <Table size="small">
@@ -3402,6 +3406,7 @@ export default function NodeTabs(props: any) {
                             </Button>
                           </DialogActions>
                         </Dialog>
+                        </>)}
 
                         {/* Dialog System Report */}
                         <Dialog open={systemReportDialogOpen} onClose={() => setSystemReportDialogOpen(false)} maxWidth="lg" fullWidth>

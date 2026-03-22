@@ -1491,6 +1491,14 @@
     "welcomeSubtitle": "Configurez votre première connexion Proxmox",
     "onboardingTitle": "Configuration initiale requise",
     "onboardingMessage": "Pour commencer à utiliser ProxCenter, veuillez ajouter au moins une connexion à un serveur Proxmox VE ou PBS.",
+    "whiteLabel": {
+      "uiVisibility": "Visibilité des éléments",
+      "uiVisibilityDesc": "Afficher ou masquer certains éléments de l'interface quand le white-labeling est activé",
+      "showGithubStars": "Étoiles GitHub (en-tête)",
+      "showWhatsNew": "Nouveautés (menu profil)",
+      "showAbout": "À propos (menu profil)",
+      "showSubscription": "Abonnement (détails du nœud)"
+    },
     "licenseManagement": "Gérez votre licence ProxCenter pour accéder aux fonctionnalités avancées.",
     "freeLicense": "Licence gratuite avec fonctionnalités limitées",
     "includedFeatures": "Fonctionnalités incluses :",

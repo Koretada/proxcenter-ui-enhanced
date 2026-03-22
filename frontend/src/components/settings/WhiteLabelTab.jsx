@@ -26,6 +26,10 @@ export default function WhiteLabelTab() {
     footerText: '',
     browserTitle: '',
     poweredByVisible: true,
+    showGithubStars: true,
+    showWhatsNew: true,
+    showAbout: true,
+    showSubscription: true,
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -390,6 +394,37 @@ export default function WhiteLabelTab() {
             }
             sx={{ mt: 1.5 }}
           />
+        </CardContent>
+      </Card>
+
+      {/* UI Elements Visibility */}
+      <Card variant="outlined" sx={{ mb: 2 }}>
+        <CardContent>
+          <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+            <i className="ri-eye-off-line" style={{ marginRight: 8, opacity: 0.7 }} />
+            {t('settings.whiteLabel.uiVisibility')}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {t('settings.whiteLabel.uiVisibilityDesc')}
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <FormControlLabel
+              control={<Switch checked={config.showGithubStars} onChange={e => setConfig(c => ({ ...c, showGithubStars: e.target.checked }))} />}
+              label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><i className="ri-github-fill" style={{ fontSize: 16, opacity: 0.6 }} /><Typography variant="body2">{t('settings.whiteLabel.showGithubStars')}</Typography></Box>}
+            />
+            <FormControlLabel
+              control={<Switch checked={config.showWhatsNew} onChange={e => setConfig(c => ({ ...c, showWhatsNew: e.target.checked }))} />}
+              label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><i className="ri-megaphone-line" style={{ fontSize: 16, opacity: 0.6 }} /><Typography variant="body2">{t('settings.whiteLabel.showWhatsNew')}</Typography></Box>}
+            />
+            <FormControlLabel
+              control={<Switch checked={config.showAbout} onChange={e => setConfig(c => ({ ...c, showAbout: e.target.checked }))} />}
+              label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><i className="ri-information-line" style={{ fontSize: 16, opacity: 0.6 }} /><Typography variant="body2">{t('settings.whiteLabel.showAbout')}</Typography></Box>}
+            />
+            <FormControlLabel
+              control={<Switch checked={config.showSubscription} onChange={e => setConfig(c => ({ ...c, showSubscription: e.target.checked }))} />}
+              label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><i className="ri-vip-crown-line" style={{ fontSize: 16, opacity: 0.6 }} /><Typography variant="body2">{t('settings.whiteLabel.showSubscription')}</Typography></Box>}
+            />
+          </Box>
         </CardContent>
       </Card>
 

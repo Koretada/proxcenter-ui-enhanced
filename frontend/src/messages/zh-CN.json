@@ -1491,6 +1491,14 @@
     "welcomeSubtitle": "配置您的第一个 Proxmox 连接",
     "onboardingTitle": "需要初始设置",
     "onboardingMessage": "要开始使用 ProxCenter，请至少添加一个到 Proxmox VE 或 PBS 服务器的连接。",
+    "whiteLabel": {
+      "uiVisibility": "界面元素可见性",
+      "uiVisibilityDesc": "启用白标时显示或隐藏特定界面元素",
+      "showGithubStars": "GitHub 星标（顶部栏）",
+      "showWhatsNew": "新功能（个人菜单）",
+      "showAbout": "关于（个人菜单）",
+      "showSubscription": "订阅信息（节点详情）"
+    },
     "licenseManagement": "管理您的 ProxCenter 许可证以访问高级功能。",
     "freeLicense": "功能有限的免费许可证",
     "includedFeatures": "包含的功能：",

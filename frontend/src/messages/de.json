@@ -1487,6 +1487,14 @@
     "welcomeSubtitle": "Fügen Sie Ihre erste Proxmox VE-Verbindung hinzu",
     "onboardingTitle": "Initial setup erforderlich",
     "onboardingMessage": "Um ProxCenter zu verwenden, fügen Sie bitte mindestens eine Verbindung zu einem Proxmox VE- oder PBS-Server hinzu.",
+    "whiteLabel": {
+      "uiVisibility": "UI-Elemente Sichtbarkeit",
+      "uiVisibilityDesc": "Bestimmte UI-Elemente ein- oder ausblenden wenn White-Labeling aktiviert ist",
+      "showGithubStars": "GitHub Stars (Header)",
+      "showWhatsNew": "Neuigkeiten (Profilmenü)",
+      "showAbout": "Über (Profilmenü)",
+      "showSubscription": "Abonnement-Info (Node-Details)"
+    },
     "licenseManagement": "Verwalten Sie Ihre ProxCenter-Lizenz, um auf erweiterte Funktionen zuzugreifen.",
     "freeLicense": "Free Lizenz with limited features",
     "includedFeatures": "Enthaltene Funktionen:",

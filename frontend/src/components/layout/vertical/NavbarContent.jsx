@@ -5,6 +5,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { useSession, signOut } from 'next-auth/react'
+import { useBranding } from '@/contexts/BrandingContext'
 import {
   Avatar,
   Badge,
@@ -180,6 +181,7 @@ const NavbarContent = () => {
 
   // i18n hooks
   const t = useTranslations()
+  const { branding } = useBranding()
   const { locale, locales, localeNames, localeFlags, changeLocale, isPending } = useLocale()
   const timeAgo = createTimeAgo(t)
 
@@ -582,6 +584,7 @@ return () => window.removeEventListener('keydown', onKeyDown)
         {/* RIGHT ICONS */}
         <Box sx={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1 }}>
           {/* GitHub Stars */}
+          {(!branding.enabled || branding.showGithubStars !== false) && (
           <Tooltip title='Star us on GitHub'>
             <Box
               component='a'
@@ -613,6 +616,7 @@ return () => window.removeEventListener('keydown', onKeyDown)
               <GitHubStars />
             </Box>
           </Tooltip>
+          )}
 
 
           {/* Lang */}
@@ -1312,6 +1316,7 @@ return () => window.removeEventListener('keydown', onKeyDown)
 
         <Divider />
 
+        {(!branding.enabled || branding.showWhatsNew !== false) && (
         <MenuItem
           onClick={() => {
             setUserAnchor(null)
@@ -1328,7 +1333,9 @@ return () => window.removeEventListener('keydown', onKeyDown)
             )}
           </Box>
         </MenuItem>
+        )}
 
+        {(!branding.enabled || branding.showAbout !== false) && (
         <MenuItem
           onClick={() => {
             setUserAnchor(null)
@@ -1348,6 +1355,7 @@ return () => window.removeEventListener('keydown', onKeyDown)
             />
           </Box>
         </MenuItem>
+        )}
 
         <Divider />
 
