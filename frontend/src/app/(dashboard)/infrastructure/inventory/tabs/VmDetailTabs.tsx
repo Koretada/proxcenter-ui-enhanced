@@ -254,6 +254,7 @@ export default function VmDetailTabs(props: any) {
     setVmNotes,
     showCreateSnapshot,
     snapshotActionBusy,
+    snapshotFeatureAvailable,
     snapshots,
     snapshotsError,
     snapshotsLoading,
@@ -2644,7 +2645,7 @@ return (
                           />
                         )}
                       </Box>
-                      {!showCreateSnapshot && (
+                      {!showCreateSnapshot && snapshotFeatureAvailable !== false && (
                         <Button
                           variant="contained"
                           size="small"
@@ -2658,8 +2659,15 @@ return (
                     </Box>
                   )}
 
+                  {/* Info: snapshot feature not available (LXC with incompatible storage) */}
+                  {!snapshotsLoading && snapshotFeatureAvailable === false && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      {t('inventory.snapshotNotAvailable')}
+                    </Alert>
+                  )}
+
                   {/* Formulaire de création */}
-                  {!snapshotsLoading && showCreateSnapshot && (
+                  {!snapshotsLoading && showCreateSnapshot && snapshotFeatureAvailable !== false && (
                     <Card variant="outlined" sx={{ mb: 2, bgcolor: 'action.hover' }}>
                       <CardContent sx={{ pb: '16px !important' }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>

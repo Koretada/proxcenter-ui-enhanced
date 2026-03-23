@@ -1318,7 +1318,7 @@ export default function InventoryDetails({
     snapshots, snapshotsLoading, snapshotsError, snapshotsLoaded,
     snapshotActionBusy, showCreateSnapshot, setShowCreateSnapshot,
     newSnapshotName, setNewSnapshotName, newSnapshotDesc, setNewSnapshotDesc,
-    newSnapshotRam, setNewSnapshotRam,
+    newSnapshotRam, setNewSnapshotRam, snapshotFeatureAvailable,
     loadSnapshots, createSnapshot, deleteSnapshot, rollbackSnapshot,
     resetSnapshots,
   } = useSnapshots({ selection, detailTab, t, toast, data, setConfirmAction, setConfirmActionLoading })
@@ -3192,7 +3192,7 @@ return vm?.isCluster ?? false
                 setNewSnapshotRam, setNotesEditing, setNumaEnabled, setReplicationComment, setReplicationLoaded, setReplicationRateLimit,
                 setReplicationSchedule, setReplicationTargetNode, setSavingReplication, setSelectedBackup, setSelectedCephCluster,
                 setSelectedDisk, setSelectedNetwork, setSelectedPveStorage, setShowCreateSnapshot, setTasksLoaded,
-                setTf, setVmNotes, showCreateSnapshot, snapshotActionBusy, snapshots,
+                setTf, setVmNotes, showCreateSnapshot, snapshotActionBusy, snapshotFeatureAvailable, snapshots,
                 snapshotsError, snapshotsLoading, sourceCephAvailable, tags,
                 refreshData, tasks, tasksError, tasksLoading, tf, vmNotes}}
             />

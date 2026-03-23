@@ -593,6 +593,7 @@
     "vmNotLocked": "此虚拟机未被锁定",
     "unlockError": "无法解锁虚拟机",
     "unlockHint": "在 Proxmox 节点上运行以下命令：",
+    "snapshotNotAvailable": "此容器不支持快照功能。底层存储不支持快照。",
     "snapshotCreated": "快照创建成功",
     "snapshotDeleted": "快照删除成功",
     "snapshotRestored": "快照恢复成功",

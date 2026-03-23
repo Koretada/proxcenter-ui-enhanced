@@ -593,6 +593,7 @@
     "vmNotLocked": "Cette VM n'est pas verrouillée",
     "unlockError": "Impossible de déverrouiller la VM",
     "unlockHint": "Exécutez cette commande sur le nœud Proxmox :",
+    "snapshotNotAvailable": "Les snapshots ne sont pas disponibles pour ce conteneur. Le stockage sous-jacent ne supporte pas cette fonctionnalité.",
     "snapshotCreated": "Snapshot créé avec succès",
     "snapshotDeleted": "Snapshot supprimé avec succès",
     "snapshotRestored": "Snapshot restauré avec succès",

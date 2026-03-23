@@ -154,7 +154,7 @@ export async function POST(
 
     formData.append('snapname', name)
     if (description) formData.append('description', description)
-    if (vmstate !== undefined) formData.append('vmstate', vmstate ? '1' : '0')
+    if (vmstate !== undefined && type !== 'lxc') formData.append('vmstate', vmstate ? '1' : '0')
 
     const result = await pveFetch<string>(conn, apiPath, {
       method: 'POST',

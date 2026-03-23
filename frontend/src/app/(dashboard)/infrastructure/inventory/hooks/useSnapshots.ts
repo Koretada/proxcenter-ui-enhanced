@@ -54,6 +54,7 @@ export function useSnapshots({
   const [newSnapshotName, setNewSnapshotName] = useState('')
   const [newSnapshotDesc, setNewSnapshotDesc] = useState('')
   const [newSnapshotRam, setNewSnapshotRam] = useState(false)
+  const [snapshotFeatureAvailable, setSnapshotFeatureAvailable] = useState<boolean | null>(null)
 
   const loadSnapshots = useCallback(async () => {
     if (!selection || selection.type !== 'vm') return
@@ -65,6 +66,18 @@ export function useSnapshots({
     setSnapshotsError(null)
 
     try {
+      // Check snapshot feature availability for LXC containers
+      if (type === 'lxc') {
+        const featureRes = await fetch(
+          `/api/v1/guests/${encodeURIComponent(vmKey)}/features?feature=snapshot`,
+          { cache: 'no-store' }
+        )
+        const featureJson = await featureRes.json()
+        setSnapshotFeatureAvailable(featureJson.data?.hasFeature ?? false)
+      } else {
+        setSnapshotFeatureAvailable(true)
+      }
+
       const res = await fetch(
         `/api/v1/guests/${encodeURIComponent(vmKey)}/snapshots`,
         { cache: 'no-store' }
@@ -222,11 +235,12 @@ export function useSnapshots({
     setSnapshotsLoaded(false)
     setSnapshots([])
     setSnapshotsError(null)
+    setSnapshotFeatureAvailable(null)
   }, [])
 
   // Load snapshots when Snapshots tab is opened (lazy loading)
   useEffect(() => {
-    if (selection?.type === 'vm' && detailTab === 4 && !snapshotsLoaded && !snapshotsLoading) {
+    if (selection?.type === 'vm' && detailTab === 5 && !snapshotsLoaded && !snapshotsLoading) {
       loadSnapshots()
     }
   }, [selection?.type, selection?.id, detailTab, snapshotsLoaded, snapshotsLoading, loadSnapshots])
@@ -245,6 +259,7 @@ export function useSnapshots({
     setNewSnapshotDesc,
     newSnapshotRam,
     setNewSnapshotRam,
+    snapshotFeatureAvailable,
     loadSnapshots,
     createSnapshot,
     deleteSnapshot,
