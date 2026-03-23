@@ -118,7 +118,10 @@ export async function pveFetch<T>(
     let json: any
 
     try {
-      json = JSON.parse(text)
+      // PVE (Perl JSON) encodes NaN/Infinity as bare words which are invalid JSON.
+      // Replace them with null before parsing.
+      const sanitized = text.replace(/\bNaN\b/g, 'null').replace(/\b-?Infinity\b/g, 'null')
+      json = JSON.parse(sanitized)
     } catch {
       throw new Error(`PVE invalid JSON (${res.statusCode}): ${text.slice(0, 200)}`)
     }
