@@ -10,17 +10,15 @@ export const runtime = "nodejs"
  * -> proxy vers Proxmox: <path>/rrddata?timeframe=...&cf=AVERAGE
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> | { id: string } }) {
-  try {
-    const params = await Promise.resolve(ctx.params)
-    const id = (params as any)?.id
+  const params = await Promise.resolve(ctx.params)
+  const id = (params as any)?.id
+  const url = new URL(req.url)
+  const path = url.searchParams.get("path") || ""
+  const timeframe = url.searchParams.get("timeframe") || "hour"
 
+  try {
     if (!id) return NextResponse.json({ error: "Missing params.id" }, { status: 400 })
 
-    const url = new URL(req.url)
-    const path = url.searchParams.get("path") || ""
-    const timeframe = url.searchParams.get("timeframe") || "hour"
-
-    // Sécurité minimale: autoriser uniquement /nodes/...
     if (!path.startsWith("/nodes/")) {
       return NextResponse.json({ error: "Invalid path (must start with /nodes/)" }, { status: 400 })
     }
@@ -33,10 +31,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> |
 
     const data = await pveFetch<any[]>(conn, rrdPath)
 
-    
-return NextResponse.json({ data })
+    return NextResponse.json({ data })
+
   } catch (e: any) {
+    console.error(`[rrd-api] ERROR connId=${id} path=${path} tf=${timeframe}:`, e?.message || e)
     return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
   }
 }
-

@@ -108,7 +108,33 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
         const aggregated = Array.from(timeMap.values())
           .sort((a, b) => a.ts - b.ts)
 
-        setNodeNames([...allNodeNames].sort())
+        // Gap-fill: PVE 8 vs 9 return different point counts, causing gaps.
+        // Forward-fill then backward-fill to cover both trailing and leading gaps.
+        const sortedNames = [...allNodeNames].sort()
+        const keys = sortedNames.flatMap(name => [`${name}_cpu`, `${name}_ram`])
+        const lastKnown = {}
+        for (const slot of aggregated) {
+          for (const key of keys) {
+            if (slot[key] != null) {
+              lastKnown[key] = slot[key]
+            } else if (lastKnown[key] != null) {
+              slot[key] = lastKnown[key]
+            }
+          }
+        }
+        const firstKnown = {}
+        for (let i = aggregated.length - 1; i >= 0; i--) {
+          const slot = aggregated[i]
+          for (const key of keys) {
+            if (slot[key] != null) {
+              firstKnown[key] = slot[key]
+            } else if (firstKnown[key] != null) {
+              slot[key] = firstKnown[key]
+            }
+          }
+        }
+
+        setNodeNames(sortedNames)
         setTrendsData(aggregated)
       } catch (e) {
         console.error('Failed to fetch infra trends:', e)

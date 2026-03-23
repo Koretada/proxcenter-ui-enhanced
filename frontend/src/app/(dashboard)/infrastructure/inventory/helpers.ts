@@ -279,31 +279,17 @@ export function buildSeriesFromRrd(raw: any[], maxMem?: number): SeriesPoint[] {
 return out
 }
 
-export async function fetchRrd(connectionId: string, path: string, timeframe: RrdTimeframe) {
+export async function fetchRrd(connectionId: string, path: string, timeframe: RrdTimeframe, signal?: AbortSignal) {
   const url = `/api/v1/connections/${encodeURIComponent(connectionId)}/rrd?path=${encodeURIComponent(path)}&timeframe=${encodeURIComponent(timeframe)}`
-  console.log(`[fetchRrd] GET ${url}`)
 
-  const res = await fetch(url, { cache: 'no-store' })
-
+  const res = await fetch(url, { cache: 'no-store', signal })
   const json = await res.json()
 
   if (!res.ok) {
-    console.error(`[fetchRrd] HTTP ${res.status} for connId=${connectionId} path=${path}:`, json?.error)
     throw new Error(json?.error || `RRD HTTP ${res.status}`)
   }
 
-  const result = asArray<any>(safeJson<any>(json))
-  console.log(`[fetchRrd] connId=${connectionId} path=${path}: HTTP ${res.status}, parsed ${result.length} data points, json type=${typeof json}, isArray=${Array.isArray(json)}`)
-  if (result.length > 0) {
-    const first = result[0]
-    const last = result[result.length - 1]
-    console.log(`[fetchRrd]   first point keys:`, Object.keys(first), `time=${first.time || first.t || first.timestamp}`)
-    console.log(`[fetchRrd]   last point keys:`, Object.keys(last), `time=${last.time || last.t || last.timestamp}`)
-  } else {
-    console.warn(`[fetchRrd] ⚠ EMPTY result for connId=${connectionId} path=${path}`)
-  }
-
-return result
+  return asArray<any>(safeJson<any>(json))
 }
 
 export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayload | null> {

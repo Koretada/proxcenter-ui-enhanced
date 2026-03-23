@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 
 import {
@@ -329,44 +329,127 @@ function RootInventoryView({
     return map
   }, [infraRrdNodeNames])
 
+  // Stable key: only re-fetch RRD when the actual node list changes, not on every hosts reference update
+  // Debounced to avoid multiple fetch cycles during progressive SSE inventory loading
+  const hostsRef = useRef(hosts)
+  hostsRef.current = hosts
+  const rawInfraRrdNodesKey = useMemo(() => {
+    return hosts.map(h => `${h.connId}|${h.node}`).sort().join(',')
+  }, [hosts])
+  const [infraRrdNodesKey, setInfraRrdNodesKey] = useState(rawInfraRrdNodesKey)
   useEffect(() => {
-    if (hosts.length === 0) return
-    let cancelled = false
+    if (rawInfraRrdNodesKey === infraRrdNodesKey) return
+    console.log(`[infra-rrd] Debounce: hosts changed (${hosts.length} hosts), waiting 1s...`)
+    const timer = setTimeout(() => {
+      console.log(`[infra-rrd] Debounce: committed (${hosts.length} hosts)`)
+      setInfraRrdNodesKey(rawInfraRrdNodesKey)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [rawInfraRrdNodesKey])
+
+  useEffect(() => {
+    const currentHosts = hostsRef.current
+    if (currentHosts.length === 0) return
+    const abortController = new AbortController()
     setInfraRrdLoading(true)
+
+    console.log(`[infra-rrd] Starting RRD fetch for ${currentHosts.length} hosts, timeframe=${infraRrdTf}`)
+    console.log(`[infra-rrd] Hosts:`, currentHosts.map(h => `${h.node} (connId=${h.connId})`))
+    console.log(`[infra-rrd] Debounced key: ${infraRrdNodesKey.length > 80 ? infraRrdNodesKey.substring(0, 80) + '...' : infraRrdNodesKey}`)
 
     ;(async () => {
       const perNode: Record<string, any[]> = {}
-      await Promise.all(hosts.map(async (host) => {
+
+      const results = await Promise.allSettled(currentHosts.map(async (host) => {
+        const t0 = performance.now()
         try {
-          const raw = await fetchRrd(host.connId, `/nodes/${host.node}`, infraRrdTf)
-          if (!cancelled) perNode[host.node] = buildSeriesFromRrd(raw)
-        } catch { /* ignore */ }
+          const raw = await fetchRrd(host.connId, `/nodes/${host.node}`, infraRrdTf, abortController.signal)
+          const duration = Math.round(performance.now() - t0)
+          if (!abortController.signal.aborted) {
+            const series = buildSeriesFromRrd(raw)
+            perNode[host.node] = series
+            console.log(`[infra-rrd] ✓ ${host.node}: ${duration}ms, ${raw.length} raw → ${series.length} pts`)
+          }
+          return { node: host.node, ok: true, duration, points: raw.length }
+        } catch (e) {
+          const duration = Math.round(performance.now() - t0)
+          if (!abortController.signal.aborted) {
+            console.warn(`[infra-rrd] ✗ ${host.node}: FAILED ${duration}ms:`, e)
+          }
+          return { node: host.node, ok: false, duration, error: String(e) }
+        }
       }))
-      if (cancelled) return
+      if (abortController.signal.aborted) {
+        console.log(`[infra-rrd] Aborted (stale effect)`)
+        return
+      }
 
       const nodeNames = Object.keys(perNode).sort()
+      const failed = currentHosts.filter(h => !perNode[h.node]).map(h => h.node)
+      console.log(`[infra-rrd] Done: ${nodeNames.length}/${currentHosts.length} OK, failed=[${failed.join(', ')}]`)
+
       setInfraRrdPerNode(perNode)
       setInfraRrdNodeNames(nodeNames)
+
+      // Snap timestamps to a common grid so data from different clusters aligns
+      const resolutionMs: Record<string, number> = {
+        hour: 60_000, day: 1_800_000, week: 10_800_000, month: 43_200_000, year: 604_800_000,
+      }
+      const snapRes = resolutionMs[infraRrdTf] || 60_000
 
       // Merge into unified time series with per-node keys
       const timeMap = new Map<number, Record<string, number>>()
       for (const [nodeName, series] of Object.entries(perNode)) {
         for (const point of series) {
           if (!point.t) continue
-          if (!timeMap.has(point.t)) timeMap.set(point.t, { t: point.t })
-          const entry = timeMap.get(point.t)!
+          const snapped = Math.round(point.t / snapRes) * snapRes
+          if (!timeMap.has(snapped)) timeMap.set(snapped, { t: snapped })
+          const entry = timeMap.get(snapped)!
           if (point.cpuPct != null) entry[`cpu_${nodeName}`] = point.cpuPct
           if (point.ramPct != null) entry[`ram_${nodeName}`] = point.ramPct
           if (point.netInBps != null) entry[`netIn_${nodeName}`] = point.netInBps
           if (point.netOutBps != null) entry[`netOut_${nodeName}`] = point.netOutBps
         }
       }
-      setInfraRrdSeries(Array.from(timeMap.values()).sort((a, b) => a.t - b.t))
+
+      const merged = Array.from(timeMap.values()).sort((a, b) => a.t - b.t)
+
+      // Fill gaps: PVE 8 vs 9 return different point counts for the same timeframe,
+      // causing gaps where some nodes have no data at certain time slots.
+      // Forward-fill then backward-fill to cover both trailing and leading gaps.
+      const keys = nodeNames.flatMap(name => ['cpu_', 'ram_', 'netIn_', 'netOut_'].map(p => `${p}${name}`))
+      // Forward-fill: propagate last known value
+      const lastKnown: Record<string, number> = {}
+      for (const slot of merged) {
+        for (const key of keys) {
+          if (slot[key] != null) {
+            lastKnown[key] = slot[key]
+          } else if (lastKnown[key] != null) {
+            slot[key] = lastKnown[key]
+          }
+        }
+      }
+      // Backward-fill: fill leading gaps with the first known value
+      const firstKnown: Record<string, number> = {}
+      for (let i = merged.length - 1; i >= 0; i--) {
+        const slot = merged[i]
+        for (const key of keys) {
+          if (slot[key] != null) {
+            firstKnown[key] = slot[key]
+          } else if (firstKnown[key] != null) {
+            slot[key] = firstKnown[key]
+          }
+        }
+      }
+
+      console.log(`[infra-rrd] Merged: ${merged.length} time slots, ${nodeNames.length} nodes (gap-filled)`)
+
+      setInfraRrdSeries(merged)
       setInfraRrdLoading(false)
     })()
 
-    return () => { cancelled = true }
-  }, [hosts, infraRrdTf])
+    return () => { abortController.abort() }
+  }, [infraRrdNodesKey, infraRrdTf])
 
   const toggleCluster = (connId: string) => {
     setExpandedClusters(prev => {
@@ -812,12 +895,12 @@ function RootInventoryView({
                     <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                     <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
                     <RechartsTooltip
-                      contentStyle={{ fontSize: 11, borderRadius: 8, backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary }}
+                      wrapperStyle={{ zIndex: 10 }} contentStyle={{ fontSize: 11, borderRadius: 8, backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary, boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}
                       labelFormatter={v => new Date(Number(v)).toLocaleString()}
                       formatter={(v: any, name: string) => [`${Number(v).toFixed(1)}%`, name.replace('cpu_', '')]}
                     />
                     {infraRrdNodeNames.map(name => (
-                      <Area key={name} type="monotone" dataKey={`cpu_${name}`} name={`cpu_${name}`} stroke={infraNodeColors[name]} fill={`url(#infraGradCpu_${name})`} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                      <Area key={name} type="monotone" dataKey={`cpu_${name}`} name={`cpu_${name}`} stroke={infraNodeColors[name]} fill={`url(#infraGradCpu_${name})`} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                     ))}
                   </AreaChart>
                 </ResponsiveContainer>
@@ -850,12 +933,12 @@ function RootInventoryView({
                     <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                     <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
                     <RechartsTooltip
-                      contentStyle={{ fontSize: 11, borderRadius: 8, backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary }}
+                      wrapperStyle={{ zIndex: 10 }} contentStyle={{ fontSize: 11, borderRadius: 8, backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary, boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}
                       labelFormatter={v => new Date(Number(v)).toLocaleString()}
                       formatter={(v: any, name: string) => [`${Number(v).toFixed(1)}%`, name.replace('ram_', '')]}
                     />
                     {infraRrdNodeNames.map(name => (
-                      <Area key={name} type="monotone" dataKey={`ram_${name}`} name={`ram_${name}`} stroke={infraNodeColors[name]} fill={`url(#infraGradRam_${name})`} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                      <Area key={name} type="monotone" dataKey={`ram_${name}`} name={`ram_${name}`} stroke={infraNodeColors[name]} fill={`url(#infraGradRam_${name})`} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                     ))}
                   </AreaChart>
                 </ResponsiveContainer>
@@ -890,7 +973,7 @@ function RootInventoryView({
                     <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                     <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={45} />
                     <RechartsTooltip
-                      contentStyle={{ fontSize: 11, borderRadius: 8, backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary }}
+                      wrapperStyle={{ zIndex: 10 }} contentStyle={{ fontSize: 11, borderRadius: 8, backgroundColor: theme.palette.background.paper, borderColor: theme.palette.divider, color: theme.palette.text.primary, boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}
                       labelFormatter={v => new Date(Number(v)).toLocaleString()}
                       formatter={(v: any, name: string) => {
                         const isOut = name.startsWith('netOut_')
@@ -899,10 +982,10 @@ function RootInventoryView({
                       }}
                     />
                     {infraRrdNodeNames.map(name => (
-                      <Area key={`in_${name}`} type="monotone" dataKey={`netIn_${name}`} name={`netIn_${name}`} stroke={infraNodeColors[name]} fill={`url(#infraGradNetIn_${name})`} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                      <Area key={`in_${name}`} type="monotone" dataKey={`netIn_${name}`} name={`netIn_${name}`} stroke={infraNodeColors[name]} fill={`url(#infraGradNetIn_${name})`} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                     ))}
                     {infraRrdNodeNames.map(name => (
-                      <Area key={`out_${name}`} type="monotone" dataKey={`netOut_${name}`} name={`netOut_${name}`} stroke={infraNodeColors[name]} fill="none" strokeWidth={1} strokeDasharray="3 3" dot={false} isAnimationActive={false} />
+                      <Area key={`out_${name}`} type="monotone" dataKey={`netOut_${name}`} name={`netOut_${name}`} stroke={infraNodeColors[name]} fill="none" strokeWidth={1} strokeDasharray="3 3" dot={false} isAnimationActive={false} connectNulls />
                     ))}
                   </AreaChart>
                 </ResponsiveContainer>
