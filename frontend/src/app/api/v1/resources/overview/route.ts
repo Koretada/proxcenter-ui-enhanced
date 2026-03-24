@@ -1052,6 +1052,17 @@ export async function GET(request: Request) {
       })
     )
 
+    // Recalculate storage from storagePoolMap to deduplicate shared storages
+    // Shared storages (Ceph, NFS, etc.) report the same maxdisk on each node,
+    // so dividing by node count gives the real capacity.
+    totalStorageUsed = 0
+    totalStorageCapacity = 0
+    for (const pool of storagePoolMap.values()) {
+      const nodeCount = pool.nodes.size || 1
+      totalStorageUsed += pool.used / nodeCount
+      totalStorageCapacity += pool.total / nodeCount
+    }
+
     // Calculer les pourcentages globaux actuels
     const cpuUsedPct = totalCpuCapacity > 0 ? (totalCpuUsed / totalCpuCapacity) * 100 : 0
     const ramUsedPct = totalRamCapacity > 0 ? (totalRamUsed / totalRamCapacity) * 100 : 0
@@ -1218,14 +1229,19 @@ export async function GET(request: Request) {
     }
 
     // F5: Build storage pools array
-    const storagePools = Array.from(storagePoolMap.values()).map(pool => ({
-      name: pool.name,
-      type: pool.type,
-      used: pool.used,
-      total: pool.total,
-      pct: pool.total > 0 ? Math.round((pool.used / pool.total) * 1000) / 10 : 0,
-      nodes: Array.from(pool.nodes),
-    })).sort((a, b) => b.pct - a.pct)
+    const storagePools = Array.from(storagePoolMap.values()).map(pool => {
+      const nodeCount = pool.nodes.size || 1
+      const dedupUsed = pool.used / nodeCount
+      const dedupTotal = pool.total / nodeCount
+      return {
+        name: pool.name,
+        type: pool.type,
+        used: dedupUsed,
+        total: dedupTotal,
+        pct: dedupTotal > 0 ? Math.round((dedupUsed / dedupTotal) * 1000) / 10 : 0,
+        nodes: Array.from(pool.nodes),
+      }
+    }).sort((a, b) => b.pct - a.pct)
 
     // F6: Build network metrics
     const totalNetIn = Array.from(networkPerNode.values()).reduce((s, n) => s + n.netin, 0)

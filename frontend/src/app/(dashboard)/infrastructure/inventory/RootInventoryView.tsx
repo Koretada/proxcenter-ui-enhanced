@@ -640,31 +640,42 @@ function RootInventoryView({
                 </>
               ) : kpis ? (
                 <>
-                  {[
-                    { label: 'CPU', pct: cpuPct },
-                    { label: 'RAM', pct: ramPct },
-                    { label: 'Stor.', pct: storePct },
-                  ].map(({ label, pct }) => (
-                    <Stack key={label} direction="row" alignItems="center" spacing={0.75}>
-                      <Typography variant="caption" fontWeight={600} sx={{ minWidth: 28, fontSize: 10 }}>{label}</Typography>
-                      <LinearProgress
-                        variant="determinate"
-                        value={Math.min(100, pct)}
-                        sx={{
-                          flex: 1,
-                          height: 6,
-                          borderRadius: 0,
-                          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                          '& .MuiLinearProgress-bar': {
-                            bgcolor: 'primary.main',
+                  {(() => {
+                    const fmtSize = (bytes: number) => {
+                      const gb = bytes / 1073741824
+                      return gb >= 1024 ? `${(gb / 1024).toFixed(1)} TB` : `${Math.round(gb)} GB`
+                    }
+                    const ramUsedBytes = kpis.ram.used / 100 * kpis.ram.total
+                    const storUsed = kpis.storage.used
+                    const storTotal = kpis.storage.total
+                    return [
+                      { label: 'CPU', pct: cpuPct, tooltip: `${kpis.cpu.total} vCPUs — ${Math.round(kpis.cpu.allocated)} allocated, ${Math.round(cpuPct)}% used` },
+                      { label: 'RAM', pct: ramPct, tooltip: `${fmtSize(kpis.ram.total)} — ${fmtSize(kpis.ram.allocated)} allocated, ${Math.round(ramPct)}% used` },
+                      { label: 'Stor.', pct: storePct, tooltip: `${fmtSize(storUsed)} / ${fmtSize(storTotal)}` },
+                    ]
+                  })().map(({ label, pct, tooltip }) => (
+                    <MuiTooltip key={label} title={tooltip} placement="left" arrow>
+                      <Stack direction="row" alignItems="center" spacing={0.75} sx={{ cursor: 'default' }}>
+                        <Typography variant="caption" fontWeight={600} sx={{ minWidth: 28, fontSize: 10 }}>{label}</Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.min(100, pct)}
+                          sx={{
+                            flex: 1,
+                            height: 6,
                             borderRadius: 0,
-                          },
-                        }}
-                      />
-                      <Typography variant="caption" fontWeight={700} sx={{ minWidth: 28, textAlign: 'right', fontSize: 10 }}>
-                        {pct.toFixed(0)}%
-                      </Typography>
-                    </Stack>
+                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                            '& .MuiLinearProgress-bar': {
+                              bgcolor: 'primary.main',
+                              borderRadius: 0,
+                            },
+                          }}
+                        />
+                        <Typography variant="caption" fontWeight={700} sx={{ minWidth: 28, textAlign: 'right', fontSize: 10 }}>
+                          {pct.toFixed(0)}%
+                        </Typography>
+                      </Stack>
+                    </MuiTooltip>
                   ))}
                 </>
               ) : null}
