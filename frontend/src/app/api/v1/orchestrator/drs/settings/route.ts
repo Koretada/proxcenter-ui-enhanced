@@ -2,8 +2,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getOrchestratorClient } from '@/lib/orchestrator/client'
+import { getDb } from '@/lib/db/sqlite'
+import { getCurrentTenantId } from '@/lib/tenant'
 
 export const runtime = "nodejs"
+
+// Frontend-only settings not supported by orchestrator — stored in local settings table
+const FRONTEND_ONLY_KEYS = ['max_pending_recommendations'] as const
+
+function getFrontendSettings(): Record<string, any> {
+  try {
+    const db = getDb()
+    const tenantId = 'default'
+    const row = db.prepare('SELECT value FROM settings WHERE key = ? AND tenant_id = ?').get('drs_frontend_settings', tenantId) as any
+    return row?.value ? JSON.parse(row.value) : {}
+  } catch { return {} }
+}
+
+function saveFrontendSettings(data: Record<string, any>) {
+  try {
+    const db = getDb()
+    const tenantId = 'default'
+    const json = JSON.stringify(data)
+    db.prepare(
+      `INSERT INTO settings (key, value, tenant_id) VALUES (?, ?, ?)
+       ON CONFLICT(key, tenant_id) DO UPDATE SET value = excluded.value`
+    ).run('drs_frontend_settings', json, tenantId)
+  } catch (e) { console.error('[drs/settings] Failed to save frontend settings:', e) }
+}
 
 // Default settings that match the frontend DRSSettings interface
 const defaultSettings = {
@@ -29,6 +55,7 @@ const defaultSettings = {
   storage_weight: 0.5,
   max_concurrent_migrations: 2,
   migration_cooldown: '5m',
+  max_pending_recommendations: 10,
   balance_larger_first: false,
   prevent_overprovisioning: true,
   enable_affinity_rules: true,
@@ -49,19 +76,18 @@ export async function GET() {
     }
 
     const response = await client.get('/drs/settings')
-    
+
     // Merge with defaults to ensure all fields exist
-    // This handles the case where the backend doesn't return all fields
     const mergedSettings = {
       ...defaultSettings,
       ...response.data,
-
-      // Ensure arrays/objects are never undefined/null
       balance_types: response.data?.balance_types ?? defaultSettings.balance_types,
       maintenance_nodes: response.data?.maintenance_nodes ?? defaultSettings.maintenance_nodes,
       excluded_clusters: response.data?.excluded_clusters ?? defaultSettings.excluded_clusters,
       excluded_nodes: response.data?.excluded_nodes ?? defaultSettings.excluded_nodes,
       cluster_modes: response.data?.cluster_modes ?? defaultSettings.cluster_modes,
+      // Merge frontend-only settings from local DB
+      ...getFrontendSettings(),
     }
 
     return NextResponse.json(mergedSettings)
@@ -88,9 +114,21 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
+
+    // Extract and save frontend-only settings locally
+    const frontendData: Record<string, any> = {}
+    for (const key of FRONTEND_ONLY_KEYS) {
+      if (body[key] !== undefined) {
+        frontendData[key] = body[key]
+      }
+    }
+    if (Object.keys(frontendData).length > 0) {
+      saveFrontendSettings({ ...getFrontendSettings(), ...frontendData })
+    }
+
     const response = await client.put('/drs/settings', body)
     
-    // Merge response with defaults to ensure all fields exist
+    // Merge response with defaults + frontend-only settings
     const mergedSettings = {
       ...defaultSettings,
       ...response.data,
@@ -99,6 +137,7 @@ export async function PUT(request: NextRequest) {
       excluded_clusters: response.data?.excluded_clusters ?? defaultSettings.excluded_clusters,
       excluded_nodes: response.data?.excluded_nodes ?? defaultSettings.excluded_nodes,
       cluster_modes: response.data?.cluster_modes ?? defaultSettings.cluster_modes,
+      ...getFrontendSettings(),
     }
 
     return NextResponse.json(mergedSettings)
