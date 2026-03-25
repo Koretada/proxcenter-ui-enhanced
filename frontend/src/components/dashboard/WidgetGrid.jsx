@@ -309,6 +309,8 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
     minH: w.minH || 2,
     maxW: w.maxW || 12,
     maxH: w.maxH || 12,
+    isDraggable: editMode,
+    isResizable: editMode,
   }))
 
   // Handler pour les changements de layout (drag/resize)

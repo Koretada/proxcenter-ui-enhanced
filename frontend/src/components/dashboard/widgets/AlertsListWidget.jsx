@@ -1,13 +1,88 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Alert, Box, Chip, List, ListItem, ListItemText, Typography } from '@mui/material'
+import {
+  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
+  Divider, IconButton, List, ListItemButton, ListItemText, Table, TableBody,
+  TableCell, TableRow, Typography
+} from '@mui/material'
+
+function AlertDetailDialog({ alert, open, onClose, onNavigate, t }) {
+  if (!alert) return null
+
+  const severityConfig = {
+    crit: { label: 'CRITICAL', color: 'error' },
+    warn: { label: 'WARNING', color: 'warning' },
+    info: { label: 'INFO', color: 'info' },
+  }
+
+  const cfg = severityConfig[alert.severity] || severityConfig.info
+
+  const rows = [
+    { label: t('alerts.detail.severity'), value: <Chip size='small' label={cfg.label} color={cfg.color} sx={{ height: 22, fontSize: 11 }} /> },
+    { label: t('alerts.detail.message'), value: alert.message },
+    { label: t('alerts.detail.source'), value: alert.source },
+    { label: t('alerts.detail.sourceType'), value: (alert.sourceType || 'pve').toUpperCase() },
+    alert.entityName && { label: t('alerts.detail.entity'), value: alert.entityName },
+    alert.entityType && { label: t('alerts.detail.entityType'), value: alert.entityType },
+    alert.metric && { label: t('alerts.detail.metric'), value: alert.metric },
+    alert.currentValue != null && { label: t('alerts.detail.currentValue'), value: `${alert.currentValue}%` },
+    alert.threshold != null && { label: t('alerts.detail.threshold'), value: `${alert.threshold}%` },
+    alert.time && { label: t('alerts.detail.time'), value: new Date(alert.time).toLocaleString() },
+  ].filter(Boolean)
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth='sm' fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <i className='ri-alarm-warning-line' style={{ fontSize: 20 }} />
+          {t('alerts.detail.title')}
+        </Box>
+        <IconButton size='small' onClick={onClose}>
+          <i className='ri-close-line' />
+        </IconButton>
+      </DialogTitle>
+      <Divider />
+      <DialogContent sx={{ p: 0 }}>
+        <Table size='small'>
+          <TableBody>
+            {rows.map((row, idx) => (
+              <TableRow key={idx}>
+                <TableCell sx={{ fontWeight: 600, width: 140, color: 'text.secondary', fontSize: 13, border: 'none', py: 1.25, pl: 3 }}>
+                  {row.label}
+                </TableCell>
+                <TableCell sx={{ fontSize: 13, border: 'none', py: 1.25 }}>
+                  {row.value}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </DialogContent>
+      <Divider />
+      <DialogActions sx={{ px: 3, py: 1.5 }}>
+        {onNavigate && (
+          <Button
+            variant='outlined'
+            size='small'
+            startIcon={<i className='ri-external-link-line' />}
+            onClick={() => { onNavigate(); onClose() }}
+          >
+            {t('alerts.detail.goToEntity')}
+          </Button>
+        )}
+        <Button onClick={onClose} size='small'>{t('alerts.detail.close')}</Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
 
 function AlertsListWidget({ data, loading }) {
   const t = useTranslations()
   const router = useRouter()
+  const [selectedAlert, setSelectedAlert] = useState(null)
 
   function getAlertLink(alert) {
     if (alert.entityType === 'node' && alert.connId && alert.entityId) {
@@ -16,9 +91,9 @@ function AlertsListWidget({ data, loading }) {
     if (alert.entityType === 'cluster' && alert.entityId) {
       return `/infrastructure/inventory?selectType=cluster&selectId=${alert.entityId}`
     }
-    // PBS alerts and others don't have a direct inventory link yet
     return null
   }
+
   const alerts = data?.alerts || []
 
   function timeAgo(date) {
@@ -48,46 +123,61 @@ function AlertsListWidget({ data, loading }) {
   }
 
   return (
-    <List dense disablePadding sx={{ height: '100%', overflow: 'auto', p: 0.5 }}>
-      {alerts.map((alert, idx) => {
-        const cfg = severityConfig[alert.severity] || severityConfig.info
+    <>
+      <List dense disablePadding sx={{ height: '100%', overflow: 'auto', p: 0.5 }}>
+        {alerts.map((alert, idx) => {
+          const cfg = severityConfig[alert.severity] || severityConfig.info
 
-        const link = getAlertLink(alert)
+          return (
+            <ListItemButton
+              key={idx}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => setSelectedAlert(alert)}
+              sx={{
+                px: 0.5, py: 0.5, borderRadius: 0.5,
+              }}
+            >
+              <ListItemText
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Chip
+                      size='small'
+                      label={cfg.label}
+                      color={cfg.color}
+                      sx={{ height: 18, fontSize: 9, minWidth: 40 }}
+                    />
+                    <Typography variant='caption' sx={{
+                      fontWeight: 600, overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11
+                    }}>
+                      {alert.message}
+                    </Typography>
+                  </Box>
+                }
+                secondary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
+                    <Typography variant='caption' sx={{ opacity: 0.5, fontSize: 9 }}>
+                      {timeAgo(alert.time)}
+                    </Typography>
+                    <Typography variant='caption' sx={{ opacity: 0.4, fontSize: 9 }}>
+                      • {alert.source}
+                    </Typography>
+                  </Box>
+                }
+              />
+            </ListItemButton>
+          )
+        })}
+      </List>
 
-return (
-          <ListItem key={idx} onClick={() => link && router.push(link)} sx={{ px: 0.5, py: 0.5, cursor: link ? 'pointer' : 'default', borderRadius: 0.5, '&:hover': link ? { bgcolor: 'action.hover' } : {} }}>
-            <ListItemText
-              primary={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <Chip 
-                    size='small' 
-                    label={cfg.label} 
-                    color={cfg.color}
-                    sx={{ height: 18, fontSize: 9, minWidth: 40 }}
-                  />
-                  <Typography variant='caption' sx={{ 
-                    fontWeight: 600, overflow: 'hidden', 
-                    textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 
-                  }}>
-                    {alert.message}
-                  </Typography>
-                </Box>
-              }
-              secondary={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
-                  <Typography variant='caption' sx={{ opacity: 0.5, fontSize: 9 }}>
-                    {timeAgo(alert.time)}
-                  </Typography>
-                  <Typography variant='caption' sx={{ opacity: 0.4, fontSize: 9 }}>
-                    • {alert.source}
-                  </Typography>
-                </Box>
-              }
-            />
-          </ListItem>
-        )
-      })}
-    </List>
+      <AlertDetailDialog
+        alert={selectedAlert}
+        open={!!selectedAlert}
+        onClose={() => setSelectedAlert(null)}
+        onNavigate={selectedAlert && getAlertLink(selectedAlert) ? () => router.push(getAlertLink(selectedAlert)) : null}
+        t={t}
+      />
+    </>
   )
 }
 
