@@ -66,7 +66,15 @@ const MetricBar = ({ value, label }: { value: number; label?: string }) => (
       <LinearProgress
         variant='determinate'
         value={pct(value)}
-        sx={{ height: 14, borderRadius: 0, '& .MuiLinearProgress-bar': { borderRadius: 0, bgcolor: value > 90 ? 'error.main' : 'primary.main' } }}
+        sx={{
+          height: 14, borderRadius: 0,
+          bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)',
+          '& .MuiLinearProgress-bar': {
+            borderRadius: 0,
+            background: 'linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%)',
+            backgroundSize: value > 0 ? `${(100 / value) * 100}% 100%` : '100% 100%',
+          }
+        }}
       />
       <Typography variant='caption' sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
         {Math.round(value)}%
@@ -161,9 +169,12 @@ function NodesTable({
         minWidth: 140,
         renderCell: (params) => (
           <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-            <Avatar sx={{ width: 24, height: 24, bgcolor: 'action.hover' }}>
-              <ProxmoxIcon size={14} isDark={theme.palette.mode === 'dark'} />
-            </Avatar>
+            <Box sx={{ position: 'relative', display: 'inline-flex', width: 24, height: 24, flexShrink: 0 }}>
+              <Avatar sx={{ width: 24, height: 24, bgcolor: 'action.hover' }}>
+                <ProxmoxIcon size={14} isDark={theme.palette.mode === 'dark'} />
+              </Avatar>
+              <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 9, height: 9, borderRadius: '50%', bgcolor: params.row.status === 'online' ? '#4caf50' : '#f44336', border: '1.5px solid', borderColor: 'background.paper' }} />
+            </Box>
             <Typography variant='body2' sx={{ fontWeight: 600, fontSize: compact ? '0.8rem' : '0.875rem' }}>
               {params.row.name}
             </Typography>

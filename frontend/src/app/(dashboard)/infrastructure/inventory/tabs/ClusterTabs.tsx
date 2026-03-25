@@ -681,7 +681,12 @@ export default function ClusterTabs(props: any) {
                                 }}>
                                   <i className={data.cephHealth === 'HEALTH_OK' ? "ri-check-line" : data.cephHealth === 'HEALTH_WARN' ? "ri-alert-line" : data.cephHealth ? "ri-close-line" : "ri-question-line"} style={{ fontSize: 24, color: '#fff' }} />
                                 </Box>
-                                <Typography variant="caption">
+                                <Typography variant="caption" sx={{
+                                  fontWeight: 600,
+                                  color: data.cephHealth === 'HEALTH_OK' ? 'success.main' :
+                                         data.cephHealth === 'HEALTH_WARN' ? 'warning.main' :
+                                         data.cephHealth ? 'error.main' : 'text.secondary'
+                                }}>
                                   {data.cephHealth === 'HEALTH_OK' ? t('inventory.healthy') :
                                    data.cephHealth === 'HEALTH_WARN' ? t('inventory.warning') :
                                    data.cephHealth ? t('inventory.error') : t('inventory.notAvailable')}
@@ -1435,14 +1440,10 @@ export default function ClusterTabs(props: any) {
                                     className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} 
                                     style={{ fontSize: 18, opacity: 0.7 }} 
                                   />
-                                  <Box 
-                                    sx={{ 
-                                      width: 8, 
-                                      height: 8, 
-                                      borderRadius: '50%', 
-                                      bgcolor: node.status === 'online' ? 'success.main' : 'error.main' 
-                                    }} 
-                                  />
+                                  <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 16, height: 16, opacity: 0.8 }} />
+                                    <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', bgcolor: node.status === 'online' ? 'success.main' : 'error.main', border: '1.5px solid', borderColor: 'background.paper' }} />
+                                  </Box>
                                   <Typography fontWeight={600}>{node.name}</Typography>
                                   <Chip 
                                     size="small" 
@@ -1451,12 +1452,32 @@ export default function ClusterTabs(props: any) {
                                   />
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                  <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                                    CPU: {node.cpu?.toFixed(1) || 0}%
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                                    RAM: {node.ram?.toFixed(1) || 0}%
-                                  </Typography>
+                                  {[
+                                    { label: 'CPU', value: node.cpu || 0 },
+                                    { label: 'RAM', value: node.ram || 0 },
+                                  ].map(({ label, value }) => (
+                                    <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                      <Typography variant="caption" sx={{ opacity: 0.6, fontSize: 11 }}>{label}</Typography>
+                                      <Box sx={{ position: 'relative', width: 60 }}>
+                                        <LinearProgress
+                                          variant="determinate"
+                                          value={Math.min(value, 100)}
+                                          sx={{
+                                            height: 14, borderRadius: 0,
+                                            bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)',
+                                            '& .MuiLinearProgress-bar': {
+                                              borderRadius: 0,
+                                              background: 'linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%)',
+                                              backgroundSize: value > 0 ? `${(100 / value) * 100}% 100%` : '100% 100%',
+                                            }
+                                          }}
+                                        />
+                                        <Typography variant="caption" sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+                                          {value.toFixed(1)}%
+                                        </Typography>
+                                      </Box>
+                                    </Box>
+                                  ))}
                                 </Box>
                               </Box>
                               
@@ -1464,24 +1485,6 @@ export default function ClusterTabs(props: any) {
                               {isExpanded && nodeVms.length > 0 && (
                                 <Box sx={{
                                   bgcolor: 'background.default',
-                                  resize: 'vertical',
-                                  overflow: 'hidden',
-                                  minHeight: 200,
-                                  height: 400,
-                                  pb: '6px',
-                                  position: 'relative',
-                                  '&::after': {
-                                    content: '""',
-                                    position: 'absolute',
-                                    bottom: 0,
-                                    left: '50%',
-                                    transform: 'translateX(-50%)',
-                                    width: 32,
-                                    height: 4,
-                                    borderRadius: 2,
-                                    bgcolor: 'divider',
-                                    opacity: 0.6,
-                                  },
                                 }}>
                                   <VmsTable
                                     vms={nodeVms as VmRow[]}

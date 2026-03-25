@@ -2342,17 +2342,17 @@ export default function NodeTabs(props: any) {
                                           <TableCell>{osd.osdtype || 'bluestore'}</TableCell>
                                           <TableCell>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                              <Chip 
-                                                size="small" 
-                                                label={osd.status === 'up' || osd.in === 1 ? 'up' : 'down'}
-                                                color={osd.status === 'up' || osd.in === 1 ? 'success' : 'error'}
+                                              <Chip
+                                                size="small"
+                                                label={osd.up ? 'up' : 'down'}
+                                                color={osd.up ? 'success' : 'error'}
                                                 sx={{ height: 18, fontSize: 10 }}
                                               />
                                               <span style={{ opacity: 0.5 }}>/</span>
-                                              <Chip 
-                                                size="small" 
-                                                label={osd.in === 1 ? 'in' : 'out'}
-                                                color={osd.in === 1 ? 'success' : 'warning'}
+                                              <Chip
+                                                size="small"
+                                                label={osd.in ? 'in' : 'out'}
+                                                color={osd.in ? 'success' : 'warning'}
                                                 sx={{ height: 18, fontSize: 10 }}
                                               />
                                             </Box>
@@ -2363,18 +2363,26 @@ export default function NodeTabs(props: any) {
                                           <TableCell align="right">
                                             {(() => {
                                               const pct = osd.percent_used ?? (osd.kb && osd.kb_used ? (osd.kb_used / osd.kb) * 100 : 0)
-                                              const color = pct > 90 ? 'error' : pct > 80 ? 'warning' : 'primary'
                                               return (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
-                                                  <LinearProgress
-                                                    variant="determinate"
-                                                    value={Math.min(pct, 100)}
-                                                    color={color}
-                                                    sx={{ width: 60, height: 6, borderRadius: 3, flexShrink: 0 }}
-                                                  />
-                                                  <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: 11, minWidth: 42, textAlign: 'right' }}>
-                                                    {pct.toFixed(1)}%
-                                                  </Typography>
+                                                  <Box sx={{ position: 'relative', width: 60, flexShrink: 0 }}>
+                                                    <LinearProgress
+                                                      variant="determinate"
+                                                      value={Math.min(pct, 100)}
+                                                      sx={{
+                                                        height: 14, borderRadius: 0,
+                                                        bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)',
+                                                        '& .MuiLinearProgress-bar': {
+                                                          borderRadius: 0,
+                                                          background: 'linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%)',
+                                                          backgroundSize: pct > 0 ? `${(100 / pct) * 100}% 100%` : '100% 100%',
+                                                        }
+                                                      }}
+                                                    />
+                                                    <Typography variant="caption" sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+                                                      {pct.toFixed(1)}%
+                                                    </Typography>
+                                                  </Box>
                                                 </Box>
                                               )
                                             })()}
@@ -2524,7 +2532,32 @@ export default function NodeTabs(props: any) {
                                           </TableCell>
                                           <TableCell>{pool.crush_rule_name || `rule ${pool.crush_rule}`}</TableCell>
                                           <TableCell align="right">
-                                            {pool.percent_used?.toFixed(2) || '0.00'}%
+                                            {(() => {
+                                              const raw = pool.percent_used ?? 0
+                                              const pct = raw > 1 ? raw : raw * 100
+                                              return (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                                                  <Box sx={{ position: 'relative', width: 60, flexShrink: 0 }}>
+                                                    <LinearProgress
+                                                      variant="determinate"
+                                                      value={Math.min(pct, 100)}
+                                                      sx={{
+                                                        height: 14, borderRadius: 0,
+                                                        bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)',
+                                                        '& .MuiLinearProgress-bar': {
+                                                          borderRadius: 0,
+                                                          background: 'linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%)',
+                                                          backgroundSize: pct > 0 ? `${(100 / pct) * 100}% 100%` : '100% 100%',
+                                                        }
+                                                      }}
+                                                    />
+                                                    <Typography variant="caption" sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>
+                                                      {pct.toFixed(1)}%
+                                                    </Typography>
+                                                  </Box>
+                                                </Box>
+                                              )
+                                            })()}
                                           </TableCell>
                                         </TableRow>
                                       ))}

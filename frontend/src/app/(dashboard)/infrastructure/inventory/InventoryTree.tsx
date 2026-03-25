@@ -98,109 +98,46 @@ function StatusIcon({ status, type, isMigrating, isPendingAction, maintenance }:
   }
   
   if (type === 'node') {
-    if (maintenance) {
-      return (
-        <Box
-          component="span"
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 14,
-            height: 14,
-            color: '#ff9800',
-          }}
-        >
-          <i className="ri-tools-fill" style={{ fontSize: 14 }} />
-        </Box>
-      )
-    }
-    if (status === 'online') {
-      return (
-        <Box
-          component="span"
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 14,
-            height: 14,
-          }}
-        >
-          <PlayArrowIcon
-            sx={{
-              fontSize: 14,
-              color: '#4caf50',
-              filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.5))'
-            }}
-          />
-        </Box>
-      )
-    }
-
-    // Node offline ou erreur
-    return (
-      <Box
-        component="span"
-        sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 14,
-          height: 14,
-          color: '#f44336',
-          fontSize: 14,
-          fontWeight: 'bold'
-        }}
-      >
-        ✕
-      </Box>
-    )
+    return null // Use NodeIcon instead for nodes
   }
 
-  // Pour les VMs
-  if (status === 'running') {
-    return (
-      <Box
-        component="span"
-        sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 14,
-          height: 14,
-        }}
-      >
-        <PlayArrowIcon
-          sx={{
-            fontSize: 14,
-            color: '#4caf50',
-            filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.5))'
-          }}
-        />
-      </Box>
-    )
+  return null
+}
+
+function NodeIcon({ status, maintenance, size = 16 }: { status?: string; maintenance?: string; size?: number }) {
+  const theme = useTheme()
+  const dotSize = Math.round(size * 0.5)
+  const logoSrc = theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'
+
+  let dotColor = status === 'online' ? '#4caf50' : '#f44336'
+  let dotIcon = null as React.ReactNode
+
+  if (maintenance) {
+    dotColor = '#ff9800'
+    dotIcon = <i className="ri-tools-fill" style={{ fontSize: dotSize - 2, color: '#fff' }} />
   }
 
-  // VM stopped ou autre état
   return (
-    <Box
-      component="span"
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 14,
-        height: 14,
-      }}
-    >
-      <StopIcon
-        sx={{
-          fontSize: 14,
-          color: 'text.disabled',
-          opacity: 0.5
+    <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size, height: size, flexShrink: 0 }}>
+      <img
+        src={logoSrc}
+        alt=""
+        style={{
+          width: size,
+          height: size,
+          opacity: status === 'online' || maintenance ? 0.8 : 0.4,
+          filter: maintenance ? 'hue-rotate(-30deg) saturate(2)' : undefined,
         }}
       />
+      <Box sx={{
+        position: 'absolute', bottom: -2, right: -2,
+        width: dotSize, height: dotSize, borderRadius: '50%',
+        bgcolor: dotColor,
+        border: '1.5px solid', borderColor: 'background.paper',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {dotIcon}
+      </Box>
     </Box>
   )
 }
@@ -3286,8 +3223,7 @@ return (
                 onContextMenu={(e) => handleNodeContextMenu(e, clu.connId, n.node, n.maintenance, clu.sshEnabled)}
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <StatusIcon status={n.status} type="node" maintenance={n.maintenance} />
-                    <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 14, height: 14, opacity: n.maintenance ? 1 : 0.8, filter: n.maintenance ? 'hue-rotate(-30deg) saturate(2)' : undefined }} />
+                    <NodeIcon status={n.status} maintenance={n.maintenance} size={16} />
                     <span style={{ fontSize: 14 }}>{clu.name}</span>
                     <span style={{ opacity: 0.5, fontSize: 12 }}>({n.vms.length})</span>
                     {/* Warning Ceph */}
@@ -3390,8 +3326,7 @@ return (
                   onContextMenu={(e) => handleNodeContextMenu(e, clu.connId, n.node, n.maintenance, clu.sshEnabled)}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <StatusIcon status={n.status} type="node" maintenance={n.maintenance} />
-                      <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 14, height: 14, opacity: n.maintenance ? 1 : 0.8, filter: n.maintenance ? 'hue-rotate(-30deg) saturate(2)' : undefined }} />
+                      <NodeIcon status={n.status} maintenance={n.maintenance} size={16} />
                       <span style={{ fontSize: 14 }}>{n.node}</span>
                       <span style={{ opacity: 0.5, fontSize: 12 }}>({n.vms.length})</span>
                     </Box>
@@ -3538,8 +3473,7 @@ return (
                   itemId={`storage-cluster:${cs.connId}`}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <StatusIcon status={nodeStatus} type="node" />
-                      <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                      <NodeIcon status={nodeStatus} size={16} />
                       <span style={{ fontSize: 14 }}>{cs.connName}</span>
                       <span style={{ opacity: 0.4, fontSize: 11 }}>({allStorages.length})</span>
                     </Box>
@@ -3583,8 +3517,7 @@ return (
                     itemId={`storage-node:${cs.connId}:${n.node}`}
                     label={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <StatusIcon status={n.status} type="node" />
-                        <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: n.status === 'online' ? 0.8 : 0.3 }} />
+                        <NodeIcon status={n.status} size={16} />
                         <span style={{ fontSize: 13, opacity: n.status === 'online' ? 1 : 0.5 }}>{n.node}</span>
                         <span style={{ opacity: 0.4, fontSize: 11 }}>({n.storages.length})</span>
                       </Box>
@@ -3676,8 +3609,7 @@ return (
                       itemId={`net-node:${cId}:${node}`}
                       label={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                          <StatusIcon status="online" type="node" />
-                          <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                          <NodeIcon status="online" size={16} />
                           <span style={{ fontSize: 13 }}>{node}</span>
                           <span style={{ opacity: 0.4, fontSize: 11 }}>
                             ({totalVlans > 0 ? `${totalVlans} VLAN${totalVlans > 1 ? 's' : ''}, ` : ''}{totalVms} VM{totalVms > 1 ? 's' : ''})
@@ -3777,8 +3709,10 @@ return (
               itemId={`pbs:${pbs.connId}`}
               label={
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <StatusIcon status={pbs.status} type="node" />
-                  <i className='ri-hard-drive-2-fill' style={{ opacity: 0.8, fontSize: 14 }} />
+                  <Box component="span" sx={{ position: 'relative', display: 'inline-flex', width: 16, height: 16, flexShrink: 0, alignItems: 'center', justifyContent: 'center' }}>
+                    <i className='ri-hard-drive-2-fill' style={{ opacity: 0.8, fontSize: 16 }} />
+                    <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', bgcolor: pbs.status === 'online' ? '#4caf50' : '#f44336', border: '1.5px solid', borderColor: 'background.paper' }} />
+                  </Box>
                   <span style={{ fontSize: 14 }}>{pbs.name}</span>
                   <span style={{ opacity: 0.5, fontSize: 12 }}>
                     ({pbs.stats.backupCount} backups)

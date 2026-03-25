@@ -2920,26 +2920,11 @@ return vm?.isCluster ?? false
               {/* Warning Ceph */}
               {data.cephHealth && data.cephHealth !== 'HEALTH_OK' && (
                 <MuiTooltip title={`Ceph: ${data.cephHealth === 'HEALTH_WARN' ? t('common.warning') : t('common.error')}`}>
-                  <Box 
-                    component="span" 
-                    sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center',
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: 1,
-                      bgcolor: data.cephHealth === 'HEALTH_ERR' ? 'error.main' : 'warning.main',
-                      color: 'white',
-                      gap: 0.5,
-                    }}
-                  >
-                    <i 
-                      className={data.cephHealth === 'HEALTH_ERR' ? 'ri-close-circle-fill' : 'ri-alert-fill'} 
-                      style={{ fontSize: 14 }} 
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
+                    <i
+                      className={data.cephHealth === 'HEALTH_ERR' ? 'ri-close-circle-fill' : 'ri-alert-fill'}
+                      style={{ fontSize: 16, color: data.cephHealth === 'HEALTH_ERR' ? '#f44336' : '#ff9800' }}
                     />
-                    <Typography variant="caption" fontWeight={600}>
-                      Ceph
-                    </Typography>
                   </Box>
                 </MuiTooltip>
               )}

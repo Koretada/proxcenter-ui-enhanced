@@ -511,7 +511,7 @@ return Math.max(10, Math.min(rows, 50))
   // État local pour les trends
   const [trendsData, setTrendsData] = useState<Record<string, TrendPoint[]>>({})
   const [trendsLoading, setTrendsLoading] = useState<Record<string, boolean>>({})
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: calculatedPageSize })
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 })
   
   // Calculer les VMs visibles sur la page actuelle
   const visibleVms = useMemo(() => {
@@ -714,7 +714,6 @@ return (
         headerName: t('common.name'),
         flex: 1,
         minWidth: isMobile ? 100 : 150,
-        maxWidth: 250,
         renderHeader: isMobile ? headerIconOnly('ri-computer-line') : headerWithIcon('ri-computer-line', t('common.name')),
         renderCell: (params) => (
           <Stack direction='row' spacing={0.5} sx={{ alignItems: 'center', overflow: 'hidden', width: '100%' }}>
@@ -770,36 +769,6 @@ return (
               sx={{ height: 18, fontSize: '0.6rem' }}
             />
           )
-        }
-      },
-      {
-        field: 'status',
-        headerName: t('common.status'),
-        width: isMobile ? 60 : 75,
-        renderHeader: isMobile ? headerIconOnly('ri-pulse-line') : headerWithIcon('ri-pulse-line', t('common.status')),
-        renderCell: (params) => {
-          const vm = params.row as VmRow
-          const isMigrating = isVmMigrating(vm.connId, vm.vmid)
-          
-          if (isMigrating) {
-            return (
-              <Tooltip title={t('common.loading')}>
-                <Box sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  '@keyframes pulse': {
-                    '0%, 100%': { opacity: 1 },
-                    '50%': { opacity: 0.4 },
-                  },
-                  animation: 'pulse 1.5s ease-in-out infinite',
-                }}>
-                  <i className="ri-swap-box-line" style={{ fontSize: 18, color: '#ed6c02' }} />
-                </Box>
-              </Tooltip>
-            )
-          }
-          
-          return <StatusChip status={params.row.status} compact={true} />
         }
       },
     ]
@@ -879,44 +848,6 @@ return (
         })
       }
     }
-
-    // CPU et RAM - toujours affichés
-    cols.push(
-      {
-        field: 'cpu',
-        headerName: 'CPU',
-        width: 95,
-        minWidth: 80,
-        renderHeader: headerWithIcon('ri-cpu-line', 'CPU'),
-        renderCell: (params) => {
-          const cpu = params.row.cpu
-
-          if (cpu === undefined || params.row.status !== 'running') {
-            return <Typography variant='caption' sx={{ opacity: 0.5 }}>—</Typography>
-          }
-
-          
-return <MetricBar value={cpu} />
-        }
-      },
-      {
-        field: 'ram',
-        headerName: 'RAM',
-        width: 95,
-        minWidth: 80,
-        renderHeader: headerWithIcon('ri-ram-line', 'RAM'),
-        renderCell: (params) => {
-          const ram = params.row.ram
-
-          if (ram === undefined || params.row.status !== 'running') {
-            return <Typography variant='caption' sx={{ opacity: 0.5 }}>—</Typography>
-          }
-
-          
-return <MetricBar value={ram} />
-        }
-      }
-    )
 
     // Colonnes expanded - filtrage responsive géré à la fin
     if (expanded) {
@@ -1186,6 +1117,72 @@ return (
         }
       })
     }
+
+    // Status, CPU et RAM - poussés en fin pour être à droite
+    cols.push(
+      {
+        field: 'status',
+        headerName: t('common.status'),
+        width: isMobile ? 60 : 75,
+        renderHeader: isMobile ? headerIconOnly('ri-pulse-line') : headerWithIcon('ri-pulse-line', t('common.status')),
+        renderCell: (params) => {
+          const vm = params.row as VmRow
+          const isMigrating = isVmMigrating(vm.connId, vm.vmid)
+
+          if (isMigrating) {
+            return (
+              <Tooltip title={t('common.loading')}>
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  '@keyframes pulse': {
+                    '0%, 100%': { opacity: 1 },
+                    '50%': { opacity: 0.4 },
+                  },
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                }}>
+                  <i className="ri-swap-box-line" style={{ fontSize: 18, color: '#ed6c02' }} />
+                </Box>
+              </Tooltip>
+            )
+          }
+
+          return <StatusChip status={params.row.status} compact={true} />
+        }
+      },
+      {
+        field: 'cpu',
+        headerName: 'CPU',
+        width: 95,
+        minWidth: 80,
+        renderHeader: headerWithIcon('ri-cpu-line', 'CPU'),
+        renderCell: (params) => {
+          const cpu = params.row.cpu
+
+          if (cpu === undefined || params.row.status !== 'running') {
+            return <Typography variant='caption' sx={{ opacity: 0.5 }}>—</Typography>
+          }
+
+          return <MetricBar value={cpu} />
+        }
+      },
+      {
+        field: 'ram',
+        headerName: 'RAM',
+        width: 95,
+        minWidth: 80,
+        renderHeader: headerWithIcon('ri-ram-line', 'RAM'),
+        renderCell: (params) => {
+          const ram = params.row.ram
+
+          if (ram === undefined || params.row.status !== 'running') {
+            return <Typography variant='caption' sx={{ opacity: 0.5 }}>—</Typography>
+          }
+
+          return <MetricBar value={ram} />
+        }
+      }
+    )
 
     // Colonne Actions - toujours visible, compacte
     if (showActions && onVmAction) {
@@ -1640,7 +1637,6 @@ return true
         }}
         autoPageSize={autoPageSize}
         autoHeight={maxHeight === 'auto'}
-        hideFooter={maxHeight === 'auto'}
         disableColumnMenu
         getRowClassName={(params) => {
           const vm = params.row as VmRow
