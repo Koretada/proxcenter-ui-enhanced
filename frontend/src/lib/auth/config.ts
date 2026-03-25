@@ -242,15 +242,29 @@ export const authOptions: NextAuthOptions = {
         const ldapConfig = getLdapConfig()
         if (ldapConfig) {
           const resolvedRoleId = resolveLdapRole(ldapUser.groups, ldapConfig)
-          const roleExists = db.prepare("SELECT id FROM rbac_roles WHERE id = ?").get(resolvedRoleId)
-          const finalRoleId = roleExists ? resolvedRoleId : 'role_viewer'
 
-          // Replace only the global scope assignment for the default tenant
-          db.prepare("DELETE FROM rbac_user_roles WHERE user_id = ? AND scope_type = 'global' AND tenant_id = 'default'").run(user.id)
-          db.prepare(
-            `INSERT INTO rbac_user_roles (id, user_id, role_id, scope_type, tenant_id, granted_by, granted_at)
-             VALUES (?, ?, ?, 'global', 'default', NULL, ?)`
-          ).run(`ldap_${nanoid(12)}`, user.id, finalRoleId, now)
+          // Check if user already has a global RBAC role
+          const existingRole = db.prepare("SELECT id FROM rbac_user_roles WHERE user_id = ? AND scope_type = 'global' AND tenant_id = 'default'").get(user.id)
+
+          if (resolvedRoleId) {
+            // LDAP group matched — sync the resolved role
+            const roleExists = db.prepare("SELECT id FROM rbac_roles WHERE id = ?").get(resolvedRoleId)
+            const finalRoleId = roleExists ? resolvedRoleId : 'role_viewer'
+
+            db.prepare("DELETE FROM rbac_user_roles WHERE user_id = ? AND scope_type = 'global' AND tenant_id = 'default'").run(user.id)
+            db.prepare(
+              `INSERT INTO rbac_user_roles (id, user_id, role_id, scope_type, tenant_id, granted_by, granted_at)
+               VALUES (?, ?, ?, 'global', 'default', NULL, ?)`
+            ).run(`ldap_${nanoid(12)}`, user.id, finalRoleId, now)
+          } else if (!existingRole) {
+            // No group match AND no existing role (first login) — assign default role
+            const defaultRoleId = ldapConfig.defaultRole || 'role_viewer'
+            db.prepare(
+              `INSERT INTO rbac_user_roles (id, user_id, role_id, scope_type, tenant_id, granted_by, granted_at)
+               VALUES (?, ?, ?, 'global', 'default', NULL, ?)`
+            ).run(`ldap_${nanoid(12)}`, user.id, defaultRoleId, now)
+          }
+          // If no group match but existing role: preserve manually-assigned role
         }
 
         return {

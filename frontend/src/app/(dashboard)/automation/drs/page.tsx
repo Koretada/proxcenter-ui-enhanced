@@ -1449,12 +1449,31 @@ return allVMsData.data.vms.map(vm => ({
     return set
   }, [metricsData, drsSettings])
 
-  const pendingRecs = useMemo(() =>
+  const maxPending = drsSettings?.max_pending_recommendations || 10
+
+  const allPendingRecs = useMemo(() =>
     recommendations.filter(r =>
       (r.status === 'pending' || r.status === 'approved') &&
       !maintenanceNodeNames.has(r.target_node)
     ).sort((a, b) => b.score - a.score),
     [recommendations, maintenanceNodeNames]
+  )
+
+  // Auto-reject excess recommendations (oldest/lowest score first)
+  useEffect(() => {
+    if (allPendingRecs.length <= maxPending) return
+    const excess = allPendingRecs.slice(maxPending)
+    excess.forEach(rec => {
+      fetch(`/api/v1/orchestrator/drs/recommendations/${rec.id}/reject`, { method: 'POST' }).catch(() => {})
+    })
+    // Refresh after cleanup
+    const timer = setTimeout(() => mutateRecs(), 1000)
+    return () => clearTimeout(timer)
+  }, [allPendingRecs.length, maxPending])
+
+  const pendingRecs = useMemo(() =>
+    allPendingRecs.slice(0, maxPending),
+    [allPendingRecs, maxPending]
   )
 
   const clusters = useMemo(() => {
@@ -1801,6 +1820,20 @@ return next
       setActionLoading(null)
     }
   }, [pendingRecs, mutateMigrations, mutateRecs])
+
+  const handleClearRecs = useCallback(async () => {
+    setActionLoading('clear-recs')
+    try {
+      for (const rec of pendingRecs) {
+        try {
+          await apiAction(`/api/v1/orchestrator/drs/recommendations/${rec.id}/reject`, 'POST')
+        } catch {}
+      }
+      await mutateRecs()
+    } finally {
+      setActionLoading(null)
+    }
+  }, [pendingRecs, mutateRecs])
 
   // Fermer le drawer et nettoyer
   const handleCloseDrawer = useCallback(() => {
@@ -2225,13 +2258,13 @@ return next
                     </Typography>
                     <Button
                       variant="outlined"
-                      color="primary"
+                      color="inherit"
                       size="small"
-                      startIcon={actionLoading === 'execute-all' ? <CircularProgress size={16} /> : <PlayArrowIcon />}
-                      onClick={handleExecuteAll}
+                      startIcon={actionLoading === 'clear-recs' ? <CircularProgress size={16} /> : <i className="ri-delete-bin-line" style={{ fontSize: 16 }} />}
+                      onClick={handleClearRecs}
                       disabled={!!actionLoading || pendingRecs.length === 0}
                     >
-                      {t('drsPage.executeAll')}
+                      {t('drsPage.clearRecommendations')}
                     </Button>
                   </Box>
                   <Stack spacing={1}>

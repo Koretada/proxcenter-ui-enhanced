@@ -172,9 +172,10 @@ export async function authenticateLdap(
  * - Premier match gagne
  * - Fallback vers config.defaultRole
  */
-export function resolveLdapRole(groups: string[], config: LdapConfig): string {
+export function resolveLdapRole(groups: string[], config: LdapConfig): string | null {
   if (!groups || groups.length === 0 || !config.groupRoleMapping || Object.keys(config.groupRoleMapping).length === 0) {
-    return config.defaultRole || 'role_viewer'
+    // No mapping configured — return null to preserve manually assigned roles
+    return null
   }
 
   for (const group of groups) {
@@ -193,5 +194,6 @@ export function resolveLdapRole(groups: string[], config: LdapConfig): string {
     }
   }
 
-  return config.defaultRole || 'role_viewer'
+  // No group matched — return null to preserve manually assigned roles
+  return null
 }

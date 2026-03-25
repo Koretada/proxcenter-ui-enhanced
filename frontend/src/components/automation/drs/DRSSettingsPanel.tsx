@@ -74,6 +74,7 @@ export interface DRSSettings {
   storage_weight: number
   max_concurrent_migrations: number
   migration_cooldown: string
+  max_pending_recommendations: number
   balance_larger_first: boolean
   prevent_overprovisioning: boolean
   enable_affinity_rules: boolean
@@ -125,6 +126,7 @@ export const defaultDRSSettings: DRSSettings = {
   storage_weight: 0.5,
   max_concurrent_migrations: 2,
   migration_cooldown: '5m',
+  max_pending_recommendations: 10,
   balance_larger_first: false,
   prevent_overprovisioning: true,
   enable_affinity_rules: true,
@@ -726,26 +728,61 @@ export default function DRSSettingsPanel({
     <>
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}>
-          <TextField
-            fullWidth
-            size="small"
-            type="number"
-            label={t('drsPage.maxConcurrentMigrations')}
-            value={settings.max_concurrent_migrations}
-            onChange={(e) => handleChange('max_concurrent_migrations', parseInt(e.target.value) || 1)}
-            inputProps={{ min: 1, max: 10 }}
-            helperText={t('drsPage.helpMaxConcurrent')}
-          />
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>{t('drsPage.maxConcurrentMigrations')}</Typography>
+          <Box sx={{ px: 1 }}>
+            <Slider
+              value={settings.max_concurrent_migrations}
+              onChange={(_, val) => handleChange('max_concurrent_migrations', val as number)}
+              min={1}
+              max={10}
+              step={1}
+              marks={[{ value: 1, label: '1' }, { value: 5, label: '5' }, { value: 10, label: '10' }]}
+              valueLabelDisplay="auto"
+              size="small"
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary">{t('drsPage.helpMaxConcurrent')}</Typography>
         </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
-          <TextField
-            fullWidth
-            size="small"
-            label={t('drsPage.cooldownBetweenMigrations')}
-            value={settings.migration_cooldown}
-            onChange={(e) => handleChange('migration_cooldown', e.target.value)}
-            helperText={t('drsPage.helpCooldown')}
-          />
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>{t('drsPage.cooldownBetweenMigrations')}</Typography>
+          <Box sx={{ px: 1 }}>
+            <Slider
+              value={(() => {
+                const s = settings.migration_cooldown || '5m'
+                const match = s.match(/^(\d+)(s|m|h)$/)
+                if (!match) return 5
+                const [, num, unit] = match
+                if (unit === 'h') return parseInt(num) * 60
+                if (unit === 's') return Math.max(1, Math.round(parseInt(num) / 60))
+                return parseInt(num)
+              })()}
+              onChange={(_, val) => handleChange('migration_cooldown', `${val as number}m`)}
+              min={1}
+              max={30}
+              step={1}
+              marks={[{ value: 1, label: '1m' }, { value: 5, label: '5m' }, { value: 15, label: '15m' }, { value: 30, label: '30m' }]}
+              valueLabelDisplay="auto"
+              valueLabelFormat={(v) => `${v}m`}
+              size="small"
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary">{t('drsPage.helpCooldown')}</Typography>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>{t('drsPage.maxPendingRecommendations')}</Typography>
+          <Box sx={{ px: 1 }}>
+            <Slider
+              value={settings.max_pending_recommendations}
+              onChange={(_, val) => handleChange('max_pending_recommendations', val as number)}
+              min={1}
+              max={20}
+              step={1}
+              marks={[{ value: 1, label: '1' }, { value: 5, label: '5' }, { value: 10, label: '10' }, { value: 20, label: '20' }]}
+              valueLabelDisplay="auto"
+              size="small"
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary">{t('drsPage.helpMaxPending')}</Typography>
         </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
           <FormControlLabel
