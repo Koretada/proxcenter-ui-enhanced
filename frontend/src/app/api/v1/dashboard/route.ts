@@ -598,7 +598,8 @@ return null
     // Merge with orchestrator alerts (snapshots, event rules, etc.)
     try {
       const orchResponse = await alertsApi.getAlerts({ status: 'active', limit: 100 })
-      const orchAlerts: any[] = orchResponse.data?.data || orchResponse.data || []
+      const orchData = orchResponse.data as any
+      const orchAlerts: any[] = orchData?.data || (Array.isArray(orchData) ? orchData : [])
 
       // Build a set of existing alert signatures to deduplicate
       const existingKeys = new Set(alerts.map((a: any) => `${a.entityType}:${a.entityId}:${a.metric}:${a.severity}`))
