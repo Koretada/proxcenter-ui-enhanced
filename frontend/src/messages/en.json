@@ -3891,6 +3891,8 @@
     "helpCooldown": "Minimum wait time between two migrations of the same VM. Prevents a VM from being bounced back and forth.",
     "maxPendingRecommendations": "Max pending recommendations",
     "helpMaxPending": "Maximum number of pending recommendations. Oldest recommendations are auto-dismissed when this limit is exceeded.",
+    "concurrentMigrationWarningTitle": "Concurrent migrations in auto/partial mode",
+    "concurrentMigrationWarningDesc": "In automatic or partial mode, recommendations are calculated on the current cluster state. When multiple migrations run simultaneously, later migrations may be based on an outdated state. The orchestrator will re-evaluate after each batch completes to correct any suboptimal placements.",
     "helpLargerFirst": "When enabled, DRS prioritizes migrating VMs with the highest resource usage first. This can resolve imbalances faster but migrations take longer.",
     "helpPreventOverprov": "When enabled, DRS will not migrate a VM to a node if it would cause that node to exceed its capacity (allocated > available). Prevents overcommitting resources.",
     "helpResourceWeights": "How much each resource type influences the balancing score.",

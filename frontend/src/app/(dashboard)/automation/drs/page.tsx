@@ -1758,6 +1758,14 @@ return next
         await mutateMigrations()
         setDrawerOpen(false)
         setSelectedRec(null)
+
+        // Re-evaluate after migration — cluster balance has changed, old recs may be stale
+        setTimeout(async () => {
+          try {
+            await fetch('/api/v1/orchestrator/drs/evaluate', { method: 'POST' })
+            setTimeout(() => mutateRecs(), 3000)
+          } catch {}
+        }, 5000)
       } else {
         // For approve/reject, refresh with validation
         const res = await fetch(`/api/v1/orchestrator/drs/recommendations?validate=true`)

@@ -279,6 +279,17 @@ export default function DRSSettingsPanel({
         </FormControl>
       </Grid>
 
+      {settings.mode !== 'manual' && settings.max_concurrent_migrations > 1 && (
+        <Grid size={12}>
+          <Alert severity="warning" icon={<i className="ri-alert-line" style={{ fontSize: 20 }} />}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{t('drsPage.concurrentMigrationWarningTitle')}</Typography>
+            <Typography variant="caption">
+              {t('drsPage.concurrentMigrationWarningDesc')}
+            </Typography>
+          </Alert>
+        </Grid>
+      )}
+
       {/* Active clusters selector */}
       {clusters.length > 0 && (
         <Grid size={{ xs: 12 }}>

@@ -3891,6 +3891,8 @@
     "helpCooldown": "Temps d'attente minimum entre deux migrations de la même VM. Empêche une VM d'être migrée en boucle.",
     "maxPendingRecommendations": "Max recommandations en attente",
     "helpMaxPending": "Nombre maximum de recommandations en attente. Les plus anciennes sont automatiquement supprimées au-delà de cette limite.",
+    "concurrentMigrationWarningTitle": "Migrations concurrentes en mode auto/partiel",
+    "concurrentMigrationWarningDesc": "En mode automatique ou partiel, les recommandations sont calculées sur l'état actuel du cluster. Lorsque plusieurs migrations s'exécutent simultanément, les migrations suivantes peuvent se baser sur un état obsolète. L'orchestrateur réévaluera après chaque lot pour corriger les placements sous-optimaux.",
     "helpLargerFirst": "Lorsqu'activé, DRS priorise la migration des VMs avec la plus forte consommation de ressources. Résout les déséquilibres plus vite mais les migrations sont plus longues.",
     "helpPreventOverprov": "Lorsqu'activé, DRS ne migrera pas une VM vers un nœud si cela causerait un dépassement de capacité (alloué > disponible). Empêche le surprovisionnement.",
     "helpResourceWeights": "L'influence de chaque type de ressource sur le score d'équilibrage.",
