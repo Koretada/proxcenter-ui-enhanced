@@ -43,9 +43,34 @@ export async function POST(req: Request, ctx: Params) {
       case 'reject':
         response = await client.rejectRecommendation(id)
         break
-      case 'execute':
+      case 'execute': {
+        // Safety guard: check active migrations before executing
+        try {
+          const activeMigsRes = await client.getActiveMigrations()
+          const activeMigs = Array.isArray(activeMigsRes.data) ? activeMigsRes.data : []
+          const activeMigCount = activeMigs.filter((m: any) => m.status === 'running' || m.status === 'pending').length
+
+          // Get max_concurrent_migrations from settings (default 2)
+          let maxConcurrent = 2
+          try {
+            const settingsRes = await client.get('/drs/settings')
+            maxConcurrent = settingsRes.data?.max_concurrent_migrations || 2
+          } catch {}
+
+          if (activeMigCount >= maxConcurrent) {
+            return NextResponse.json(
+              { error: `Too many active migrations (${activeMigCount}/${maxConcurrent}). Wait for current migrations to complete.` },
+              { status: 429 }
+            )
+          }
+        } catch (e) {
+          // If we can't check, let the Go orchestrator enforce the limit
+          console.warn('[DRS] Could not verify active migration count:', e)
+        }
+
         response = await client.executeRecommendation(id)
         break
+      }
       default:
         return NextResponse.json(
           { error: `Unknown action: ${action}` },

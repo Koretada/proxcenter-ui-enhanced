@@ -8,14 +8,22 @@ import { getCurrentTenantId } from '@/lib/tenant'
 export const runtime = "nodejs"
 
 // Frontend-only settings not supported by orchestrator — stored in local settings table
-const FRONTEND_ONLY_KEYS = ['max_pending_recommendations', 'migration_cooldown', 'max_concurrent_migrations'] as const
+// IMPORTANT: max_concurrent_migrations and migration_cooldown are NOT frontend-only
+// — they MUST be sent to the orchestrator for safety enforcement
+const FRONTEND_ONLY_KEYS = ['max_pending_recommendations'] as const
 
 function getFrontendSettings(): Record<string, any> {
   try {
     const db = getDb()
     const tenantId = 'default'
     const row = db.prepare('SELECT value FROM settings WHERE key = ? AND tenant_id = ?').get('drs_frontend_settings', tenantId) as any
-    return row?.value ? JSON.parse(row.value) : {}
+    const all = row?.value ? JSON.parse(row.value) : {}
+    // Only return keys that are actually frontend-only (filter out keys now managed by orchestrator)
+    const filtered: Record<string, any> = {}
+    for (const key of FRONTEND_ONLY_KEYS) {
+      if (all[key] !== undefined) filtered[key] = all[key]
+    }
+    return filtered
   } catch { return {} }
 }
 
