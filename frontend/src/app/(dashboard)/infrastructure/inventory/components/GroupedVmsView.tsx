@@ -144,7 +144,7 @@ return next
                     }}
                   >
                     <i 
-                      className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} 
+                      className={isExpanded ? 'ri-subtract-line' : 'ri-add-line'} 
                       style={{ fontSize: 18, opacity: 0.7 }} 
                     />
                     {group.icon && group.icon}

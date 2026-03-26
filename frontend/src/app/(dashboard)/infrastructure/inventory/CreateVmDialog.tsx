@@ -924,7 +924,7 @@ return
                 onClick={() => setBootSectionExpanded(v => !v)}
                 sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
               >
-                <i className={bootSectionExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                <i className={bootSectionExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                 <i className="ri-timer-line" style={{ fontSize: 16, opacity: 0.6 }} />
                 <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.bootShutdown')}</Typography>
                 <Box sx={{ flex: 1 }} />
@@ -1203,7 +1203,7 @@ return
                     onClick={toggleExpand}
                     sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', bgcolor: isExpanded ? alpha(theme.palette.primary.main, 0.04) : 'transparent', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.06) } }}
                   >
-                    <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                    <i className={isExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                     <Chip label={`${disk.bus}${disk.index}`} size="small" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, height: 24 }} />
                     <Typography variant="body2" fontSize={12} sx={{ opacity: 0.6 }}>{disk.storage || '—'}{storageName ? ` (${storageName.type})` : ''}</Typography>
                     <Typography variant="body2" fontSize={12} fontWeight={700}>{disk.size} GiB</Typography>
@@ -1387,7 +1387,7 @@ return
                   onClick={() => setCpuAdvancedExpanded(v => !v)}
                   sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
                 >
-                  <i className={cpuAdvancedExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                  <i className={cpuAdvancedExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                   <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.advancedOptions')}</Typography>
                 </Box>
                 <Collapse in={cpuAdvancedExpanded}>
@@ -1494,7 +1494,7 @@ return
                   onClick={() => setMemAdvancedExpanded(v => !v)}
                   sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
                 >
-                  <i className={memAdvancedExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                  <i className={memAdvancedExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                   <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.advancedOptions')}</Typography>
                   <Box sx={{ flex: 1 }} />
                   {ballooning && <Chip label={t('inventory.createVm.ballooningDevice')} size="small" variant="outlined" sx={{ fontSize: 10, height: 20 }} />}
@@ -1541,7 +1541,7 @@ return
                     onClick={toggleExpand}
                     sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', bgcolor: isExpanded ? alpha(theme.palette.primary.main, 0.04) : 'transparent', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.06) } }}
                   >
-                    <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                    <i className={isExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                     <Chip label={`net${nicIdx}`} size="small" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700, height: 24 }} />
                     <Typography variant="body2" fontSize={12} fontWeight={700}>{nic.bridge}</Typography>
                     <Typography variant="body2" fontSize={12} sx={{ opacity: 0.6 }}>{nic.model === 'virtio' ? 'VirtIO' : nic.model}</Typography>

@@ -3667,7 +3667,7 @@ return vm?.isCluster ?? false
                                     bgcolor: isExpanded ? 'action.selected' : 'transparent',
                                   }}
                                 >
-                                  <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 16, opacity: 0.5 }} />
+                                  <i className={isExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 16, opacity: 0.5 }} />
                                   <i
                                     className={isVm ? 'ri-computer-line' : isCt ? 'ri-instance-line' : 'ri-server-line'}
                                     style={{ fontSize: 14, color: isVm ? '#ff9800' : isCt ? '#9c27b0' : '#757575' }}
@@ -6404,7 +6404,7 @@ return
                     onClick={() => setBulkMigProgressExpanded(v => !v)}
                     sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', userSelect: 'none', py: 0.5 }}
                   >
-                    <i className={bulkMigProgressExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                    <i className={bulkMigProgressExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                     <Typography variant="body2" fontWeight={700} fontSize={12} sx={{ flex: 1 }}>
                       {t('inventoryPage.esxiMigration.bulkMigration')} — {completedCount}/{bulkMigJobs.length} {t('inventoryPage.esxiMigration.completed').toLowerCase()}
                       {failedCount > 0 && <Typography component="span" color="error.main" fontWeight={700} fontSize={12}> ({failedCount} {t('inventoryPage.esxiMigration.failed').toLowerCase()})</Typography>}
@@ -6451,7 +6451,7 @@ return
                     onClick={() => setBulkMigLogsExpanded(v => !v)}
                     sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer', userSelect: 'none', py: 0.5, mt: 1 }}
                   >
-                    <i className={bulkMigLogsExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                    <i className={bulkMigLogsExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                     <Typography variant="body2" fontWeight={700} fontSize={12}>
                       {t('inventoryPage.esxiMigration.migrationLogs')}
                     </Typography>

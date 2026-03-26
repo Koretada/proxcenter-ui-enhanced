@@ -766,15 +766,25 @@ function RootInventoryView({
                         if (!active || !payload?.length) return null
                         const sorted = [...payload].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
                         return (
-                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1, boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>{new Date(Number(label)).toLocaleString()}</Typography>
-                            {sorted.map(entry => (
-                              <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 0.1 }}>
+                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11, minWidth: 220 }}>
+                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'rgba(33,150,243,0.1)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <i className="ri-cpu-line" style={{ fontSize: 13, color: '#2196f3' }} />
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#2196f3' }}>CPU</Typography>
+                              <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.6 }}>{new Date(Number(label)).toLocaleTimeString()}</Typography>
+                            </Box>
+                            <Box sx={{ px: 1.5, py: 0.75 }}>
+                            {sorted.map(entry => {
+                              const v = Number(entry.value)
+                              const valColor = v >= 80 ? '#f44336' : v >= 60 ? '#ff9800' : '#4caf50'
+                              return (
+                              <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.25 }}>
                                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
                                 <Typography variant="caption" sx={{ flex: 1 }}>{String(entry.name).replace('cpu_', '')}</Typography>
-                                <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}>{Number(entry.value).toFixed(1)}%</Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace', color: valColor }}>{v.toFixed(1)}%</Typography>
                               </Box>
-                            ))}
+                              )
+                            })}
+                            </Box>
                           </Box>
                         )
                       }}
@@ -818,15 +828,21 @@ function RootInventoryView({
                         if (!active || !payload?.length) return null
                         const sorted = [...payload].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
                         return (
-                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1, boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>{new Date(Number(label)).toLocaleString()}</Typography>
+                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11, minWidth: 220 }}>
+                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'rgba(156,39,176,0.1)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <i className="ri-dashboard-3-line" style={{ fontSize: 13, color: '#9c27b0' }} />
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#9c27b0' }}>Server Load</Typography>
+                              <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.6 }}>{new Date(Number(label)).toLocaleTimeString()}</Typography>
+                            </Box>
+                            <Box sx={{ px: 1.5, py: 0.75 }}>
                             {sorted.map(entry => (
-                              <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 0.1 }}>
+                              <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.25 }}>
                                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
                                 <Typography variant="caption" sx={{ flex: 1 }}>{String(entry.name).replace('load_', '')}</Typography>
                                 <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}>{Number(entry.value).toFixed(2)}</Typography>
                               </Box>
                             ))}
+                            </Box>
                           </Box>
                         )
                       }}
@@ -871,15 +887,25 @@ function RootInventoryView({
                         if (!active || !payload?.length) return null
                         const sorted = [...payload].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
                         return (
-                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1, boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>{new Date(Number(label)).toLocaleString()}</Typography>
-                            {sorted.map(entry => (
-                              <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 0.1 }}>
+                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11, minWidth: 220 }}>
+                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'rgba(76,175,80,0.1)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <i className="ri-ram-line" style={{ fontSize: 13, color: '#4caf50' }} />
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#4caf50' }}>RAM</Typography>
+                              <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.6 }}>{new Date(Number(label)).toLocaleTimeString()}</Typography>
+                            </Box>
+                            <Box sx={{ px: 1.5, py: 0.75 }}>
+                            {sorted.map(entry => {
+                              const v = Number(entry.value)
+                              const valColor = v >= 80 ? '#f44336' : v >= 60 ? '#ff9800' : '#4caf50'
+                              return (
+                              <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.25 }}>
                                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
                                 <Typography variant="caption" sx={{ flex: 1 }}>{String(entry.name).replace('ram_', '')}</Typography>
-                                <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}>{Number(entry.value).toFixed(1)}%</Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace', color: valColor }}>{v.toFixed(1)}%</Typography>
                               </Box>
-                            ))}
+                              )
+                            })}
+                            </Box>
                           </Box>
                         )
                       }}
@@ -925,19 +951,25 @@ function RootInventoryView({
                         if (!active || !payload?.length) return null
                         const sorted = [...payload].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
                         return (
-                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1, boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>{new Date(Number(label)).toLocaleString()}</Typography>
+                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11, minWidth: 220 }}>
+                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'rgba(255,152,0,0.1)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <i className="ri-wifi-line" style={{ fontSize: 13, color: '#ff9800' }} />
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#ff9800' }}>Network</Typography>
+                              <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.6 }}>{new Date(Number(label)).toLocaleTimeString()}</Typography>
+                            </Box>
+                            <Box sx={{ px: 1.5, py: 0.75 }}>
                             {sorted.map(entry => {
                               const isOut = String(entry.name).startsWith('netOut_')
                               const nodeName = String(entry.name).replace(/^net(In|Out)_/, '')
                               return (
-                                <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 0.1 }}>
+                                <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.25 }}>
                                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
                                   <Typography variant="caption" sx={{ flex: 1 }}>{nodeName} {isOut ? '↑ Out' : '↓ In'}</Typography>
                                   <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}>{formatBps(Number(entry.value))}</Typography>
                                 </Box>
                               )
                             })}
+                            </Box>
                           </Box>
                         )
                       }}
@@ -1029,7 +1061,7 @@ function RootInventoryView({
                 }}
               >
                 <i 
-                  className={isClusterCollapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} 
+                  className={isClusterCollapsed ? "ri-add-line" : "ri-subtract-line"} 
                   style={{ fontSize: 20, opacity: 0.7 }} 
                 />
                 {(() => {
@@ -1099,7 +1131,7 @@ function RootInventoryView({
                           }}
                         >
                           <i 
-                            className={isHostCollapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} 
+                            className={isHostCollapsed ? "ri-add-line" : "ri-subtract-line"} 
                             style={{ fontSize: 18, opacity: 0.7 }} 
                           />
                           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>

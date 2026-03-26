@@ -646,7 +646,7 @@ export default function VmDetailTabs(props: any) {
                               {t('inventory.processor')}
                               <Chip label={`${data?.cpuInfo?.sockets || cpuSockets}S / ${data?.cpuInfo?.cores || cpuCores}C`} size="small" sx={{ height: 22, fontSize: 11 }} />
                             </Typography>
-                            <i className={hwSections.has('cpu') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                            <i className={hwSections.has('cpu') ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 22, opacity: 0.5 }} />
                           </Box>
                           <Collapse in={hwSections.has('cpu')}>
                           <CardContent>
@@ -901,7 +901,7 @@ export default function VmDetailTabs(props: any) {
                                     <Chip label={activeCount} size="small" color="primary" sx={{ height: 20, fontSize: '0.7rem', ml: 0.5 }} />
                                   )}
                                 </Typography>
-                                <i className={cpuFlagsOpen ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 20, opacity: 0.5 }} />
+                                <i className={cpuFlagsOpen ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 20, opacity: 0.5 }} />
                               </Box>
                               <Collapse in={cpuFlagsOpen}>
                                 <Box sx={{ px: 2, pb: 2, pt: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
@@ -1007,7 +1007,7 @@ export default function VmDetailTabs(props: any) {
                               {t('inventory.memory')}
                               <Chip label={`${((data?.memoryInfo?.memory || memory) / 1024).toFixed(0)} GB`} size="small" sx={{ height: 22, fontSize: 11 }} />
                             </Typography>
-                            <i className={hwSections.has('memory') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                            <i className={hwSections.has('memory') ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 22, opacity: 0.5 }} />
                           </Box>
                           <Collapse in={hwSections.has('memory')}>
                           <CardContent>
@@ -1174,7 +1174,7 @@ export default function VmDetailTabs(props: any) {
                                     <i className="ri-add-line" style={{ fontSize: 18 }} />
                                   </IconButton>
                                 </MuiTooltip>
-                              <i className={hwSections.has('disks') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                              <i className={hwSections.has('disks') ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 22, opacity: 0.5 }} />
                             </Box>
                           </Box>
                           <Collapse in={hwSections.has('disks')}>
@@ -1267,7 +1267,7 @@ export default function VmDetailTabs(props: any) {
                                     <i className="ri-add-line" style={{ fontSize: 18 }} />
                                   </IconButton>
                                 </MuiTooltip>
-                              <i className={hwSections.has('network') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                              <i className={hwSections.has('network') ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 22, opacity: 0.5 }} />
                             </Box>
                           </Box>
                           <Collapse in={hwSections.has('network')}>
@@ -1380,7 +1380,7 @@ export default function VmDetailTabs(props: any) {
                                     <i className="ri-add-line" style={{ fontSize: 18 }} />
                                   </IconButton>
                                 </MuiTooltip>
-                            <i className={hwSections.has('other') ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                            <i className={hwSections.has('other') ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 22, opacity: 0.5 }} />
                             </Box>
                           </Box>
                           <Collapse in={hwSections.has('other')}>
@@ -2194,7 +2194,7 @@ return (
                                     bgcolor: isExpanded ? 'action.selected' : 'transparent',
                                   }}
                                 >
-                                  <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                                  <i className={isExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                                   <i className="ri-shield-check-line" style={{ fontSize: 16, color: primaryColor }} />
                                   <Box sx={{ flex: 1, minWidth: 0 }}>
                                     <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: 12 }}>

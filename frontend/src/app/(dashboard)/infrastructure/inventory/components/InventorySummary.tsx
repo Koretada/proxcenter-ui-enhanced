@@ -885,7 +885,7 @@ return `${mins}m`
                 }}
               >
                 <AccordionSummary
-                  expandIcon={<i className="ri-arrow-down-s-line" />}
+                  expandIcon={<i className="ri-subtract-line" style={{ fontSize: 14, opacity: 0.5 }} />}
                   sx={{ minHeight: 44, '& .MuiAccordionSummary-content': { my: 0 } }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>

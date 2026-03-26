@@ -436,7 +436,7 @@
     "expandAll": "Alle erweitern",
     "collapseAll": "Alle einklappen",
     "expandInTree": "— im Baum erweitern",
-    "headerProxmoxVe": "Proxmox VE",
+    "headerProxmoxVe": "PROXMOX VE",
     "headerProxmoxStorage": "Proxmox-Storage",
     "headerProxmoxBackup": "Proxmox Backup Server",
     "headerMigration": "Migration",

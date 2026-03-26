@@ -121,7 +121,7 @@ function VlanVmsList({ vlans }: { vlans: VlanEntry[] }) {
                     '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.5) },
                   }}
                 >
-                  <i className={isOpen ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 16, opacity: 0.5 }} />
+                  <i className={isOpen ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 16, opacity: 0.5 }} />
                   <Chip
                     label={`VLAN ${v.vlan}`}
                     size="small"

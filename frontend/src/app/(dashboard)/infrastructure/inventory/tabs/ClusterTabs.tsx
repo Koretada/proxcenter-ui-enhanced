@@ -984,7 +984,7 @@ export default function ClusterTabs(props: any) {
                               >
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                   <i
-                                    className={recsExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'}
+                                    className={recsExpanded ? 'ri-subtract-line' : 'ri-add-line'}
                                     style={{ fontSize: 18, opacity: 0.6 }}
                                   />
                                   <Typography variant="caption" color="text.secondary" fontWeight={600}>
@@ -1424,7 +1424,7 @@ export default function ClusterTabs(props: any) {
                               >
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                   <i 
-                                    className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} 
+                                    className={isExpanded ? 'ri-subtract-line' : 'ri-add-line'} 
                                     style={{ fontSize: 18, opacity: 0.7 }} 
                                   />
                                   <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>

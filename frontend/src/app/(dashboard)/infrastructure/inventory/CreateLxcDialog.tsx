@@ -704,7 +704,7 @@ return
                 onClick={() => setBootSectionExpanded(v => !v)}
                 sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
               >
-                <i className={bootSectionExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                <i className={bootSectionExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                 <i className="ri-timer-line" style={{ fontSize: 16, opacity: 0.6 }} />
                 <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.bootShutdown')}</Typography>
                 <Box sx={{ flex: 1 }} />
@@ -726,7 +726,7 @@ return
                 onClick={() => setSecurityExpanded(v => !v)}
                 sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
               >
-                <i className={securityExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                <i className={securityExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                 <i className="ri-lock-line" style={{ fontSize: 16, opacity: 0.6 }} />
                 <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createLxc.security')}</Typography>
                 <Box sx={{ flex: 1 }} />
@@ -868,7 +868,7 @@ return
                   onClick={() => setCpuAdvancedExpanded(v => !v)}
                   sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}
                 >
-                  <i className={cpuAdvancedExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 18, opacity: 0.5 }} />
+                  <i className={cpuAdvancedExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 18, opacity: 0.5 }} />
                   <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventory.createVm.advancedOptions')}</Typography>
                 </Box>
                 <Collapse in={cpuAdvancedExpanded}>
@@ -1067,7 +1067,7 @@ return
                   sx={{ display: 'block', opacity: 0.5, mb: 1, mt: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer' }}
                   onClick={() => setNetAdvancedExpanded(v => !v)}
                 >
-                  <i className={netAdvancedExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 14, verticalAlign: 'middle', marginRight: 4 }} />
+                  <i className={netAdvancedExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 14, verticalAlign: 'middle', marginRight: 4 }} />
                   {t('inventory.createVm.advancedOptions')}
                 </Typography>
                 <Collapse in={netAdvancedExpanded}>

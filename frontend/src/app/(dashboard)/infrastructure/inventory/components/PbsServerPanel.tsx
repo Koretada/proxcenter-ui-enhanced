@@ -1054,7 +1054,7 @@ const PbsServerPanel = React.forwardRef<PbsServerPanelHandle, PbsServerPanelProp
                               bgcolor: isExpanded ? 'action.selected' : 'transparent'
                             }}
                           >
-                            <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} style={{ fontSize: 16, opacity: 0.5 }} />
+                            <i className={isExpanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 16, opacity: 0.5 }} />
                             <i
                               className={isVm ? 'ri-computer-line' : isCt ? 'ri-instance-line' : 'ri-server-line'}
                               style={{ fontSize: 14, color: isVm ? '#ff9800' : isCt ? '#9c27b0' : '#757575' }}
@@ -1334,7 +1334,7 @@ const PbsServerPanel = React.forwardRef<PbsServerPanelHandle, PbsServerPanelProp
               variant="outlined"
               sx={{ borderRadius: '8px !important', '&:before': { display: 'none' } }}
             >
-              <AccordionSummary expandIcon={<i className="ri-arrow-down-s-line" style={{ fontSize: 20 }} />}>
+              <AccordionSummary expandIcon={<i className="ri-subtract-line" style={{ fontSize: 14, opacity: 0.5 }} />}>
                 <Typography variant="body2" fontWeight={600}>
                   <i className="ri-settings-3-line" style={{ marginRight: 8 }} />
                   {t('inventory.pbsRestoreOverride')}

@@ -225,7 +225,7 @@ function TimelineEntry({ change, t }: { change: any; t: any }) {
             </Typography>
             {hasFields && (
               <IconButton size='small' sx={{ opacity: 0.4 }}>
-                <i className={expanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 16 }} />
+                <i className={expanded ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 16 }} />
               </IconButton>
             )}
           </Box>
