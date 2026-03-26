@@ -72,7 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             sx={{
               width: '100%',
               boxShadow: 3,
-              '& .MuiAlert-icon': { fontSize: 22 }
+              '& .MuiAlert-icon': { fontSize: 22 },
             }}
           >
             {toast.message}

@@ -23,8 +23,12 @@ const snackbar = skin => ({
       root: ({ theme }) => ({
         '& .MuiAlert-root': {
           color: '#fff !important',
-          '& .MuiAlert-icon': { color: '#fff !important' },
-          '& .MuiAlert-icon svg': { fill: '#fff !important', color: '#fff !important' },
+          '& .MuiAlert-icon': {
+            color: '#fff !important',
+            backgroundColor: 'transparent !important',
+            boxShadow: 'none !important',
+          },
+          '& .MuiAlert-icon svg': { fill: '#fff !important' },
           '& .MuiAlert-icon i': { color: '#fff !important' },
           '& .MuiAlert-action .MuiIconButton-root': { color: '#fff !important' },
         },
