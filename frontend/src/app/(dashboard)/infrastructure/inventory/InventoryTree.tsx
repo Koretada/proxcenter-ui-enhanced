@@ -60,9 +60,15 @@ import { CloneVmDialog } from '@/components/hardware/CloneVmDialog'
 /* Status Icon Component                                              */
 /* ------------------------------------------------------------------ */
 
-function StatusIcon({ status, type, isMigrating, isPendingAction, maintenance }: { status?: string; type: 'node' | 'vm'; isMigrating?: boolean; isPendingAction?: boolean; maintenance?: string }) {
-  // Pour les nodes: online = vert, offline = croix rouge
-  // Pour les VMs: running = vert, stopped/autres = gris, migrating = flèche animée
+function StatusIcon({ status, type, isMigrating, isPendingAction, maintenance, template }: { status?: string; type: 'node' | 'vm'; isMigrating?: boolean; isPendingAction?: boolean; maintenance?: string; template?: boolean }) {
+  // Templates: no status icon color
+  if (template) {
+    return (
+      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14 }}>
+        <StopIcon sx={{ fontSize: 14, color: 'text.disabled', opacity: 0.4 }} />
+      </Box>
+    )
+  }
 
   // Si la VM a une action en cours (start, stop, etc.), afficher un spinner
   if (type === 'vm' && isPendingAction) {
@@ -531,7 +537,7 @@ const VmItem = React.memo(function VmItem(props: VmItemProps) {
         >
           <i className={isFavorite ? "ri-star-fill" : "ri-star-line"} style={{ fontSize: 14 }} />
         </Box>
-        <StatusIcon status={status} type="vm" isMigrating={isMigrating} isPendingAction={isPendingAction} />
+        <StatusIcon status={status} type="vm" isMigrating={isMigrating} isPendingAction={isPendingAction} template={template} />
         <i className={getVmIcon(vmType, template)} style={{ opacity: 0.8, fontSize: 14 }} />
         <Typography variant="body2" sx={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {name}
@@ -639,7 +645,7 @@ const VmItem = React.memo(function VmItem(props: VmItemProps) {
         >
           <i className="ri-star-fill" style={{ fontSize: 14 }} />
         </IconButton>
-        <StatusIcon status={status} type="vm" isMigrating={isMigrating} isPendingAction={isPendingAction} />
+        <StatusIcon status={status} type="vm" isMigrating={isMigrating} isPendingAction={isPendingAction} template={template} />
         <i className={getVmIcon(vmType, template)} style={{ opacity: 0.8, fontSize: 14 }} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
           <Typography variant="body2" sx={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -694,7 +700,7 @@ const VmItem = React.memo(function VmItem(props: VmItemProps) {
       >
         <i className={isFavorite ? "ri-star-fill" : "ri-star-line"} style={{ fontSize: 14 }} />
       </IconButton>
-      <StatusIcon status={status} type="vm" isMigrating={isMigrating} isPendingAction={isPendingAction} />
+      <StatusIcon status={status} type="vm" isMigrating={isMigrating} isPendingAction={isPendingAction} template={template} />
       <i className={getVmIcon(vmType, template)} style={{ opacity: 0.8, fontSize: 14 }} />
       {isGrouped ? (
         <>

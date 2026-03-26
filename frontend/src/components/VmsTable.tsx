@@ -836,6 +836,9 @@ return (
             )
           }
 
+          if (vm.template) {
+            return <i className="ri-stop-fill" style={{ fontSize: 16, opacity: 0.25 }} />
+          }
           if (vm.status === 'running') {
             return <i className="ri-play-fill" style={{ fontSize: 16, color: '#4caf50', filter: 'drop-shadow(0 0 2px rgba(76,175,80,0.5))' }} />
           }
