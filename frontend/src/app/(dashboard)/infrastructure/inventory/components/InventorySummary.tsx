@@ -270,11 +270,25 @@ return `${mins}m`
                         size="small"
                         label={`${(cpuInfo.sockets || 1) * (cpuInfo.cores || 1)} vCPU${(cpuInfo.sockets || 1) * (cpuInfo.cores || 1) > 1 ? 's' : ''} (${cpuInfo.sockets || 1}s × ${cpuInfo.cores || 1}c)`}
                         variant="outlined"
-                        sx={{ height: 18, fontSize: '0.6rem', '& .MuiChip-label': { px: 0.75 } }}
+                        sx={{ height: 18, fontSize: 11, '& .MuiChip-label': { px: 0.75 } }}
                       />
                     ) : undefined}
                   />
-                  <UsageBar themeColor={primaryColor} label={t('inventory.memoryLabel')} used={memUsed} capacity={memCap} mode="bytes" />
+                  <UsageBar
+                    themeColor={primaryColor}
+                    label={t('inventory.memoryLabel')}
+                    used={memUsed}
+                    capacity={memCap}
+                    mode="bytes"
+                    extra={memCap > 0 ? (
+                      <Chip
+                        size="small"
+                        label={`${(memCap / 1073741824).toFixed(memCap / 1073741824 >= 1 ? 0 : 1)} GiB`}
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: 11, '& .MuiChip-label': { px: 0.75 } }}
+                      />
+                    ) : undefined}
+                  />
                   {guestInfo?.diskUsage && guestInfo.diskUsage.total > 0 && (
                     <UsageBar
                       themeColor={primaryColor}
@@ -290,7 +304,7 @@ return `${mins}m`
                               size="small"
                               label={`${disk.id}: ${disk.storage} (${disk.size})`}
                               variant="outlined"
-                              sx={{ height: 18, fontSize: '0.6rem', '& .MuiChip-label': { px: 0.75 } }}
+                              sx={{ height: 18, fontSize: 11, '& .MuiChip-label': { px: 0.75 } }}
                             />
                           ))}
                         </>
@@ -313,19 +327,9 @@ return `${mins}m`
                     {guestInfoLoading ? (
                       <CircularProgress size={12} />
                     ) : guestInfo?.ip ? (
-                      <Chip
-                        size="small"
-                        label={guestInfo.ip}
-                        sx={{
-                          height: 20,
-                          fontSize: '0.75rem',
-                          fontFamily: 'monospace',
-                          cursor: 'pointer',
-                          '&:hover': { bgcolor: 'action.hover' }
-                        }}
-                        onClick={() => navigator.clipboard.writeText(guestInfo.ip!)}
-                        title={t('inventoryPage.clickToCopy')}
-                      />
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {guestInfo.ip}
+                      </Typography>
                     ) : (
                       <Typography variant="body2" sx={{ opacity: 0.4 }}>—</Typography>
                     )}
