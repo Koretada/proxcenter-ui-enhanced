@@ -82,10 +82,11 @@ export async function GET(_req: Request, ctx: RouteContext) {
     // Récupérer les interfaces réseau et infos OS via QEMU Guest Agent (seulement pour qemu, pas lxc)
     let ip: string | undefined
     let osInfo: OsInfo | undefined
+    let diskUsage: { used: number; total: number } | undefined
     
     if (type === 'qemu' && status === 'running') {
       // Récupérer IP et OS info en parallèle
-      const [ipResult, osInfoResult] = await Promise.allSettled([
+      const [ipResult, osInfoResult, fsInfoResult] = await Promise.allSettled([
         // IP
         (async () => {
           try {
@@ -148,11 +149,35 @@ return undefined
 
           
 return undefined
+        })(),
+
+        // Filesystem info
+        (async () => {
+          try {
+            const fsData = await pveFetch<any>(
+              conn,
+              `/nodes/${encodeURIComponent(node)}/${encodeURIComponent(type)}/${encodeURIComponent(vmid)}/agent/get-fsinfo`
+            )
+            const filesystems = fsData?.result || []
+            let totalBytes = 0
+            let usedBytes = 0
+            for (const fs of filesystems) {
+              if (fs['total-bytes'] && fs['total-bytes'] > 0) {
+                totalBytes += Number(fs['total-bytes'])
+                usedBytes += Number(fs['used-bytes'] || 0)
+              }
+            }
+            if (totalBytes > 0) return { used: usedBytes, total: totalBytes }
+          } catch {
+            // Guest agent fsinfo not available
+          }
+          return undefined
         })()
       ])
-      
+
       if (ipResult.status === 'fulfilled') ip = ipResult.value
       if (osInfoResult.status === 'fulfilled') osInfo = osInfoResult.value
+      diskUsage = fsInfoResult.status === 'fulfilled' ? fsInfoResult.value : undefined
     }
     
     // Pour LXC, récupérer l'IP et l'OS depuis la config
@@ -202,7 +227,8 @@ return undefined
         uptime,
         status,
         pid,
-        osInfo
+        osInfo,
+        diskUsage
       }
     })
   } catch (e: any) {

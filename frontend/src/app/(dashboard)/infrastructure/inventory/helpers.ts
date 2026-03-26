@@ -203,7 +203,7 @@ export function getMetricIcon(label: string): string {
 
   if (l.includes('cpu')) return 'ri-cpu-line'
   if (l.includes('ram') || l.includes('memory')) return 'ri-ram-line'
-  if (l.includes('storage') || l.includes('hd') || l.includes('disk')) return 'ri-hard-drive-2-line'
+  if (l.includes('storage') || l.includes('stockage') || l.includes('hd') || l.includes('disk')) return 'ri-hard-drive-2-line'
   if (l.includes('swap')) return 'ri-swap-line'
   if (l.includes('load')) return 'ri-dashboard-3-line'
   if (l.includes('io')) return 'ri-time-line'

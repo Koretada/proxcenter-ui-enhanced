@@ -1559,7 +1559,8 @@ return
             ip: data.ip,
             uptime: data.uptime,
             pid: data.pid,
-            osInfo: data.osInfo
+            osInfo: data.osInfo,
+            diskUsage: data.diskUsage
           })
         } else {
           setGuestInfo(null)

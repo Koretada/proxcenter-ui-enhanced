@@ -75,7 +75,7 @@ function InventorySummary({
   hostInfo?: DetailsPayload['hostInfo']
   kpis?: Kpi[]
   vmInfo?: { connId: string; node: string; type: string; vmid: string } | null
-  guestInfo?: { ip?: string; uptime?: number; osInfo?: { type: 'linux' | 'windows' | 'other'; name: string | null; version: string | null; kernel: string | null } | null } | null
+  guestInfo?: { ip?: string; uptime?: number; diskUsage?: { used: number; total: number }; osInfo?: { type: 'linux' | 'windows' | 'other'; name: string | null; version: string | null; kernel: string | null } | null } | null
   guestInfoLoading?: boolean
   clusterPveVersion?: string
   connId?: string
@@ -257,57 +257,12 @@ return `${mins}m`
                 <>
                   <UsageBar themeColor={primaryColor} label="CPU" used={cpuNowPct} capacity={100} mode="pct" />
                   <UsageBar themeColor={primaryColor} label={t('inventory.memoryLabel')} used={memUsed} capacity={memCap} mode="bytes" />
+                  {guestInfo?.diskUsage && guestInfo.diskUsage.total > 0 && (
+                    <UsageBar themeColor={primaryColor} label={t('inventory.storageLabel')} used={guestInfo.diskUsage.used} capacity={guestInfo.diskUsage.total} mode="bytes" />
+                  )}
                 </>
               )}
 
-              {/* Disk I/O & Network I/O */}
-              {showConsole && !isTemplate && (<>
-                <Box sx={{ my: 1.5 }} />
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 1 }}>
-                  {/* Disk I/O */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <i className="ri-hard-drive-3-line" style={{ fontSize: 14, color: primaryColor }} />
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>Disk I/O</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <i className="ri-arrow-up-line" style={{ fontSize: 12, color: theme.palette.success.main }} />
-                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
-                          {formatBps(diskReadBps)}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <i className="ri-arrow-down-line" style={{ fontSize: 12, color: theme.palette.warning.main }} />
-                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
-                          {formatBps(diskWriteBps)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
-                  {/* Network I/O */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <i className="ri-wifi-line" style={{ fontSize: 14, color: primaryColor }} />
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>Network I/O</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <i className="ri-arrow-down-line" style={{ fontSize: 12, color: theme.palette.success.main }} />
-                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
-                          {formatBps(netInBps)}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <i className="ri-arrow-up-line" style={{ fontSize: 12, color: theme.palette.warning.main }} />
-                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
-                          {formatBps(netOutBps)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
-                </Box>
-              </>)}
 
               {/* Spacer to push IP/Uptime/HA to bottom */}
               <Box sx={{ flex: 1 }} />
