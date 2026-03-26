@@ -22,9 +22,11 @@ const snackbar = skin => ({
     styleOverrides: {
       root: ({ theme }) => ({
         '& .MuiAlert-root': {
-          color: '#fff',
-          '& .MuiAlert-icon': { color: '#fff' },
-          '& .MuiAlert-action .MuiIconButton-root': { color: '#fff' },
+          color: '#fff !important',
+          '& .MuiAlert-icon': { color: '#fff !important' },
+          '& .MuiAlert-icon svg': { fill: '#fff !important', color: '#fff !important' },
+          '& .MuiAlert-icon i': { color: '#fff !important' },
+          '& .MuiAlert-action .MuiIconButton-root': { color: '#fff !important' },
         },
         '& .MuiAlert-standard, & .MuiAlert-filled': {
           backgroundImage: 'none',
