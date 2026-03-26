@@ -813,9 +813,23 @@ function RootInventoryView({
                     <XAxis dataKey="t" tickFormatter={v => { const d = new Date(Number(v)); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` }} minTickGap={40} tick={{ fontSize: 8 }} />
                     <YAxis tick={{ fontSize: 8 }} width={30} domain={[0, 'auto']} />
                     <RechartsTooltip
-                      contentStyle={{ background: '#1a1a2e', border: '1px solid #444', borderRadius: 8, fontSize: 11, padding: '8px 12px' }}
-                      labelFormatter={v => new Date(Number(v)).toLocaleTimeString()}
-                      formatter={(v: any, name: string) => [Number(v).toFixed(2), String(name).replace('load_', '')]}
+                      wrapperStyle={{ zIndex: 10 }}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null
+                        const sorted = [...payload].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
+                        return (
+                          <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1, boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>{new Date(Number(label)).toLocaleString()}</Typography>
+                            {sorted.map(entry => (
+                              <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 0.1 }}>
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
+                                <Typography variant="caption" sx={{ flex: 1 }}>{String(entry.name).replace('load_', '')}</Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}>{Number(entry.value).toFixed(2)}</Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        )
+                      }}
                     />
                     {infraRrdNodeNames.map(name => (
                       <Area key={`load_${name}`} type="monotone" dataKey={`load_${name}`} name={`load_${name}`} stroke={infraNodeColors[name]} fill={`url(#infraGradLoad_${name})`} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />

@@ -87,65 +87,56 @@ const actionConfig: Record<string, { icon: string; color: 'info' | 'success' | '
 
 function FieldDiff({ field }: { field: any }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.25 }}>
+    <Box sx={{ py: 0.5 }}>
       <Typography
         variant='caption'
-        sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, minWidth: 100, opacity: 0.8 }}
+        sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, opacity: 0.8, display: 'block', mb: 0.25 }}
       >
         {field.field}
       </Typography>
-      {field.oldValue && (
-        <Chip
-          size='small'
-          label={field.oldValue}
-          sx={{
-            height: 20,
-            fontSize: '0.65rem',
-            fontFamily: 'JetBrains Mono, monospace',
-            bgcolor: 'error.main',
-            color: 'error.contrastText',
-            opacity: 0.8,
-            textDecoration: 'line-through',
-            maxWidth: 200,
-            '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' }
-          }}
-        />
-      )}
-      {field.oldValue && field.newValue && (
-        <i className='ri-arrow-right-line' style={{ fontSize: 12, opacity: 0.5 }} />
-      )}
-      {field.newValue && (
-        <Chip
-          size='small'
-          label={field.newValue}
-          sx={{
-            height: 20,
-            fontSize: '0.65rem',
-            fontFamily: 'JetBrains Mono, monospace',
-            bgcolor: 'success.main',
-            color: 'success.contrastText',
-            maxWidth: 200,
-            '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' }
-          }}
-        />
-      )}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pl: 1 }}>
+        {field.oldValue && (
+          <Box sx={{
+            px: 1, py: 0.25, borderRadius: 0.5,
+            bgcolor: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(244,67,54,0.15)' : 'rgba(244,67,54,0.1)',
+            color: (theme: any) => theme.palette.mode === 'dark' ? '#ef9a9a' : '#c62828',
+            fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem',
+            textDecoration: 'line-through', wordBreak: 'break-all', whiteSpace: 'pre-wrap',
+          }}>
+            {field.oldValue}
+          </Box>
+        )}
+        {field.newValue && (
+          <Box sx={{
+            px: 1, py: 0.25, borderRadius: 0.5,
+            bgcolor: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(76,175,80,0.15)' : 'rgba(76,175,80,0.1)',
+            color: (theme: any) => theme.palette.mode === 'dark' ? '#a5d6a7' : '#2e7d32',
+            fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem',
+            wordBreak: 'break-all', whiteSpace: 'pre-wrap',
+          }}>
+            {field.newValue}
+          </Box>
+        )}
+      </Box>
     </Box>
   )
 }
 
 function TimelineEntry({ change, t }: { change: any; t: any }) {
-  const [expanded, setExpanded] = useState(false)
+  const autoExpand = change.fields && change.fields.length > 0 && change.fields.length <= 3
+  const [expanded, setExpanded] = useState(autoExpand)
   const resConfig = resourceTypeConfig[change.resourceType] || resourceTypeConfig.vm
   const actConfig = actionConfig[change.action] || actionConfig.config_changed
   const hasFields = change.fields && change.fields.length > 0
 
   return (
     <Box sx={{ display: 'flex', gap: 2, position: 'relative' }}>
+      {/* Timeline dot + connector */}
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', pt: 0.5 }}>
         <Box
           sx={{
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
@@ -153,15 +144,16 @@ function TimelineEntry({ change, t }: { change: any; t: any }) {
             bgcolor: resConfig.color,
             color: '#fff',
             flexShrink: 0,
-            boxShadow: `0 0 0 3px var(--mui-palette-background-paper)`
+            boxShadow: `0 0 0 4px var(--mui-palette-background-paper)`
           }}
         >
-          <i className={resConfig.icon} style={{ fontSize: 16 }} />
+          <i className={resConfig.icon} style={{ fontSize: 18 }} />
         </Box>
-        <Box sx={{ width: 2, flex: 1, bgcolor: 'divider', mt: 0.5, minHeight: 16 }} />
+        <Box sx={{ width: 2, flex: 1, bgcolor: 'divider', mt: 0.5, minHeight: 20 }} />
       </Box>
 
-      <Box sx={{ flex: 1, pb: 2.5, minWidth: 0 }}>
+      {/* Content */}
+      <Box sx={{ flex: 1, pb: 3, minWidth: 0 }}>
         <Box
           sx={{
             display: 'flex',
@@ -181,19 +173,19 @@ function TimelineEntry({ change, t }: { change: any; t: any }) {
                 label={t(actConfig.label)}
                 color={actConfig.color}
                 variant='outlined'
-                sx={{ height: 22, fontSize: '0.7rem' }}
+                sx={{ height: 24, fontSize: '0.7rem' }}
               />
-              <Typography variant='body2' fontWeight={600} fontSize={13}>
+              <Typography variant='body2' fontWeight={600}>
                 {resConfig.label} {change.resourceId}
               </Typography>
               {change.resourceName && (
-                <Typography variant='body2' sx={{ opacity: 0.7 }} fontSize={13}>
+                <Typography variant='body2' sx={{ opacity: 0.7 }}>
                   &ldquo;{change.resourceName}&rdquo;
                 </Typography>
               )}
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
               {hasFields && (
                 <Typography variant='caption' sx={{ opacity: 0.7 }}>
                   {change.fields.length} {change.fields.length === 1 ? t('changes.fieldChanged') : t('changes.fieldsChanged')}
@@ -202,22 +194,38 @@ function TimelineEntry({ change, t }: { change: any; t: any }) {
               {hasFields && (
                 <Typography variant='caption' sx={{ opacity: 0.4 }}>{'\u2022'}</Typography>
               )}
+              {change.user && (
+                <>
+                  <Typography variant='caption' sx={{ opacity: 0.6 }}>
+                    {change.user}
+                  </Typography>
+                  <Typography variant='caption' sx={{ opacity: 0.4 }}>{'\u2022'}</Typography>
+                </>
+              )}
               <Typography variant='caption' sx={{ opacity: 0.6 }}>
                 {change.node}
               </Typography>
+              {change.connectionName && (
+                <>
+                  <Typography variant='caption' sx={{ opacity: 0.4 }}>{'\u2022'}</Typography>
+                  <Typography variant='caption' sx={{ opacity: 0.6 }}>
+                    {change.connectionName || change.connectionId}
+                  </Typography>
+                </>
+              )}
             </Box>
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-            <Typography variant='caption' sx={{ opacity: 0.5, fontSize: '0.7rem' }}>
+            <Typography variant='caption' sx={{ opacity: 0.5 }}>
               {timeAgo(change.timestamp, t)}
             </Typography>
-            <Typography variant='caption' sx={{ fontFamily: 'JetBrains Mono, monospace', opacity: 0.4, fontSize: '0.7rem' }}>
+            <Typography variant='caption' sx={{ fontFamily: 'JetBrains Mono, monospace', opacity: 0.4 }}>
               {formatTime(change.timestamp)}
             </Typography>
             {hasFields && (
-              <IconButton size='small' sx={{ opacity: 0.4, p: 0.25 }}>
-                <i className={expanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 14 }} />
+              <IconButton size='small' sx={{ opacity: 0.4 }}>
+                <i className={expanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 16 }} />
               </IconButton>
             )}
           </Box>

@@ -836,6 +836,7 @@ return migratingVmIds.has(`${connId}:${vmid}`)
   // Controlled tree expansion state
   const [manualExpandedItems, setManualExpandedItems] = useState<string[]>([])
   const programmaticExpand = useRef(false)
+  const expandingRef = useRef(false)
   const virtualScrollRef = useRef<HTMLDivElement>(null)
   const [isHydrated, setIsHydrated] = useState(false)
 
@@ -3231,12 +3232,16 @@ return (
         <Collapse in={!collapsedSections.has('pve')}>
         <SimpleTreeView
           expansionTrigger="iconContainer"
+          slots={{ expandIcon: () => <i className="ri-add-line" style={{ fontSize: 14, opacity: 0.5 }} />, collapseIcon: () => <i className="ri-subtract-line" style={{ fontSize: 14, opacity: 0.5 }} /> }}
           selectedItems={selectedItemId || ''}
           expandedItems={search.trim() ? expandedItems : manualExpandedItems}
           onExpandedItemsChange={(_event, itemIds) => {
             if (!search.trim() && !programmaticExpand.current) setManualExpandedItems(itemIds)
+            expandingRef.current = true
+            requestAnimationFrame(() => { expandingRef.current = false })
           }}
           onSelectedItemsChange={(_event, ids) => {
+            if (expandingRef.current) return
             const picked = Array.isArray(ids) ? ids[0] : ids
 
             if (!picked) return
@@ -3466,10 +3471,16 @@ return (
           <Collapse in={!collapsedSections.has('storage')}>
           <SimpleTreeView
             expansionTrigger="iconContainer"
+            slots={{ expandIcon: () => <i className="ri-add-line" style={{ fontSize: 14, opacity: 0.5 }} />, collapseIcon: () => <i className="ri-subtract-line" style={{ fontSize: 14, opacity: 0.5 }} /> }}
             selectedItems={selectedItemId || ''}
             expandedItems={storageExpandedItems}
-            onExpandedItemsChange={(_event, itemIds) => setStorageExpandedItems(itemIds)}
+            onExpandedItemsChange={(_event, itemIds) => {
+              setStorageExpandedItems(itemIds)
+              expandingRef.current = true
+              requestAnimationFrame(() => { expandingRef.current = false })
+            }}
             onSelectedItemsChange={(_event, ids) => {
+              if (expandingRef.current) return
               const picked = Array.isArray(ids) ? ids[0] : ids
               if (!picked) return
               const sel = selectionFromItemId(String(picked))
@@ -3635,10 +3646,16 @@ return (
             ) : (
               <SimpleTreeView
                 expansionTrigger="iconContainer"
+            slots={{ expandIcon: () => <i className="ri-add-line" style={{ fontSize: 14, opacity: 0.5 }} />, collapseIcon: () => <i className="ri-subtract-line" style={{ fontSize: 14, opacity: 0.5 }} /> }}
                 selectedItems={selectedItemId || ''}
                 expandedItems={networkTreeExpandedItems}
-                onExpandedItemsChange={(_event, itemIds) => setNetworkTreeExpandedItems(itemIds)}
+                onExpandedItemsChange={(_event, itemIds) => {
+                  setNetworkTreeExpandedItems(itemIds)
+                  expandingRef.current = true
+                  requestAnimationFrame(() => { expandingRef.current = false })
+                }}
                 onSelectedItemsChange={(_event, ids) => {
+                  if (expandingRef.current) return
                   const picked = Array.isArray(ids) ? ids[0] : ids
                   if (!picked) return
                   const sel = selectionFromItemId(String(picked))
@@ -3749,10 +3766,16 @@ return (
           <Collapse in={!collapsedSections.has('pbs')}>
           <SimpleTreeView
             expansionTrigger="iconContainer"
+            slots={{ expandIcon: () => <i className="ri-add-line" style={{ fontSize: 14, opacity: 0.5 }} />, collapseIcon: () => <i className="ri-subtract-line" style={{ fontSize: 14, opacity: 0.5 }} /> }}
             selectedItems={selectedItemId || ''}
             expandedItems={backupExpandedItems}
-            onExpandedItemsChange={(_event, itemIds) => setBackupExpandedItems(itemIds)}
+            onExpandedItemsChange={(_event, itemIds) => {
+              setBackupExpandedItems(itemIds)
+              expandingRef.current = true
+              requestAnimationFrame(() => { expandingRef.current = false })
+            }}
             onSelectedItemsChange={(_event, ids) => {
+              if (expandingRef.current) return
               const picked = Array.isArray(ids) ? ids[0] : ids
               if (!picked) return
               const sel = selectionFromItemId(String(picked))
@@ -3867,10 +3890,16 @@ return (
             <Collapse in={!collapsedSections.has('migrate-ext')}>
               <SimpleTreeView
                 expansionTrigger="iconContainer"
+            slots={{ expandIcon: () => <i className="ri-add-line" style={{ fontSize: 14, opacity: 0.5 }} />, collapseIcon: () => <i className="ri-subtract-line" style={{ fontSize: 14, opacity: 0.5 }} /> }}
                 selectedItems={selectedItemId || ''}
                 expandedItems={migrationExpandedItems}
-                onExpandedItemsChange={(_event, itemIds) => setMigrationExpandedItems(itemIds)}
+                onExpandedItemsChange={(_event, itemIds) => {
+                  setMigrationExpandedItems(itemIds)
+                  expandingRef.current = true
+                  requestAnimationFrame(() => { expandingRef.current = false })
+                }}
                 onSelectedItemsChange={(_event, ids) => {
+                  if (expandingRef.current) return
                   const picked = Array.isArray(ids) ? ids[0] : ids
                   if (!picked) return
                   const sel = selectionFromItemId(String(picked))
