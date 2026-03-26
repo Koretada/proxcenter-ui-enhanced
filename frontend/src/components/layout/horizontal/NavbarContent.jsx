@@ -49,6 +49,7 @@ import { useLicense, Features } from '@/contexts/LicenseContext'
 import { useRBAC } from '@/contexts/RBACContext'
 
 import { useActiveAlerts, useDRSRecommendations, useVersionCheck, useOrchestratorHealth } from '@/hooks/useNavbarNotifications'
+import { useDRSSettings } from '@/hooks/useDRS'
 
 // Version config
 import { GIT_SHA } from '@/config/version'
@@ -135,6 +136,8 @@ const NavbarContent = () => {
   // SWR hooks for notifications
   const { data: alertsResponse, mutate: mutateAlerts } = useActiveAlerts(isEnterprise && canViewAlerts)
   const { data: drsRecsResponse } = useDRSRecommendations(isEnterprise && canViewDrs, hasFeature(Features.DRS))
+  const { data: drsSettingsData } = useDRSSettings(isEnterprise && canViewDrs)
+  const maxPendingRecs = drsSettingsData?.max_pending_recommendations || 10
   const { data: updateInfoData } = useVersionCheck(3600000)
   const { data: healthData } = useOrchestratorHealth(isEnterprise)
 
@@ -205,7 +208,8 @@ const NavbarContent = () => {
   // DRS recommendations as notifications
   const drsNotifications = drsRecommendations
     .filter(r => r.status === 'pending')
-    .slice(0, 5)
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, maxPendingRecs)
     .map(r => ({
       id: `drs-${r.id}`,
       message: t('drs.recommendationNotif', {
@@ -229,7 +233,7 @@ const NavbarContent = () => {
   ]
 
   // Combined count
-  const drsCount = drsRecommendations.filter(r => r.status === 'pending').length
+  const drsCount = drsNotifications.length
   const totalNotifCount = notifCount + (licenseExpirationNotif ? 1 : 0) + (updateNotif ? 1 : 0) + (nodeLimitNotif ? 1 : 0) + drsCount
 
   // Combined stats
