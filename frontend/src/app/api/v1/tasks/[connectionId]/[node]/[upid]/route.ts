@@ -452,18 +452,24 @@ return NextResponse.json({ error: `Failed to fetch task status: ${e.message}` },
         if (migrationActuallyCompleted) {
           message = 'Migration completed (with cleanup warnings)'
           // Auto-unlock the source VM since Proxmox didn't clean up properly
+          // This runs on every poll but the unlock is idempotent
           const taskType = status?.type || ''
           const vmid = status?.id || ''
           if (vmid && (taskType === 'qmigrate' || taskType.includes('migrate'))) {
             try {
-              await pveFetch(connection, `/nodes/${encodeURIComponent(node)}/qemu/${encodeURIComponent(vmid)}/config`, {
-                method: 'PUT',
-                body: new URLSearchParams({ delete: 'lock' }).toString(),
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              })
-              console.log(`[task-api] Auto-unlocked VM ${vmid} on ${node} after successful cross-cluster migration`)
+              // Check if VM still has a lock before attempting unlock
+              const vmConfig = await pveFetch<any>(connection, `/nodes/${encodeURIComponent(node)}/qemu/${encodeURIComponent(vmid)}/config`)
+              if (vmConfig?.lock) {
+                await pveFetch(connection, `/nodes/${encodeURIComponent(node)}/qemu/${encodeURIComponent(vmid)}/config`, {
+                  method: 'PUT',
+                  body: new URLSearchParams({ delete: 'lock' }).toString(),
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                })
+                console.log(`[task-api] Auto-unlocked VM ${vmid} on ${node} after successful cross-cluster migration (was locked: ${vmConfig.lock})`)
+              }
             } catch (unlockErr: any) {
-              console.warn(`[task-api] Failed to auto-unlock VM ${vmid}:`, unlockErr?.message)
+              // VM might not exist on source anymore (deleted after migration) — that's fine
+              console.warn(`[task-api] Could not auto-unlock VM ${vmid}:`, unlockErr?.message)
             }
           }
         } else {
