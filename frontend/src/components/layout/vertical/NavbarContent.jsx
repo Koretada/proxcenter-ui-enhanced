@@ -281,11 +281,20 @@ const NavbarContent = () => {
     compareUrl: updateInfo.compareUrl
   } : null
 
-  // DRS recommendations as notifications (only pending ones, limited by settings, requires automation.view)
-  const drsNotifications = drsRecommendations
-    .filter(r => r.status === 'pending')
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, maxPendingRecs)
+  // DRS recommendations as notifications (only pending ones, limited per cluster by settings)
+  const drsLimitedRecs = useMemo(() => {
+    const pending = drsRecommendations.filter(r => r.status === 'pending').sort((a, b) => (b.score || 0) - (a.score || 0))
+    const byCluster = new Map()
+    for (const rec of pending) {
+      const cid = rec.connection_id
+      if (!byCluster.has(cid)) byCluster.set(cid, [])
+      const arr = byCluster.get(cid)
+      if (arr.length < maxPendingRecs) arr.push(rec)
+    }
+    return Array.from(byCluster.values()).flat()
+  }, [drsRecommendations, maxPendingRecs])
+
+  const drsNotifications = drsLimitedRecs
     .map(r => ({
       id: `drs-${r.id}`,
       message: t('drs.recommendationNotif', {

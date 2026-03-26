@@ -1490,11 +1490,24 @@ return allVMsData.data.vms.map(vm => ({
     [recommendations, maintenanceNodeNames]
   )
 
-  // Auto-reject excess recommendations (oldest/lowest score first)
+  // Auto-reject excess recommendations per cluster (oldest/lowest score first)
   useEffect(() => {
-    if (allPendingRecs.length <= maxPending) return
-    const excess = allPendingRecs.slice(maxPending)
-    excess.forEach(rec => {
+    // Group pending recs by cluster
+    const byCluster = new Map()
+    for (const rec of allPendingRecs) {
+      const cid = rec.connection_id
+      if (!byCluster.has(cid)) byCluster.set(cid, [])
+      byCluster.get(cid).push(rec)
+    }
+    // For each cluster, reject recs beyond maxPending
+    const toReject = []
+    for (const [, clusterRecs] of byCluster) {
+      if (clusterRecs.length > maxPending) {
+        toReject.push(...clusterRecs.slice(maxPending))
+      }
+    }
+    if (toReject.length === 0) return
+    toReject.forEach(rec => {
       fetch(`/api/v1/orchestrator/drs/recommendations/${rec.id}/reject`, { method: 'POST' }).catch(() => {})
     })
     // Refresh after cleanup
