@@ -20,34 +20,28 @@ const snackbar = skin => ({
   },
   MuiSnackbar: {
     styleOverrides: {
-      root: {
-        '& .MuiAlert-root:not(.MuiAlert-filled):not(.MuiAlert-outlined)': {
-          variant: 'filled'
+      root: ({ theme }) => ({
+        '& .MuiAlert-root': {
+          color: '#fff',
+          '& .MuiAlert-icon': { color: '#fff' },
+          '& .MuiAlert-action .MuiIconButton-root': { color: '#fff' },
         },
-        '& .MuiAlert-standard': {
+        '& .MuiAlert-standard, & .MuiAlert-filled': {
           backgroundImage: 'none',
-          '&.MuiAlert-standardSuccess': {
-            backgroundColor: 'var(--mui-palette-success-main)',
-            color: 'var(--mui-palette-success-contrastText)',
-            '& .MuiAlert-icon': { color: 'inherit' }
+          '&.MuiAlert-standardSuccess, &.MuiAlert-filledSuccess': {
+            backgroundColor: theme.palette.mode === 'light' ? '#2e7d32' : 'var(--mui-palette-success-main)',
           },
-          '&.MuiAlert-standardError': {
-            backgroundColor: 'var(--mui-palette-error-main)',
-            color: 'var(--mui-palette-error-contrastText)',
-            '& .MuiAlert-icon': { color: 'inherit' }
+          '&.MuiAlert-standardError, &.MuiAlert-filledError': {
+            backgroundColor: theme.palette.mode === 'light' ? '#c62828' : 'var(--mui-palette-error-main)',
           },
-          '&.MuiAlert-standardWarning': {
-            backgroundColor: 'var(--mui-palette-warning-main)',
-            color: 'var(--mui-palette-warning-contrastText)',
-            '& .MuiAlert-icon': { color: 'inherit' }
+          '&.MuiAlert-standardWarning, &.MuiAlert-filledWarning': {
+            backgroundColor: theme.palette.mode === 'light' ? '#e65100' : 'var(--mui-palette-warning-main)',
           },
-          '&.MuiAlert-standardInfo': {
-            backgroundColor: 'var(--mui-palette-info-main)',
-            color: 'var(--mui-palette-info-contrastText)',
-            '& .MuiAlert-icon': { color: 'inherit' }
+          '&.MuiAlert-standardInfo, &.MuiAlert-filledInfo': {
+            backgroundColor: theme.palette.mode === 'light' ? '#1565c0' : 'var(--mui-palette-info-main)',
           }
         }
-      }
+      })
     }
   }
 })
