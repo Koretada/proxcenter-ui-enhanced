@@ -3,6 +3,8 @@ const snackbar = skin => ({
     styleOverrides: {
       root: ({ theme }) => ({
         padding: theme.spacing(0, 4),
+        backgroundColor: theme.palette.mode === 'light' ? '#323232' : undefined,
+        color: theme.palette.mode === 'light' ? '#fff' : undefined,
         ...(skin !== 'bordered'
           ? {
               boxShadow: 'var(--mui-customShadows-xs)'

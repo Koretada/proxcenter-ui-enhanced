@@ -18,7 +18,8 @@ import {
   Select,
   Snackbar,
   Tooltip,
-  Typography
+  Typography,
+  useTheme
 } from '@mui/material'
 
 import { useTaskDetail } from '@/hooks/useTaskDetail'
@@ -39,6 +40,7 @@ function getStatusColor(status) {
   if (!status || status === 'running') return 'primary'
   if (status === 'OK') return 'success'
   if (status.includes && status.includes('WARNINGS')) return 'warning'
+  if (status.includes && status.includes('migration problems')) return 'warning'
   if (status.includes && (status.includes('received interrupt') || status.includes('interrupted by user'))) return 'warning'
 
 return 'error'
@@ -48,6 +50,7 @@ function getStatusLabel(status, t) {
   if (!status || status === 'running') return t('tasks.status.running')
   if (status === 'OK') return t('tasks.status.completed')
   if (status === 'stopped') return t('tasks.status.stopped')
+  if (status.includes && status.includes('migration problems')) return t('tasks.status.completedWithWarnings', { defaultMessage: 'Completed (warnings)' })
   if (status.includes && (status.includes('received interrupt') || status.includes('interrupted by user'))) return t('tasks.status.stopped')
   return status
 }
@@ -62,12 +65,12 @@ function getLogType(text) {
 return 'info'
 }
 
-function getLogColor(type) {
+function getLogColor(type, theme) {
   switch (type) {
-    case 'error': return '#f85149'
-    case 'warning': return '#d29922'
-    case 'transfer': return '#58a6ff'
-    default: return '#c9d1d9'
+    case 'error': return theme?.palette?.error?.light || '#f85149'
+    case 'warning': return theme?.palette?.warning?.light || '#d29922'
+    case 'transfer': return theme?.palette?.primary?.light || '#58a6ff'
+    default: return theme?.palette?.primary?.light || '#c9d1d9'
   }
 }
 
@@ -77,6 +80,7 @@ function getLogColor(type) {
 
 export default function TaskDetailDialog({ open, task, onClose }) {
   const t = useTranslations()
+  const theme = useTheme()
   const [details, setDetails] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -285,7 +289,13 @@ return true
           }}>
             <Box>
               <Typography variant="caption" sx={{ opacity: 0.5, display: 'block' }}>{t('tasks.detail.node')}</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>{task.node}</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: 14, height: 14, flexShrink: 0 }}>
+                  <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                  <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: 'success.main', border: '1.5px solid', borderColor: 'background.paper' }} />
+                </Box>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>{task.node}</Typography>
+              </Box>
             </Box>
             <Box>
               <Typography variant="caption" sx={{ opacity: 0.5, display: 'block' }}>{t('tasks.detail.user')}</Typography>
@@ -389,7 +399,11 @@ return true
                 onChange={e => setLogFilter(e.target.value)}
                 sx={{
                   fontSize: 12,
-                  '& .MuiSelect-select': { py: 0.5 }
+                  color: theme.palette.primary.light,
+                  '& .MuiSelect-select': { py: 0.5 },
+                  '& .MuiSelect-icon': { color: theme.palette.primary.light },
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: `${theme.palette.primary.main}55` },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.primary.main },
                 }}
               >
                 <MenuItem value="all">{t('tasks.detail.allLogs')} ({logCounts.all})</MenuItem>
@@ -449,9 +463,9 @@ return true
                     px: 1.5,
                     mb: 1,
                     borderRadius: 0.5,
-                    bgcolor: 'rgba(88, 166, 255, 0.1)',
-                    border: '1px solid rgba(88, 166, 255, 0.2)',
-                    color: '#58a6ff',
+                    bgcolor: `${theme.palette.primary.main}14`,
+                    border: `1px solid ${theme.palette.primary.main}33`,
+                    color: theme.palette.primary.main,
                     fontSize: 11,
                     display: 'flex',
                     alignItems: 'center',
@@ -466,7 +480,7 @@ return true
                 )}
                 {filteredLogs.map((log, idx) => {
                   const logType = getLogType(log.t)
-                  const logColor = getLogColor(logType)
+                  const logColor = getLogColor(logType, theme)
 
                   return (
                     <Box

@@ -444,6 +444,31 @@ return NextResponse.json({ error: `Failed to fetch task status: ${e.message}` },
         message = 'Completed successfully'
       } else if (exit.includes('received interrupt') || exit.includes('interrupted by user')) {
         message = 'Task stopped by user'
+      } else if (exit.includes('migration problems') || exit.includes('migration finished with problems')) {
+        // Cross-cluster migration: cleanup errors (nbdstop/resume) after successful transfer
+        // Check if the actual migration completed by looking at logs
+        const logText = logs.map(l => l.t).join('\n')
+        const migrationActuallyCompleted = logText.includes('migration status: completed') || logText.includes('migration completed')
+        if (migrationActuallyCompleted) {
+          message = 'Migration completed (with cleanup warnings)'
+          // Auto-unlock the source VM since Proxmox didn't clean up properly
+          const taskType = status?.type || ''
+          const vmid = status?.id || ''
+          if (vmid && (taskType === 'qmigrate' || taskType.includes('migrate'))) {
+            try {
+              await pveFetch(connection, `/nodes/${encodeURIComponent(node)}/qemu/${encodeURIComponent(vmid)}/config`, {
+                method: 'PUT',
+                body: new URLSearchParams({ delete: 'lock' }).toString(),
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              })
+              console.log(`[task-api] Auto-unlocked VM ${vmid} on ${node} after successful cross-cluster migration`)
+            } catch (unlockErr: any) {
+              console.warn(`[task-api] Failed to auto-unlock VM ${vmid}:`, unlockErr?.message)
+            }
+          }
+        } else {
+          message = `Failed: ${exit}`
+        }
       } else {
         message = `Failed: ${exit || 'unknown error'}`
       }
