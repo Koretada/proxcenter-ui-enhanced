@@ -1,10 +1,12 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslations } from 'next-intl'
 import {
   Box,
   CircularProgress,
+  IconButton,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
@@ -43,6 +45,16 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
   const [trendsData, setTrendsData] = useState(null)
   const [nodeNames, setNodeNames] = useState([])
   const [loading, setLoading] = useState(false)
+  const [hiddenNodes, setHiddenNodes] = useState(new Set())
+  const [expanded, setExpanded] = useState(false)
+
+  const toggleNodeVisibility = (name) => {
+    setHiddenNodes(prev => {
+      const allOthersHidden = nodeNames.every(n => n === name || prev.has(n))
+      if (allOthersHidden) return new Set()
+      return new Set(nodeNames.filter(n => n !== name))
+    })
+  }
 
   // Group nodes by connection
   const nodesByConnection = useMemo(() => {
@@ -217,18 +229,23 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
           ))}
         </ToggleButtonGroup>
 
-        <ToggleButtonGroup
-          value={timeframe}
-          exclusive
-          onChange={(e, val) => val && setTimeframe(val)}
-          size="small"
-        >
-          {TIMEFRAMES.map((tf) => (
-            <ToggleButton key={tf.value} value={tf.value} sx={{ px: 1.5, py: 0.5, fontSize: '0.75rem', minWidth: 42, fontWeight: timeframe === tf.value ? 700 : 400, '&.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } } }}>
-              {tf.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <ToggleButtonGroup
+            value={timeframe}
+            exclusive
+            onChange={(e, val) => val && setTimeframe(val)}
+            size="small"
+          >
+            {TIMEFRAMES.map((tf) => (
+              <ToggleButton key={tf.value} value={tf.value} sx={{ px: 1.5, py: 0.5, fontSize: '0.75rem', minWidth: 42, fontWeight: timeframe === tf.value ? 700 : 400, '&.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } } }}>
+                {tf.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <IconButton size="small" onClick={() => setExpanded(true)} sx={{ opacity: 0.4, '&:hover': { opacity: 1 } }}>
+            <i className="ri-expand-diagonal-line" style={{ fontSize: 16 }} />
+          </IconButton>
+        </Box>
       </Box>
 
       {/* Chart */}
@@ -276,6 +293,7 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
                   dot={false}
                   activeDot={{ r: 3, strokeWidth: 0 }}
                   connectNulls
+                  hide={hiddenNodes.has(name)}
                 />
               )
             })}
@@ -283,16 +301,109 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
         </ResponsiveContainer>
       </Box>
 
-      {/* Legend — compact node list */}
+      {/* Legend — compact node list, click to isolate */}
       {nodeNames.length > 1 && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 0.5, justifyContent: 'center' }}>
           {nodeNames.map((name, i) => (
-            <Box key={name} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box
+              key={name}
+              onClick={() => toggleNodeVisibility(name)}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', opacity: hiddenNodes.has(name) ? 0.3 : 1, '&:hover': { opacity: hiddenNodes.has(name) ? 0.5 : 0.8 } }}
+            >
               <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: NODE_COLORS[i % NODE_COLORS.length] }} />
-              <Typography variant="caption" sx={{ fontSize: 9, color: 'text.secondary' }}>{name}</Typography>
+              <Typography variant="caption" sx={{ fontSize: 9, color: 'text.secondary', textDecoration: hiddenNodes.has(name) ? 'line-through' : 'none' }}>{name}</Typography>
             </Box>
           ))}
         </Box>
+      )}
+
+      {/* Expanded overlay — portal to body to escape widget overflow */}
+      {expanded && typeof document !== 'undefined' && createPortal(
+        <Box
+          onClick={() => setExpanded(false)}
+          sx={{
+            position: 'fixed', inset: 0, zIndex: 1300,
+            bgcolor: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            p: 4,
+          }}
+        >
+          <Box
+            onClick={(e) => e.stopPropagation()}
+            sx={{
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              width: '95%',
+              maxWidth: 1200,
+              p: 3,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography fontWeight={600}>Infra {metric.toUpperCase()}</Typography>
+              <IconButton size="small" onClick={() => setExpanded(false)}>
+                <i className="ri-close-line" style={{ fontSize: 18 }} />
+              </IconButton>
+            </Box>
+            <Box sx={{ height: 500 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendsData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    {nodeNames.map((name, i) => {
+                      const color = NODE_COLORS[i % NODE_COLORS.length]
+                      return (
+                        <linearGradient key={name} id={`infra-grad-ex-${i}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={color} stopOpacity={0.25} />
+                          <stop offset="95%" stopColor={color} stopOpacity={0.02} />
+                        </linearGradient>
+                      )
+                    })}
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
+                  <XAxis dataKey="t" tick={{ fontSize: 11, fill: theme.palette.text.secondary }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: theme.palette.text.secondary }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip content={<CustomTooltip />} />
+                  {nodeNames.map((name, i) => {
+                    const color = NODE_COLORS[i % NODE_COLORS.length]
+                    return (
+                      <Area
+                        key={name}
+                        type="monotone"
+                        dataKey={`${name}${suffix}`}
+                        name={name}
+                        stroke={color}
+                        strokeWidth={1.5}
+                        fill={`url(#infra-grad-ex-${i})`}
+                        dot={false}
+                        activeDot={{ r: 3, strokeWidth: 0 }}
+                        connectNulls
+                        hide={hiddenNodes.has(name)}
+                      />
+                    )
+                  })}
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+            {/* Legend in overlay */}
+            {nodeNames.length > 1 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, justifyContent: 'center' }}>
+                {nodeNames.map((name, i) => (
+                  <Box
+                    key={name}
+                    onClick={() => toggleNodeVisibility(name)}
+                    sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', opacity: hiddenNodes.has(name) ? 0.3 : 1, '&:hover': { opacity: hiddenNodes.has(name) ? 0.5 : 0.8 } }}
+                  >
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: NODE_COLORS[i % NODE_COLORS.length] }} />
+                    <Typography variant="caption" sx={{ fontSize: 11, textDecoration: hiddenNodes.has(name) ? 'line-through' : 'none' }}>{name}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </Box>,
+        document.body
       )}
     </Box>
   )
