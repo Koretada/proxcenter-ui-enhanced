@@ -2221,7 +2221,7 @@ return next
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
-        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', minHeight: 48, '& .MuiTab-root': { minHeight: 48 } }}
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', minHeight: 48, contain: 'layout style', '& .MuiTab-root': { minHeight: 48 } }}
         variant="standard"
       >
         <Tab disableRipple icon={<DnsIcon />} iconPosition="start" label={t('drsPage.clustersTab')} />
