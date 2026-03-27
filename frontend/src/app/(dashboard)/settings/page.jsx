@@ -1919,6 +1919,32 @@ function GreenTab() {
     saveSettings: hookSaveSettings,
   } = useGreenSettings()
 
+  const currencyOptions = [
+    { code: 'EUR', label: 'Euro (€)' },
+    { code: 'USD', label: 'US Dollar ($)' },
+    { code: 'GBP', label: 'British Pound (£)' },
+    { code: 'CHF', label: 'Swiss Franc (CHF)' },
+    { code: 'CAD', label: 'Canadian Dollar (CA$)' },
+    { code: 'AUD', label: 'Australian Dollar (A$)' },
+    { code: 'JPY', label: 'Japanese Yen (¥)' },
+    { code: 'CNY', label: 'Chinese Yuan (¥)' },
+    { code: 'SEK', label: 'Swedish Krona (kr)' },
+    { code: 'NOK', label: 'Norwegian Krone (kr)' },
+    { code: 'DKK', label: 'Danish Krone (kr)' },
+    { code: 'PLN', label: 'Polish Złoty (zł)' },
+    { code: 'CZK', label: 'Czech Koruna (Kč)' },
+    { code: 'HUF', label: 'Hungarian Forint (Ft)' },
+    { code: 'RON', label: 'Romanian Leu (lei)' },
+    { code: 'BRL', label: 'Brazilian Real (R$)' },
+    { code: 'INR', label: 'Indian Rupee (₹)' },
+    { code: 'KRW', label: 'South Korean Won (₩)' },
+    { code: 'TRY', label: 'Turkish Lira (₺)' },
+    { code: 'ZAR', label: 'South African Rand (R)' },
+    { code: 'MXN', label: 'Mexican Peso (MX$)' },
+  ]
+
+  const currencySymbol = currencyOptions.find(c => c.code === settings.currency)?.label?.match(/\((.+)\)/)?.[1] || '€'
+
   const co2FactorsByCountry = {
     france: { label: t('settings.co2Countries.france'), value: 0.052 },
     germany: { label: t('settings.co2Countries.germany'), value: 0.385 },
@@ -2003,10 +2029,24 @@ function GreenTab() {
                 onChange={e => setSettings(s => ({ ...s, electricityPrice: parseFloat(e.target.value) || 0 }))}
                 inputProps={{ step: 0.01, min: 0 }}
                 InputProps={{
-                  endAdornment: <InputAdornment position='end'>€/kWh</InputAdornment>
+                  endAdornment: <InputAdornment position='end'>{currencySymbol}/kWh</InputAdornment>
                 }}
                 helperText={t('settings.electricityPriceHelper')}
+                sx={{ mb: 2 }}
               />
+
+              <FormControl fullWidth>
+                <InputLabel>{t('settings.currencyLabel')}</InputLabel>
+                <Select
+                  value={settings.currency || 'EUR'}
+                  label={t('settings.currencyLabel')}
+                  onChange={e => setSettings(s => ({ ...s, currency: e.target.value }))}
+                >
+                  {currencyOptions.map(c => (
+                    <MenuItem key={c.code} value={c.code}>{c.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Box>
           </Box>
         </CardContent>

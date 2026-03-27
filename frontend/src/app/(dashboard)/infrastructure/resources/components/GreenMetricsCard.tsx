@@ -21,8 +21,19 @@ import type { GreenMetrics } from '../types'
 import { COLORS } from '../constants'
 import {
   EnergySavingsLeafIcon, ElectricBoltIcon, Co2Icon, ParkIcon,
-  DirectionsCarIcon, EuroIcon, BoltIcon, CloudIcon,
+  DirectionsCarIcon, MoneyIcon, BoltIcon, CloudIcon,
 } from './icons'
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: '€', USD: '$', GBP: '£', CHF: 'CHF', CAD: 'CA$', AUD: 'A$',
+  JPY: '¥', CNY: '¥', SEK: 'kr', NOK: 'kr', DKK: 'kr', PLN: 'zł',
+  CZK: 'Kč', HUF: 'Ft', RON: 'lei', BGN: 'лв', HRK: 'kn',
+  BRL: 'R$', INR: '₹', KRW: '₩', TRY: '₺', ZAR: 'R', MXN: 'MX$',
+}
+
+function getCurrencySymbol(code: string): string {
+  return CURRENCY_SYMBOLS[code] || code
+}
 
 export default function GreenMetricsCard({ green, greenConfigured = true, loading }: { green: GreenMetrics | null; greenConfigured?: boolean; loading?: boolean }) {
   const theme = useTheme()
@@ -153,18 +164,18 @@ export default function GreenMetricsCard({ green, greenConfigured = true, loadin
 
           <Paper sx={{ flex: 1, p: 2, bgcolor: alpha(COLORS.info, 0.04), border: '1px solid', borderColor: alpha(COLORS.info, 0.15), borderRadius: 2 }}>
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-              <EuroIcon sx={{ fontSize: 18, color: COLORS.info }} />
+              <MoneyIcon currency={green.cost.currency} sx={{ fontSize: 18, color: COLORS.info }} />
               <Typography variant="caption" fontWeight={600} color="text.secondary">{t('resources.energyCost')}</Typography>
             </Stack>
-            <Typography variant="h5" fontWeight={800} sx={{ color: COLORS.info }}>{green.cost.yearly.toLocaleString()} €/{t('resources.year')}</Typography>
+            <Typography variant="h5" fontWeight={800} sx={{ color: COLORS.info }}>{green.cost.yearly.toLocaleString()} {getCurrencySymbol(green.cost.currency)}/{t('resources.year')}</Typography>
             <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
               <Box>
                 <Typography variant="caption" color="text.secondary">{t('resources.monthly')}</Typography>
-                <Typography variant="body2" fontWeight={600}>{green.cost.monthly} €</Typography>
+                <Typography variant="body2" fontWeight={600}>{green.cost.monthly} {getCurrencySymbol(green.cost.currency)}</Typography>
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">{t('resources.priceKwh')}</Typography>
-                <Typography variant="body2" fontWeight={600}>{green.cost.pricePerKwh} €</Typography>
+                <Typography variant="body2" fontWeight={600}>{green.cost.pricePerKwh} {getCurrencySymbol(green.cost.currency)}</Typography>
               </Box>
             </Stack>
           </Paper>

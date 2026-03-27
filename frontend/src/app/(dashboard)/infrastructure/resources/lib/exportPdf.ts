@@ -28,6 +28,13 @@ const WHITE = '#ffffff'
 
 const GREEN_PALETTE = { A: '#059669', B: '#10b981', C: '#f59e0b', D: '#f97316', E: '#ef4444' }
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: '\u20AC', USD: '$', GBP: '\u00A3', CHF: 'CHF', CAD: 'CA$', AUD: 'A$',
+  JPY: '\u00A5', CNY: '\u00A5', SEK: 'kr', NOK: 'kr', DKK: 'kr', PLN: 'z\u0142',
+  CZK: 'K\u010D', HUF: 'Ft', RON: 'lei', BRL: 'R$', INR: '\u20B9', KRW: '\u20A9',
+  TRY: '\u20BA', ZAR: 'R', MXN: 'MX$',
+}
+
 function severityBg(sev: string): [number, number, number] {
   switch (sev) {
     case 'critical': case 'high': return [254, 226, 226]
@@ -525,6 +532,7 @@ export async function exportResourcesPdf(data: ExportData): Promise<void> {
     y = 34
 
     const g = data.green
+    const cs = CURRENCY_SYMBOLS[g.cost.currency] || g.cost.currency || '\u20AC'
     const grade = pueGrade(g.efficiency.pue)
     const gradeColor = GREEN_PALETTE[grade as keyof typeof GREEN_PALETTE]
 
@@ -536,7 +544,7 @@ export async function exportResourcesPdf(data: ExportData): Promise<void> {
     doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(...hex(GREEN_PALETTE.A))
     doc.text('Executive Overview', M + 5, y + 6)
     doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(TEXT_DARK)
-    const overviewText = `Your infrastructure consumes an estimated ${n(g.power.yearly)} kWh per year, generating ${n(g.co2.yearly)} kg of CO2 emissions (${n(g.co2.yearly / 1000, 2)} tonnes). At current energy rates (${n(g.cost.pricePerKwh, 4)} \u20AC/kWh), the annual energy cost is ${n(g.cost.yearly, 2)} \u20AC. Your PUE rating of ${n(g.efficiency.pue, 2)} earns a grade of ${grade} — ${pueLabel(g.efficiency.pue).toLowerCase()}.`
+    const overviewText = `Your infrastructure consumes an estimated ${n(g.power.yearly)} kWh per year, generating ${n(g.co2.yearly)} kg of CO2 emissions (${n(g.co2.yearly / 1000, 2)} tonnes). At current energy rates (${n(g.cost.pricePerKwh, 4)} ${cs}/kWh), the annual energy cost is ${n(g.cost.yearly, 2)} ${cs}. Your PUE rating of ${n(g.efficiency.pue, 2)} earns a grade of ${grade} — ${pueLabel(g.efficiency.pue).toLowerCase()}.`
     const wrapped = doc.splitTextToSize(overviewText, CW - 10)
     doc.text(wrapped, M + 5, y + 11)
     y += 26
@@ -638,13 +646,13 @@ export async function exportResourcesPdf(data: ExportData): Promise<void> {
     // ─── Energy Cost Analysis ───
     y = section('Energy Cost Analysis', y)
     const costRows: [string, string][] = [
-      ['Energy Price', `${n(g.cost.pricePerKwh, 4)} \u20AC/kWh`],
+      ['Energy Price', `${n(g.cost.pricePerKwh, 4)} ${cs}/kWh`],
       ['Current Power Draw', `${Math.round(g.power.current)} W`],
       ['Max Power Capacity', `${Math.round(g.power.max)} W`],
       ['Monthly Consumption', `${n(g.power.monthly, 1)} kWh`],
       ['Yearly Consumption', `${n(g.power.yearly, 1)} kWh`],
-      ['Monthly Cost', `${n(g.cost.monthly, 2)} \u20AC`],
-      ['Yearly Cost', `${n(g.cost.yearly, 2)} \u20AC`],
+      ['Monthly Cost', `${n(g.cost.monthly, 2)} ${cs}`],
+      ['Yearly Cost', `${n(g.cost.yearly, 2)} ${cs}`],
     ]
     y = kvTable(costRows, y)
 
@@ -658,7 +666,7 @@ export async function exportResourcesPdf(data: ExportData): Promise<void> {
     doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(TEXT_DARK)
     const y3cost = g.cost.yearly * 3
     const y3co2 = g.co2.yearly * 3
-    doc.text(`Total energy cost: ${n(y3cost, 2)} \u20AC   |   Total CO2: ${n(y3co2, 1)} kg (${n(y3co2 / 1000, 2)} tonnes)   |   Consumption: ${n(g.power.yearly * 3, 0)} kWh`, M + 4, y + 11)
+    doc.text(`Total energy cost: ${n(y3cost, 2)} ${cs}   |   Total CO2: ${n(y3co2, 1)} kg (${n(y3co2 / 1000, 2)} tonnes)   |   Consumption: ${n(g.power.yearly * 3, 0)} kWh`, M + 4, y + 11)
     y += 22
 
     // Recommendations

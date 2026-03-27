@@ -93,6 +93,7 @@ export type GreenMetrics = {
     monthly: number
     yearly: number
     pricePerKwh: number
+    currency: string
   }
   efficiency: {
     pue: number

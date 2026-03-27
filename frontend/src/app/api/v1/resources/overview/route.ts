@@ -350,6 +350,7 @@ function buildGreenConfig(dbSettings: any) {
     defaultCo2Factor: dbSettings.co2Factor || DEFAULT_GREEN_CONFIG.defaultCo2Factor,
     electricityPrice: dbSettings.electricityPrice || DEFAULT_GREEN_CONFIG.electricityPrice,
     equivalences: DEFAULT_GREEN_CONFIG.equivalences,
+    currency: dbSettings.currency || 'EUR',
   }
 }
 
@@ -379,11 +380,12 @@ function calculateGreenMetrics(data: {
     equivalentTrees: number    // Arbres nécessaires pour compenser
   }
   cost: {
-    hourly: number       // €/heure
-    daily: number        // €/jour
-    monthly: number      // €/mois
-    yearly: number       // €/an
-    pricePerKwh: number  // Prix utilisé
+    hourly: number
+    daily: number
+    monthly: number
+    yearly: number
+    pricePerKwh: number
+    currency: string
   }
   efficiency: {
     pue: number          // PUE datacenter
@@ -497,6 +499,7 @@ function calculateGreenMetrics(data: {
       monthly: Math.round(monthlyCost),
       yearly: Math.round(yearlyCost),
       pricePerKwh,
+      currency: (config as any).currency || 'EUR',
     },
     efficiency: {
       pue: config.pue,

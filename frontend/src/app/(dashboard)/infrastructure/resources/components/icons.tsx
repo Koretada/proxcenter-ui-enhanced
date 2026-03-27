@@ -21,6 +21,7 @@ export const ElectricBoltIcon = (props: any) => <i className="ri-flashlight-fill
 export const ParkIcon = (props: any) => <i className="ri-plant-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 export const DirectionsCarIcon = (props: any) => <i className="ri-car-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 export const EuroIcon = (props: any) => <i className="ri-money-euro-circle-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
+export const MoneyIcon = (props: any) => <i className={props?.currency === 'GBP' ? 'ri-money-pound-circle-line' : props?.currency === 'USD' || props?.currency === 'CAD' || props?.currency === 'AUD' ? 'ri-money-dollar-circle-line' : 'ri-money-euro-circle-line'} style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 export const LayersIcon = (props: any) => <i className="ri-stack-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 export const TipsAndUpdatesIcon = (props: any) => <i className="ri-lightbulb-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 export const SavingsIcon = (props: any) => <i className="ri-funds-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
