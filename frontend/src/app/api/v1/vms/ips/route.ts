@@ -112,6 +112,25 @@ async function getVmDetails(connData: any, vm: { type: string, node: string, vmi
           } catch {}
         }
       } else if (type === 'lxc') {
+        // Essayer l'endpoint interfaces pour obtenir l'IP réelle (DHCP inclus)
+        if (status === 'running') {
+          try {
+            const interfaces = await pveFetch<any[]>(
+              connData,
+              `/nodes/${encodeURIComponent(node)}/lxc/${vmid}/interfaces`
+            )
+
+            if (Array.isArray(interfaces)) {
+              for (const iface of interfaces) {
+                if (iface.name === 'lo') continue
+
+                if (iface.inet) return iface.inet.split('/')[0]
+              }
+            }
+          } catch {}
+        }
+
+        // Fallback: IP statique depuis la config
         try {
           const config = await pveFetch<any>(
             connData,

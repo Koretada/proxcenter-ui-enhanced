@@ -188,16 +188,41 @@ return undefined
           `/nodes/${encodeURIComponent(node)}/${encodeURIComponent(type)}/${encodeURIComponent(vmid)}/config`
         )
         
-        // Récupérer l'IP
+        // Récupérer l'IP - d'abord via les interfaces runtime (supporte DHCP), sinon fallback config statique
         if (status === 'running') {
-          for (const key of Object.keys(configData || {})) {
-            if (key.startsWith('net') && configData[key]) {
-              const netConfig = configData[key]
-              const ipMatch = netConfig.match(/ip=([^,\/]+)/)
+          // Essayer l'endpoint interfaces pour obtenir l'IP réelle (DHCP inclus)
+          try {
+            const interfaces = await pveFetch<any[]>(
+              conn,
+              `/nodes/${encodeURIComponent(node)}/lxc/${encodeURIComponent(vmid)}/interfaces`
+            )
 
-              if (ipMatch && ipMatch[1] && ipMatch[1] !== 'dhcp') {
-                ip = ipMatch[1]
-                break
+            if (Array.isArray(interfaces)) {
+              for (const iface of interfaces) {
+                if (iface.name === 'lo') continue
+                const inet = iface.inet
+
+                if (inet) {
+                  ip = inet.split('/')[0]
+                  break
+                }
+              }
+            }
+          } catch {
+            // interfaces endpoint not available, fallback to config
+          }
+
+          // Fallback: lire l'IP statique depuis la config
+          if (!ip) {
+            for (const key of Object.keys(configData || {})) {
+              if (key.startsWith('net') && configData[key]) {
+                const netConfig = configData[key]
+                const ipMatch = netConfig.match(/ip=([^,\/]+)/)
+
+                if (ipMatch && ipMatch[1] && ipMatch[1] !== 'dhcp') {
+                  ip = ipMatch[1]
+                  break
+                }
               }
             }
           }
