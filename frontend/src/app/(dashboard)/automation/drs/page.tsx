@@ -2217,18 +2217,12 @@ return next
       </Card>
 
       {/* Tabs */}
-
-      <Tabs
-        value={tab}
-        onChange={(_, v) => setTab(v)}
-        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', minHeight: 48, contain: 'layout style', '& .MuiTab-root': { minHeight: 48 } }}
-        variant="standard"
-      >
-        <Tab disableRipple icon={<DnsIcon />} iconPosition="start" label={t('drsPage.clustersTab')} />
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab icon={<DnsIcon />} iconPosition="start" label={t('drsPage.clustersTab')} sx={{ textTransform: 'none', fontSize: 13 }} />
         <Tab
-          disableRipple
           icon={<SwapHorizIcon />}
           iconPosition="start"
+          sx={{ textTransform: 'none', fontSize: 13 }}
           label={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {t('drsPage.recommendationsTab')}
@@ -2241,8 +2235,8 @@ return next
             </Box>
           }
         />
-        <Tab disableRipple icon={<LocalOfferIcon />} iconPosition="start" label={t('drsPage.affinity')} />
-        <Tab disableRipple icon={<SettingsIcon />} iconPosition="start" label={t('drsPage.configuration')} />
+        <Tab icon={<LocalOfferIcon />} iconPosition="start" label={t('drsPage.affinity')} sx={{ textTransform: 'none', fontSize: 13 }} />
+        <Tab icon={<SettingsIcon />} iconPosition="start" label={t('drsPage.configuration')} sx={{ textTransform: 'none', fontSize: 13 }} />
       </Tabs>
 
       {/* Tab: Clusters */}

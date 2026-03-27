@@ -328,7 +328,7 @@ const getGlobalThemeStyles = (globalTheme, mode, customBorderRadius, blurIntensi
 
     // Tab styles
     '.MuiTab-root': {
-      transition: `all var(--proxcenter-transition-duration) var(--proxcenter-transition-easing) !important`
+      transition: `color var(--proxcenter-transition-duration) var(--proxcenter-transition-easing), background-color var(--proxcenter-transition-duration) var(--proxcenter-transition-easing) !important`
     },
 
     // Tooltip
