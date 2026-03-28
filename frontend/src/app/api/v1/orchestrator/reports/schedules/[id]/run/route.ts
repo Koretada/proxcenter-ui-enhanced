@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 
@@ -12,6 +13,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await checkPermission(PERMISSIONS.REPORTS_VIEW)
+    if (denied) return denied
+
     const { id } = await params
 
     // Verify schedule belongs to tenant

@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 
 // GET /api/v1/orchestrator/reports/schedules - List schedules (filtered by tenant)
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.REPORTS_VIEW)
+    if (denied) return denied
+
     const tenantConnectionIds = await getTenantConnectionIds()
     const data = await orchestratorFetch('/reports/schedules')
 
@@ -32,6 +36,9 @@ export async function GET() {
 // POST /api/v1/orchestrator/reports/schedules - Create a new schedule
 export async function POST(request: NextRequest) {
   try {
+    const denied = await checkPermission(PERMISSIONS.REPORTS_VIEW)
+    if (denied) return denied
+
     const body = await request.json()
 
     const data = await orchestratorFetch('/reports/schedules', {

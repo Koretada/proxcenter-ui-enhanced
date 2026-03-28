@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getOrchestratorClient } from '@/lib/orchestrator/client'
 import { verifyConnectionOwnership } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 // POST /api/v1/firewall/nodes/[connectionId]/[node]/rules - Add node rule
 export async function POST(
@@ -13,6 +14,10 @@ export async function POST(
     const { connectionId, node } = await params
     const ownershipDenied = await verifyConnectionOwnership(connectionId)
     if (ownershipDenied) return ownershipDenied
+
+    const denied = await checkPermission(PERMISSIONS.NODE_MANAGE, "connection", connectionId)
+    if (denied) return denied
+
     const body = await request.json()
 
     const orchestrator = getOrchestratorClient()

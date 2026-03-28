@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 /**
  * GET /api/v1/orchestrator/notifications/templates
@@ -8,6 +9,9 @@ import { orchestratorFetch } from '@/lib/orchestrator'
  */
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.ADMIN_SETTINGS)
+    if (denied) return denied
+
     const result = await orchestratorFetch('/notifications/templates')
 
     return NextResponse.json(result)
@@ -29,6 +33,9 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ADMIN_SETTINGS)
+    if (denied) return denied
+
     const body = await request.json()
 
     const result = await orchestratorFetch('/notifications/templates', {

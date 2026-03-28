@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 
 // GET /api/v1/orchestrator/reports - List reports (filtered by tenant)
 export async function GET(request: NextRequest) {
   try {
+    const denied = await checkPermission(PERMISSIONS.REPORTS_VIEW)
+    if (denied) return denied
+
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
@@ -49,6 +53,9 @@ export async function GET(request: NextRequest) {
 // POST /api/v1/orchestrator/reports - Generate a new report (scoped to tenant connections)
 export async function POST(request: NextRequest) {
   try {
+    const denied = await checkPermission(PERMISSIONS.REPORTS_VIEW)
+    if (denied) return denied
+
     const body = await request.json()
 
     // Inject tenant connection_ids so the orchestrator only includes this tenant's data

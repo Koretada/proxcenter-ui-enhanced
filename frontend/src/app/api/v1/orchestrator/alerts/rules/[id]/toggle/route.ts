@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator/client'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const { id } = await params
 
     // Verify rule belongs to tenant

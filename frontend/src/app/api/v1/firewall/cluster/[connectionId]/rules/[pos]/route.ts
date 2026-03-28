@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getOrchestratorClient } from '@/lib/orchestrator/client'
 import { verifyConnectionOwnership } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 // PUT /api/v1/firewall/cluster/[connectionId]/rules/[pos] - Update/move cluster rule
 export async function PUT(
@@ -13,6 +14,10 @@ export async function PUT(
     const { connectionId, pos } = await params
     const ownershipDenied = await verifyConnectionOwnership(connectionId)
     if (ownershipDenied) return ownershipDenied
+
+    const denied = await checkPermission(PERMISSIONS.NODE_MANAGE, "connection", connectionId)
+    if (denied) return denied
+
     const body = await request.json()
 
     const orchestrator = getOrchestratorClient()
@@ -38,6 +43,9 @@ export async function DELETE(
     const { connectionId, pos } = await params
     const ownershipDenied = await verifyConnectionOwnership(connectionId)
     if (ownershipDenied) return ownershipDenied
+
+    const denied = await checkPermission(PERMISSIONS.NODE_MANAGE, "connection", connectionId)
+    if (denied) return denied
 
     const orchestrator = getOrchestratorClient()
 

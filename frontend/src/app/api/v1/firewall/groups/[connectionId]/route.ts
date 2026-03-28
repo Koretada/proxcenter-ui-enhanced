@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getOrchestratorClient } from '@/lib/orchestrator/client'
 import { verifyConnectionOwnership } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 // GET /api/v1/firewall/groups/[connectionId] - Get all security groups
 export async function GET(
@@ -13,6 +14,9 @@ export async function GET(
     const { connectionId } = await params
     const ownershipDenied = await verifyConnectionOwnership(connectionId)
     if (ownershipDenied) return ownershipDenied
+
+    const denied = await checkPermission(PERMISSIONS.NODE_VIEW, "connection", connectionId)
+    if (denied) return denied
 
     const orchestrator = getOrchestratorClient()
     const response = await orchestrator.get(`/firewall/groups/${connectionId}`)
@@ -37,6 +41,10 @@ export async function POST(
     const { connectionId } = await params
     const ownershipDenied = await verifyConnectionOwnership(connectionId)
     if (ownershipDenied) return ownershipDenied
+
+    const denied = await checkPermission(PERMISSIONS.NODE_MANAGE, "connection", connectionId)
+    if (denied) return denied
+
     const body = await request.json()
 
     const orchestrator = getOrchestratorClient()

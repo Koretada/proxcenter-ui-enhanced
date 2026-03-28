@@ -4,6 +4,7 @@ import { request } from "undici"
 
 import { getConnectionById } from "@/lib/connections/getConnection"
 import { getInsecureAgent } from "@/lib/proxmox/client"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -28,6 +29,9 @@ export async function GET(
     if (!pveId) {
       return NextResponse.json({ error: "Missing PVE connection id" }, { status: 400 })
     }
+
+    const denied = await checkPermission(PERMISSIONS.BACKUP_VIEW, "connection", pveId)
+    if (denied) return denied
 
     const url = new URL(req.url)
     const storage = url.searchParams.get('storage')

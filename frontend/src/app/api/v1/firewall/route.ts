@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getOrchestratorClient } from '@/lib/orchestrator/client'
 import { verifyConnectionOwnership } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 // GET /api/v1/firewall?connectionId=xxx - Get firewall status
 export async function GET(request: NextRequest) {
@@ -20,7 +21,10 @@ export async function GET(request: NextRequest) {
     }
 
     // codeql[js/user-controlled-bypass] — connectionId is format-validated and ownership-checked
-    const denied = await verifyConnectionOwnership(connectionId)
+    const ownershipDenied = await verifyConnectionOwnership(connectionId)
+    if (ownershipDenied) return ownershipDenied
+
+    const denied = await checkPermission(PERMISSIONS.NODE_VIEW, "connection", connectionId)
     if (denied) return denied
 
     const orchestrator = getOrchestratorClient()

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getTenantConnectionIds } from "@/lib/tenant"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -12,6 +13,9 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await checkPermission(PERMISSIONS.AUTOMATION_VIEW)
+    if (denied) return denied
+
     const { id } = await ctx.params
 
     const response = await fetch(`${ORCHESTRATOR_URL}/api/v1/rolling-updates/${id}`, {

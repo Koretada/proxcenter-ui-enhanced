@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -6,6 +7,9 @@ const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL || "http://localhost:8080"
 
 export async function POST(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ADMIN_SETTINGS)
+    if (denied) return denied
+
     const body = await req.json().catch(() => null)
     if (!body?.license) {
       return NextResponse.json(

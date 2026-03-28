@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export async function POST(request: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ADMIN_SETTINGS)
+    if (denied) return denied
+
     const body = await request.json().catch(() => ({}))
 
     const data = await orchestratorFetch('/notifications/test-connection', {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator/client'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_VIEW)
+    if (denied) return denied
+
     const tenantConnectionIds = await getTenantConnectionIds()
     const rules = await orchestratorFetch('/alerts/rules')
 
@@ -44,6 +48,9 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const body = await req.json()
 
     // Validate connection_id belongs to current tenant

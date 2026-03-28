@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { alertsApi } from '@/lib/orchestrator/client'
 import { getSessionPrisma, getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_VIEW)
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const connectionId = searchParams.get('connection_id') || undefined
     const status = searchParams.get('status') as 'active' | 'acknowledged' | 'resolved' | undefined
@@ -72,6 +76,9 @@ export async function GET(req: Request) {
  */
 export async function DELETE(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     const connectionId = searchParams.get('connection_id') || undefined
 

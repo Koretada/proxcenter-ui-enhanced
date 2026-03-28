@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getOrchestratorClient } from '@/lib/orchestrator/client'
 import { getDb } from '@/lib/db/sqlite'
 import { getCurrentTenantId } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = "nodejs"
 
@@ -74,6 +75,9 @@ const defaultSettings = {
 // GET /api/v1/orchestrator/drs/settings
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.AUTOMATION_VIEW)
+    if (denied) return denied
+
     const client = getOrchestratorClient()
     
     if (!client) {
@@ -110,6 +114,9 @@ export async function GET() {
 // PUT /api/v1/orchestrator/drs/settings
 export async function PUT(request: NextRequest) {
   try {
+    const denied = await checkPermission(PERMISSIONS.AUTOMATION_MANAGE)
+    if (denied) return denied
+
     const client = getOrchestratorClient()
     
     if (!client) {

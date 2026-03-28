@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getSessionPrisma } from "@/lib/tenant"
 import { decryptSecret } from "@/lib/crypto/secret"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -9,6 +10,9 @@ const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL || "http://localhost:8080"
 
 export async function POST(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.AUTOMATION_EXECUTE)
+    if (denied) return denied
+
     const prisma = await getSessionPrisma()
     const body = await req.json()
 

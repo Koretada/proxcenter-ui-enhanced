@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getOrchestratorClient } from '@/lib/orchestrator/client'
 import { verifyConnectionOwnership } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 type Params = { connectionId: string; node: string; vmType: string; vmid: string }
 
@@ -15,6 +16,10 @@ export async function POST(
     const { connectionId, node, vmType, vmid } = await params
     const ownershipDenied = await verifyConnectionOwnership(connectionId)
     if (ownershipDenied) return ownershipDenied
+
+    const denied = await checkPermission(PERMISSIONS.NODE_MANAGE, "connection", connectionId)
+    if (denied) return denied
+
     const body = await request.json()
     
     const orchestrator = getOrchestratorClient()

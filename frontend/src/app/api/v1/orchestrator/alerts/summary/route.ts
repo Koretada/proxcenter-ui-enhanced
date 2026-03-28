@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { alertsApi } from '@/lib/orchestrator/client'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_VIEW)
+    if (denied) return denied
+
     const tenantConnectionIds = await getTenantConnectionIds()
 
     // Fetch all alerts to recompute summary from tenant-filtered data

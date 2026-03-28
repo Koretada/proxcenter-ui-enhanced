@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL || 'http://localhost:8080'
 const ORCHESTRATOR_API_KEY = process.env.ORCHESTRATOR_API_KEY || ''
@@ -15,6 +16,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await checkPermission(PERMISSIONS.REPORTS_VIEW)
+    if (denied) return denied
+
     const { id } = await params
 
     // Verify report belongs to tenant

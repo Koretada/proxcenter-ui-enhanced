@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { orchestratorFetch } from '@/lib/orchestrator/client'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,6 +26,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_VIEW)
+    if (denied) return denied
+
     const { id } = await params
     const { rule, allowed } = await verifyRuleBelongsToTenant(id)
     if (!allowed) return NextResponse.json({ error: 'Rule not found' }, { status: 404 })
@@ -50,6 +54,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const { id } = await params
     const { allowed } = await verifyRuleBelongsToTenant(id)
     if (!allowed) return NextResponse.json({ error: 'Rule not found' }, { status: 404 })
@@ -81,6 +88,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const { id } = await params
     const { allowed } = await verifyRuleBelongsToTenant(id)
     if (!allowed) return NextResponse.json({ error: 'Rule not found' }, { status: 404 })

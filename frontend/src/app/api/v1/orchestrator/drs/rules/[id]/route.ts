@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getOrchestratorClient } from '@/lib/orchestrator/client'
 import { getTenantConnectionIds } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = "nodejs"
 
@@ -24,6 +25,9 @@ async function verifyDrsRuleBelongsToTenant(client: any, id: string): Promise<bo
 // PUT /api/v1/orchestrator/drs/rules/:id — tenant-scoped
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
+    const denied = await checkPermission(PERMISSIONS.AUTOMATION_MANAGE)
+    if (denied) return denied
+
     const { id } = await params
     const client = getOrchestratorClient()
     if (!client) return NextResponse.json({ error: 'Orchestrator not configured' }, { status: 503 })
@@ -64,6 +68,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/v1/orchestrator/drs/rules/:id — tenant-scoped
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    const denied = await checkPermission(PERMISSIONS.AUTOMATION_MANAGE)
+    if (denied) return denied
+
     const { id } = await params
     const client = getOrchestratorClient()
     if (!client) return NextResponse.json({ error: 'Orchestrator not configured' }, { status: 503 })

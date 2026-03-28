@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getTenantConnectionIds } from "@/lib/tenant"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -13,6 +14,9 @@ export async function POST(
   ctx: { params: Promise<{ id: string; action: string }> }
 ) {
   try {
+    const denied = await checkPermission(PERMISSIONS.AUTOMATION_EXECUTE)
+    if (denied) return denied
+
     const { id, action } = await ctx.params
 
     const validActions = ["pause", "resume", "cancel", "approve"]

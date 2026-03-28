@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { alertsApi } from '@/lib/orchestrator/client'
+import { checkPermission, PERMISSIONS } from '@/lib/rbac'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,6 +12,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_VIEW)
+    if (denied) return denied
+
     const response = await alertsApi.getThresholds()
 
     
@@ -46,6 +50,9 @@ return NextResponse.json(response.data)
  */
 export async function PUT(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const body = await req.json()
     const response = await alertsApi.updateThresholds(body)
 
