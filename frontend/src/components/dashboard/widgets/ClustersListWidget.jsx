@@ -3,11 +3,12 @@
 import React from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Box, Chip, Typography } from '@mui/material'
+import { Box, Chip, Typography, useTheme } from '@mui/material'
 
 function ClustersListWidget({ data, loading }) {
   const t = useTranslations()
   const router = useRouter()
+  const theme = useTheme()
   const clusters = (data?.clusters || []).filter(c => c.isCluster)
 
   if (clusters.length === 0) {
@@ -31,6 +32,10 @@ function ClustersListWidget({ data, loading }) {
             '&:hover': cluster.id ? { bgcolor: 'action.hover' } : {},
           }}
         >
+          <Box sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, flexShrink: 0 }}>
+            <i className='ri-server-fill' style={{ fontSize: 18, opacity: 0.8 }} />
+            <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 7, height: 7, borderRadius: '50%', bgcolor: cluster.onlineNodes > 0 ? '#4caf50' : '#f44336', border: '1.5px solid', borderColor: 'background.paper' }} />
+          </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant='body2' sx={{ fontWeight: 700, fontSize: 13 }}>{cluster.name}</Typography>
             <Typography variant='caption' sx={{ opacity: 0.6, fontSize: 10 }}>

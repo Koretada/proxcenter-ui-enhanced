@@ -238,7 +238,25 @@ function ClusterWaffle({
         {/* Header */}
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
           <Stack direction="row" alignItems="center" spacing={1}>
-            <i className="ri-cloud-fill" style={{ fontSize: 18, color: theme.palette.primary.main }} />
+            {(() => {
+              const uniqueNodes = new Set(cluster.vms.map(v => v.node))
+              const isCluster = uniqueNodes.size > 1
+              const dotColor = cluster.stats.running > 0 ? '#4caf50' : '#f44336'
+              if (isCluster) {
+                return (
+                  <Box sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, flexShrink: 0 }}>
+                    <i className="ri-server-fill" style={{ opacity: 0.8, fontSize: 18 }} />
+                    <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 7, height: 7, borderRadius: '50%', bgcolor: dotColor, border: '1.5px solid', borderColor: 'background.paper' }} />
+                  </Box>
+                )
+              }
+              return (
+                <Box sx={{ position: 'relative', display: 'inline-flex', width: 18, height: 18, flexShrink: 0 }}>
+                  <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={18} height={18} style={{ opacity: 0.8 }} />
+                  <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 7, height: 7, borderRadius: '50%', bgcolor: dotColor, border: '1.5px solid', borderColor: 'background.paper' }} />
+                </Box>
+              )
+            })()}
             <Typography variant="subtitle2" fontWeight={700}>
               {cluster.connName}
             </Typography>
