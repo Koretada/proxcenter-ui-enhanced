@@ -157,8 +157,14 @@ export function parseMarkdown(md: string): string {
     .replace(/__([^_]+)__/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/_([^_]+)_/g, '<em>$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%;" />')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
+      if (/^https?:\/\//i.test(url)) return `<a href="${url}" target="_blank" rel="noopener">${text}</a>`
+      return text
+    })
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => {
+      if (/^https?:\/\//i.test(url)) return `<img src="${url}" alt="${alt}" style="max-width: 100%;" />`
+      return alt
+    })
     .replace(/^---$/gm, '<hr />')
     .replace(/^\*\*\*$/gm, '<hr />')
     .replace(/^&gt; (.*)$/gm, '<blockquote>$1</blockquote>')

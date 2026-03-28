@@ -165,7 +165,7 @@ async function handleWsConnection(clientWs, req) {
       // Récupérer les infos de session depuis l'API (internal call via localhost)
       const sessionRes = await fetch(`${INTERNAL_API_URL}/api/internal/console/consume`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Internal-Caller': 'proxcenter-ws-proxy' },
         body: JSON.stringify({ sessionId })
       })
 

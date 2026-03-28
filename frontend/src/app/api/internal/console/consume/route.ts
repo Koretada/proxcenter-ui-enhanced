@@ -5,6 +5,12 @@ import { consumeConsoleSession } from "@/app/api/v1/connections/[id]/guests/[typ
 export const runtime = "nodejs"
 
 export async function POST(req: Request) {
+  // Only allow internal calls (from our own WS proxy)
+  const origin = req.headers.get("x-internal-caller")
+  if (origin !== "proxcenter-ws-proxy") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   const { sessionId } = await req.json().catch(() => ({}))
 
   if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 })

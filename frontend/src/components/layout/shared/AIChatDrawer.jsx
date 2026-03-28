@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslations, useLocale } from 'next-intl'
+import DOMPurify from 'dompurify'
 
 import {
   Avatar,
@@ -101,7 +102,7 @@ const MessageBubble = ({ message, isUser, isStreaming, thinkingText }) => {
                 fontSize: '0.85em'
               }
             }}
-            dangerouslySetInnerHTML={{ __html: formatText(message.content) }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formatText(message.content)) }}
           />
         )}
         {isStreaming && message.content && (
