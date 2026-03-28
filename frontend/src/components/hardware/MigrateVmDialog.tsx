@@ -114,7 +114,7 @@ export function MigrateVmDialog({ open, onClose, onMigrate, connId, currentNode,
     const names = [...new Set(vmDisks.map(d => d.storage))]
 
 
-return names.sort()
+return names.sort((a, b) => a.localeCompare(b))
   }, [vmDisks])
 
   // Vérifier si la VM a des disques locaux

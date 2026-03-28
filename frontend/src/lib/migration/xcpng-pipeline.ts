@@ -622,7 +622,7 @@ export async function runXcpngMigrationPipeline(jobId: string, config: Migration
           )
           const unusedKeys = Object.keys(vmConf)
             .filter(k => k.startsWith("unused"))
-            .sort()
+            .sort((a, b) => a.localeCompare(b))
           if (unusedKeys.length > 0) {
             diskVolume = vmConf[unusedKeys[unusedKeys.length - 1]] as string
             await appendLog(jobId, `Found unused disk in VM config: ${diskVolume}`, "info")

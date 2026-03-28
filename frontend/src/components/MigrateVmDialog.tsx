@@ -236,7 +236,7 @@ export function MigrateVmDialog({
   // Calculer les stockages actuels uniques
   const currentStorageNames = useMemo(() => {
     const names = [...new Set(vmDisks.map(d => d.storage))]
-    return names.sort()
+    return names.sort((a, b) => a.localeCompare(b))
   }, [vmDisks])
   
   // Vérifier si la VM a des disques locaux

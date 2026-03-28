@@ -251,7 +251,7 @@ export default function RollingUpdateWizard({
       const onlineNodes = nodes
         .filter(n => n.status === 'online')
         .map(n => n.node)
-        .sort()
+        .sort((a, b) => a.localeCompare(b))
 
       if (connectedNode && onlineNodes.includes(connectedNode)) {
         const filtered = onlineNodes.filter(n => n !== connectedNode)

@@ -122,7 +122,7 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
 
         // Gap-fill: PVE 8 vs 9 return different point counts, causing gaps.
         // Forward-fill then backward-fill to cover both trailing and leading gaps.
-        const sortedNames = [...allNodeNames].sort()
+        const sortedNames = [...allNodeNames].sort((a, b) => a.localeCompare(b))
         const keys = sortedNames.flatMap(name => [`${name}_cpu`, `${name}_ram`])
         const lastKnown = {}
         for (const slot of aggregated) {

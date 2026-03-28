@@ -348,7 +348,7 @@ function RootInventoryView({
   const hostsRef = useRef(hosts)
   hostsRef.current = hosts
   const rawInfraRrdNodesKey = useMemo(() => {
-    return hosts.map(h => `${h.connId}|${h.node}`).sort().join(',')
+    return hosts.map(h => `${h.connId}|${h.node}`).sort((a, b) => a.localeCompare(b)).join(',')
   }, [hosts])
   const [infraRrdNodesKey, setInfraRrdNodesKey] = useState(rawInfraRrdNodesKey)
   useEffect(() => {
@@ -398,7 +398,7 @@ function RootInventoryView({
         return
       }
 
-      const nodeNames = Object.keys(perNode).sort()
+      const nodeNames = Object.keys(perNode).sort((a, b) => a.localeCompare(b))
       const failed = currentHosts.filter(h => !perNode[h.node]).map(h => h.node)
       // console.log(`[infra-rrd] Done: ${nodeNames.length}/${currentHosts.length} OK, failed=[${failed.join(', ')}]`)
 

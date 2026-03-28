@@ -91,7 +91,7 @@ export default function SnapshotsTab({ connectionId, node }: SnapshotsTabProps) 
   const nodes = useMemo(() => {
     const set = new Set<string>()
     for (const s of snapshots) set.add(s.node)
-    return Array.from(set).sort()
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [snapshots])
 
   const handleSort = (field: SortField) => {

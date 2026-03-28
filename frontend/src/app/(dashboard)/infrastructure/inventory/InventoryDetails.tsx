@@ -183,7 +183,7 @@ function TemplateDownloadDialog({ open, onClose, connId, node, storage, onDownlo
 
   const sections = React.useMemo(() => {
     const s = new Set(templates.map(t => t.section).filter(Boolean))
-    return Array.from(s).sort()
+    return Array.from(s).sort((a, b) => a.localeCompare(b))
   }, [templates])
 
   const filtered = React.useMemo(() => {

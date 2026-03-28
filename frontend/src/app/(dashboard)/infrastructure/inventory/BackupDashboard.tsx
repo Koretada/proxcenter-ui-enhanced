@@ -348,7 +348,7 @@ export default function BackupDashboard({ pbsServers, onPbsClick, onDatastoreCli
   const pbsRef = useRef(pbsServers)
   pbsRef.current = pbsServers
   const pbsKey = useMemo(() =>
-    pbsServers.filter(s => s.status === 'online').map(s => s.connId).sort().join(','),
+    pbsServers.filter(s => s.status === 'online').map(s => s.connId).sort((a, b) => a.localeCompare(b)).join(','),
     [pbsServers]
   )
 
@@ -379,7 +379,7 @@ export default function BackupDashboard({ pbsServers, onPbsClick, onDatastoreCli
 
       if (ac.signal.aborted) return
 
-      const names = Object.keys(perServer).sort()
+      const names = Object.keys(perServer).sort((a, b) => a.localeCompare(b))
       setRrdServerNames(names)
 
       // Merge into unified time series

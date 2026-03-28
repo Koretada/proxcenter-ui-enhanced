@@ -195,7 +195,7 @@ function calculateGlobalAverages(
   const result = new Map<string, { cpu: number, ram: number, nodeCount: number }>()
   
   // Pour le debug, suivre quelques jours
-  const sortedDays = Array.from(allDays).sort()
+  const sortedDays = Array.from(allDays).sort((a, b) => a.localeCompare(b))
 
   const debugDays = new Set([
     sortedDays[0],  // Premier jour
@@ -528,7 +528,7 @@ function formatTrendsForChartWeighted(
   }
   
   // Trier les jours chronologiquement
-  const sortedDays = Array.from(globalAverages.keys()).sort()
+  const sortedDays = Array.from(globalAverages.keys()).sort((a, b) => a.localeCompare(b))
   
   
   // Stats sur les nodes pour le debug
@@ -1255,7 +1255,7 @@ export async function GET(request: Request) {
     const totalNetOut = Array.from(networkPerNode.values()).reduce((s, n) => s + n.netout, 0)
 
     // F6: Network trends (last 30 days) — sum per-node averages for proper aggregation
-    const sortedNetDays = Array.from(networkTrendsByDay.keys()).sort().slice(-30)
+    const sortedNetDays = Array.from(networkTrendsByDay.keys()).sort((a, b) => a.localeCompare(b)).slice(-30)
     const networkTrends = sortedNetDays.map(day => {
       const dayNodes = networkTrendsByDay.get(day)!
       let dayNetin = 0, dayNetout = 0

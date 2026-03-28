@@ -211,8 +211,8 @@ export default function InventoryPage() {
 
         // Only update state if the set of migrating VMs actually changed
         setMigratingVms(prev => {
-          const prevIds = prev.map(m => `${m.connId}:${m.vmid}`).sort().join(',')
-          const nextIds = migrations.map(m => `${m.connId}:${m.vmid}`).sort().join(',')
+          const prevIds = prev.map(m => `${m.connId}:${m.vmid}`).sort((a, b) => a.localeCompare(b)).join(',')
+          const nextIds = migrations.map(m => `${m.connId}:${m.vmid}`).sort((a, b) => a.localeCompare(b)).join(',')
 
           return prevIds === nextIds ? prev : migrations
         })

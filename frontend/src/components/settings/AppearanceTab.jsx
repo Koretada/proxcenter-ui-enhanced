@@ -94,7 +94,9 @@ function ThemePreviewCard({ themeConfig, selected, onSelect, t }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ width: 28, height: 28, borderRadius: 1.5, backgroundColor: alpha(themeConfig.preview.accent, 0.15), display: 'flex', alignItems: 'center', justifyContent: 'center', color: themeConfig.preview.accent, flexShrink: 0 }}>
             {themeConfig.icon === 'proxcenter-logo' ? (
-              <LogoIcon size={16} accentColor={themeConfig.preview.accent} />
+              <Box sx={{ color: theme.palette.text.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <LogoIcon size={16} accentColor={themeConfig.preview.accent} />
+              </Box>
             ) : (
               <i className={themeConfig.icon} style={{ fontSize: 15 }} />
             )}

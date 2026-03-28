@@ -63,7 +63,7 @@ function TagManager({ tags, connId, node, type, vmid, onTagsChange }: TagManager
             })
           }
         })
-        setAvailableTags(Array.from(allTags).sort())
+        setAvailableTags(Array.from(allTags).sort((a, b) => a.localeCompare(b)))
       }
     } catch (e) {
       console.error('Failed to load tags', e)

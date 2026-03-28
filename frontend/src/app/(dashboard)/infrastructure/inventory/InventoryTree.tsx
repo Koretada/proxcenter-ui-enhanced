@@ -429,7 +429,7 @@ function getTagColor(tag: string): { bg: string; color: string } {
 
   for (let i = 0; i < tag.length; i++) {
     hash = ((hash << 5) - hash) + tag.charCodeAt(i)
-    hash |= 0
+    hash = Math.trunc(hash)
   }
   
   return colors[Math.abs(hash) % colors.length]

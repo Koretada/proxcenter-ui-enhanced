@@ -194,7 +194,7 @@ export default function NetworkDashboard({ connectionIds, connectionNames }: Pro
   const [fetched, setFetched] = useState(false)
 
   // Stabilize connectionIds to avoid refetching on every parent re-render
-  const connIdsKey = connectionIds.slice().sort().join(',')
+  const connIdsKey = connectionIds.slice().sort((a, b) => a.localeCompare(b)).join(',')
 
   useEffect(() => {
     if (!connIdsKey) return

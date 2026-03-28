@@ -371,7 +371,7 @@ function useBandwidthData(jobs?: ReplicationJob[], connections?: { id: string; n
       }
     }
 
-    const seriesKeys = Object.keys(pairBuckets).sort()
+    const seriesKeys = Object.keys(pairBuckets).sort((a, b) => a.localeCompare(b))
     const sortedBuckets = Array.from(allBucketKeys).sort((a, b) => a - b)
 
     const chartData = sortedBuckets.map(bucket => {

@@ -305,7 +305,7 @@ return matchQ && matchType && matchScope
     const types = new Set(storages.map(s => s.type).filter(Boolean))
 
     
-return Array.from(types).sort()
+return Array.from(types).sort((a, b) => a.localeCompare(b))
   }, [storages])
 
   // Agrégation pour les KPIs (sur les données filtrées)

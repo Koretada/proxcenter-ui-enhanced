@@ -141,7 +141,7 @@ export default function CreateJobDialog({ open, onClose, onSubmit, connections, 
   const allTags = useMemo(() => {
     const tags = new Set<string>()
     sourceVMs.forEach(vm => vm.tags?.forEach(t => { if (t.trim()) tags.add(t.trim()) }))
-    return Array.from(tags).sort()
+    return Array.from(tags).sort((a, b) => a.localeCompare(b))
   }, [sourceVMs])
 
   // Count VMs per tag
