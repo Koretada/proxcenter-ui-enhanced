@@ -588,8 +588,8 @@ export function getDb() {
         permissions: [
           'vm.view', 'vm.console', 'vm.start', 'vm.stop', 'vm.restart', 'vm.suspend',
           'vm.snapshot', 'vm.backup',
-          'node.view', 'connection.view', 'backup.view',
-          'events.view', 'tasks.view'
+          'node.view', 'node.console', 'connection.view', 'backup.view',
+          'events.view', 'tasks.view', 'alerts.view', 'automation.view', 'reports.view'
         ]
       },
       {
@@ -602,8 +602,10 @@ export function getDb() {
           'vm.view', 'vm.console', 'vm.start', 'vm.stop', 'vm.restart', 'vm.suspend',
           'vm.snapshot', 'vm.backup', 'vm.clone', 'vm.migrate', 'vm.config', 'vm.delete', 'vm.create',
           'storage.view', 'storage.content', 'storage.upload',
-          'node.view', 'connection.view', 'backup.view', 'backup.restore',
-          'events.view', 'tasks.view', 'storage.admin'
+          'node.view', 'node.console', 'node.manage', 'connection.view',
+          'backup.view', 'backup.restore',
+          'events.view', 'tasks.view', 'storage.admin',
+          'alerts.view', 'alerts.manage', 'automation.view', 'automation.manage', 'reports.view'
         ]
       },
       {
@@ -614,7 +616,7 @@ export function getDb() {
         color: '#3b82f6',
         permissions: [
           'vm.view', 'node.view', 'connection.view', 'backup.view',
-          'events.view'
+          'events.view', 'alerts.view', 'automation.view', 'reports.view', 'tasks.view'
         ]
       },
       { 
@@ -670,6 +672,48 @@ export function getDb() {
       }
     }
   }
+
+  // ========================================
+  // Auto-migration: ensure system roles have up-to-date permissions
+  // (covers permissions added in newer versions)
+  // ========================================
+  try {
+    const rolePermMap: Record<string, string[]> = {
+      role_operator: [
+        'vm.view', 'vm.console', 'vm.start', 'vm.stop', 'vm.restart', 'vm.suspend',
+        'vm.snapshot', 'vm.backup',
+        'node.view', 'node.console', 'connection.view', 'backup.view',
+        'events.view', 'tasks.view', 'alerts.view', 'automation.view', 'reports.view'
+      ],
+      role_vm_admin: [
+        'vm.view', 'vm.console', 'vm.start', 'vm.stop', 'vm.restart', 'vm.suspend',
+        'vm.snapshot', 'vm.backup', 'vm.clone', 'vm.migrate', 'vm.config', 'vm.delete', 'vm.create',
+        'storage.view', 'storage.content', 'storage.upload',
+        'node.view', 'node.console', 'node.manage', 'connection.view',
+        'backup.view', 'backup.restore',
+        'events.view', 'tasks.view', 'storage.admin',
+        'alerts.view', 'alerts.manage', 'automation.view', 'automation.manage', 'reports.view'
+      ],
+      role_viewer: [
+        'vm.view', 'node.view', 'connection.view', 'backup.view',
+        'events.view', 'alerts.view', 'automation.view', 'reports.view', 'tasks.view'
+      ],
+      role_vm_user: [
+        'vm.view', 'vm.console', 'vm.start', 'vm.stop', 'vm.restart'
+      ],
+    }
+    const insertOrIgnoreRolePerm = db.prepare(
+      'INSERT OR IGNORE INTO rbac_role_permissions (role_id, permission_id) VALUES (?, ?)'
+    )
+    for (const [roleId, perms] of Object.entries(rolePermMap)) {
+      const role = db.prepare('SELECT id FROM rbac_roles WHERE id = ?').get(roleId) as any
+      if (role) {
+        for (const perm of perms) {
+          insertOrIgnoreRolePerm.run(roleId, perm)
+        }
+      }
+    }
+  } catch {}
 
   // ========================================
   // Auto-migration: assign role_super_admin to legacy admins
