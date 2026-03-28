@@ -165,26 +165,30 @@ return (
           <Chip
             key={t}
             size="small"
-            label={t}
+            icon={<i className="ri-price-tag-3-fill" style={{ fontSize: 11, color: c, marginLeft: 6 }} />}
+            label={t.toLowerCase()}
             disabled={busy}
             onDelete={() => handleRemoveTag(t)}
             deleteIcon={
-              <CloseIcon 
-                sx={{ 
-                  fontSize: '14px !important',
-                  color: `${c} !important`,
-                  '&:hover': { color: `${c} !important`, opacity: 0.7 }
-                }} 
+              <CloseIcon
+                sx={{
+                  fontSize: '12px !important',
+                  color: `${c}88 !important`,
+                  '&:hover': { color: `${c} !important` }
+                }}
               />
             }
             sx={{
-              height: 22,
-              '& .MuiChip-label': { px: 1, fontSize: 12, fontWeight: 800 },
-              '& .MuiChip-deleteIcon': { mr: 0.5 },
-              bgcolor: `${c}22`,
+              height: 20,
+              borderRadius: 10,
+              '& .MuiChip-label': { pl: 0.5, pr: 0.5, fontSize: 11, fontWeight: 600, letterSpacing: 0.2 },
+              '& .MuiChip-deleteIcon': { ml: 0, mr: 0.25, fontSize: 12 },
+              '& .MuiChip-icon': { mr: -0.25 },
+              bgcolor: `${c}18`,
               color: c,
-              border: '1px solid',
-              borderColor: `${c}66`,
+              border: 'none',
+              transition: 'background 0.15s',
+              '&:hover': { bgcolor: `${c}30` },
             }}
           />
         )

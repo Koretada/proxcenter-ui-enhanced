@@ -94,6 +94,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { useTaskTracker } from '@/hooks/useTaskTracker'
 import type { Status, InventorySelection, Kpi, KV, UtilMetric, DetailsPayload, RrdTimeframe, SeriesPoint, ActiveDialog } from './types'
 import { TAG_PALETTE, hashStringToInt, tagColor, parseTags, formatBps, formatTime, formatUptime, parseMarkdown, parseNodeId, parseVmId, getMetricIcon, pickNumber, buildSeriesFromRrd, fetchRrd, fetchDetails } from './helpers'
+import { getOsSvgIcon } from '@/lib/utils/osIcons'
 import CreateVmDialog from './CreateVmDialog'
 import CreateLxcDialog from './CreateLxcDialog'
 import HaGroupDialog from './HaGroupDialog'
@@ -2736,7 +2737,7 @@ return vm?.isCluster ?? false
             (() => {
               const { connId, node, type, vmid } = parseVmId(selection.id)
               const isLxc = data.vmType === 'lxc'
-              const iconColor = isLxc ? theme.palette.secondary.main : theme.palette.primary.main
+              const iconColor = theme.palette.text.secondary
 
               return (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
@@ -2757,25 +2758,44 @@ return vm?.isCluster ?? false
 
                   {data.isTemplate ? (
                     <Chip label="TEMPLATE" size="small" variant="outlined" color="warning" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 700 }} />
+                  ) : vmState === 'running' ? (
+                    <i className="ri-play-fill" style={{ fontSize: 18, color: '#4caf50', filter: 'drop-shadow(0 0 2px rgba(76, 175, 80, 0.5))', flexShrink: 0 }} />
+                  ) : vmState === 'stopped' ? (
+                    <i className="ri-stop-fill" style={{ fontSize: 18, color: '#f44336', flexShrink: 0 }} />
+                  ) : vmState === 'paused' ? (
+                    <i className="ri-pause-fill" style={{ fontSize: 18, color: '#ff9800', flexShrink: 0 }} />
                   ) : (
                     <StatusChip status={data.status} />
                   )}
-                  {/* Icône VM/LXC/Template */}
-                  <Box sx={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: alpha(data.isTemplate ? theme.palette.warning.main : iconColor, 0.1),
-                    flexShrink: 0,
-                  }}>
-                    <i
-                      className={data.isTemplate ? 'ri-file-copy-fill' : isLxc ? 'ri-instance-fill' : 'ri-computer-fill'}
-                      style={{ fontSize: 16, color: data.isTemplate ? theme.palette.warning.main : iconColor }}
-                    />
-                  </Box>
+                  {/* Icône VM/LXC/Template — OS icon si disponible */}
+                  {(() => {
+                    const osIcon = !data.isTemplate && guestInfo?.osInfo
+                      ? getOsSvgIcon(guestInfo.osInfo.name || '', guestInfo.osInfo.type)
+                      : null
+                    // Fallback basé sur ostype de la config PVE
+                    const configOsIcon = !osIcon && !data.isTemplate && data.optionsInfo?.ostype
+                      ? (data.optionsInfo.ostype.startsWith('w') ? '/images/os/windows.svg'
+                        : data.optionsInfo.ostype.startsWith('l') ? '/images/os/linux.svg'
+                        : null)
+                      : null
+                    const finalIcon = osIcon || configOsIcon
+                    return (
+                      <Box sx={{
+                        width: 28, height: 28,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {finalIcon ? (
+                          <img src={finalIcon} alt="" width={18} height={18} style={{ opacity: 0.85, filter: theme.palette.mode === 'dark' ? 'brightness(0) invert(1) opacity(0.85)' : undefined }} />
+                        ) : (
+                          <i
+                            className={data.isTemplate ? 'ri-file-copy-fill' : isLxc ? 'ri-instance-fill' : 'ri-computer-fill'}
+                            style={{ fontSize: 16, color: data.isTemplate ? theme.palette.warning.main : iconColor }}
+                          />
+                        )}
+                      </Box>
+                    )
+                  })()}
 
                   {/* Nom + meta inline */}
                   <Typography variant="subtitle1" fontWeight={900} noWrap sx={{ minWidth: 0, flexShrink: 1 }}>
@@ -2812,7 +2832,11 @@ return vm?.isCluster ?? false
                     </MuiTooltip>
                   )}
                   <Typography variant="body2" noWrap sx={{ color: 'text.secondary', flexShrink: 0 }}>
-                    {data.isTemplate ? '' : vmState === 'running' ? <><i className="ri-flashlight-fill" style={{ fontSize: 12, color: '#f9a825', verticalAlign: 'middle' }} /></> : vmState ? vmState + ' · ' : ''}on{' '}
+                    {'- '}
+                    <span style={{ position: 'relative', display: 'inline-block', verticalAlign: 'text-bottom', marginRight: 4, width: 14, height: 14 }}>
+                      <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.7, display: 'block' }} />
+                      <span style={{ position: 'absolute', bottom: -1, right: -1, width: 6, height: 6, borderRadius: '50%', backgroundColor: '#4caf50', border: '1.5px solid var(--mui-palette-background-paper)' }} />
+                    </span>
                     <Typography
                       component="span"
                       variant="body2"

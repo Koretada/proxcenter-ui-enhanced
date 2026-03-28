@@ -2027,7 +2027,7 @@ return (
                         <Alert severity="warning" sx={{ m: 2 }}>{tasksError}</Alert>
                       )}
 
-                      {/* Tableau des tâches - Format Proxmox */}
+                      {/* Tableau des taches */}
                       {!tasksLoading && !tasksError && (
                         <Box sx={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -2059,7 +2059,7 @@ return (
                                 tasks.map((task, idx) => {
                                   const isError = task.status === 'error'
                                   const rowBgColor = isError ? 'rgba(211, 47, 47, 0.15)' : 'transparent'
-                                  
+
                                   return (
                                     <tr key={task.upid || idx} style={{ backgroundColor: rowBgColor }}>
                                       <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--mui-palette-divider)' }}>
