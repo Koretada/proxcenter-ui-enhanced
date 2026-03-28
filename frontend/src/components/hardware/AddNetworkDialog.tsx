@@ -68,14 +68,10 @@ export function AddNetworkDialog({ open, onClose, onSave, connId, node, vmid, ex
         const res = await fetch(`/api/v1/connections/${encodeURIComponent(connId)}/nodes/${encodeURIComponent(node)}/network`)
         const json = await res.json()
 
-        console.log('[AddNetworkDialog] Network response:', json)
-
         if (json.data && Array.isArray(json.data)) {
           const bridgeList = json.data
             .filter((n: any) => n.type === 'bridge' || n.type === 'OVSBridge')
             .map((n: any) => n.iface)
-
-          console.log('[AddNetworkDialog] Bridges found:', bridgeList)
 
           if (bridgeList.length > 0) {
             setBridges(bridgeList)

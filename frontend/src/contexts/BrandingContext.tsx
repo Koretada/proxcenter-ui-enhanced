@@ -55,7 +55,6 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`/api/v1/settings/branding/public?_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
-        console.log('[branding] fetched:', data)
         setBranding(prev => ({ ...prev, ...data }))
       } else {
         console.warn('[branding] fetch failed:', res.status)

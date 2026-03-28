@@ -198,8 +198,6 @@ export default function InventoryPage() {
         
         // Si des migrations viennent de se terminer, rafraîchir l'inventaire
         if (finishedMigrations.length > 0) {
-          console.log('[Migration] Migrations terminées:', finishedMigrations.map(m => m.vmid))
-
           // Rafraîchir l'arbre après un court délai pour laisser Proxmox mettre à jour
           setTimeout(() => {
             if (refreshTree) {
