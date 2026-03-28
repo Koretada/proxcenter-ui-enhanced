@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -13,6 +14,10 @@ export async function GET(
 ) {
   try {
     const { id, sid } = await ctx.params
+
+    const denied = await checkPermission(PERMISSIONS.NODE_VIEW, "connection", id)
+    if (denied) return denied
+
     const conn = await getConnectionById(id)
 
     const resource = await pveFetch<any>(conn, `/cluster/ha/resources/${encodeURIComponent(sid)}`)
@@ -44,6 +49,10 @@ export async function POST(
 ) {
   try {
     const { id, sid } = await ctx.params
+
+    const denied = await checkPermission(PERMISSIONS.NODE_MANAGE, "connection", id)
+    if (denied) return denied
+
     const conn = await getConnectionById(id)
     const body = await req.json()
 
@@ -108,6 +117,10 @@ export async function DELETE(
 ) {
   try {
     const { id, sid } = await ctx.params
+
+    const denied = await checkPermission(PERMISSIONS.NODE_MANAGE, "connection", id)
+    if (denied) return denied
+
     const conn = await getConnectionById(id)
 
     await pveFetch<any>(conn, `/cluster/ha/resources/${encodeURIComponent(sid)}`, {

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { getSessionPrisma } from "@/lib/tenant"
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
-import { getRBACContext, filterVmsByPermission, PERMISSIONS } from "@/lib/rbac"
+import { getRBACContext, filterVmsByPermission, PERMISSIONS, checkPermission } from "@/lib/rbac"
 import { formatBytes, formatUptime } from "@/utils/format"
 
 export const runtime = "nodejs"
@@ -22,6 +22,9 @@ function round1(n: number) {
 
 export async function GET(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.VM_VIEW)
+    if (denied) return denied
+
     const prisma = await getSessionPrisma()
     const url = new URL(req.url)
     const connIdFilter = url.searchParams.get('connId')

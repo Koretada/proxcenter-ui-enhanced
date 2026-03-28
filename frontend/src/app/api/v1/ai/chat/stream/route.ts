@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db/sqlite'
 import { getSessionPrisma, getCurrentTenantId } from "@/lib/tenant"
 import { pveFetch } from '@/lib/proxmox/client'
 import { decryptSecret } from '@/lib/crypto/secret'
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 // Récupérer les paramètres IA (tenant-scoped)
 async function getAISettings() {
@@ -237,6 +238,9 @@ async function buildSystemPrompt(lang: string = 'en') {
 // POST /api/v1/ai/chat/stream - Chat avec streaming
 export async function POST(request: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW)
+    if (denied) return denied
+
     const { messages, locale } = await request.json()
     const lang = locale === 'fr' ? 'fr' : 'en'
     const settings = await getAISettings()

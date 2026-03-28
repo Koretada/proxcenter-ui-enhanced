@@ -4,7 +4,7 @@ import { getSessionPrisma, getCurrentTenantId } from "@/lib/tenant"
 import { getConnectionById, getPbsConnectionById } from "@/lib/connections/getConnection"
 import { pveFetch } from "@/lib/proxmox/client"
 import { pbsFetch } from "@/lib/proxmox/pbs-client"
-import { getRBACContext, filterVmsByPermission, PERMISSIONS } from "@/lib/rbac"
+import { getRBACContext, filterVmsByPermission, PERMISSIONS, checkPermission } from "@/lib/rbac"
 import { resolveManagementIp } from "@/lib/proxmox/resolveManagementIp"
 import {
   getInventoryFromCache,
@@ -559,6 +559,9 @@ function triggerBackgroundRevalidation(tenantId: string) {
 
 export async function GET(request: NextRequest) {
   try {
+    const denied = await checkPermission(PERMISSIONS.VM_VIEW)
+    if (denied) return denied
+
     const forceRefresh = request.nextUrl.searchParams.get('refresh') === 'true'
     const tenantId = await getCurrentTenantId()
 

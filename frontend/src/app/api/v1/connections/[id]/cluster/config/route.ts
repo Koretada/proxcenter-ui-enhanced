@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
 import { resolveManagementIp } from "@/lib/proxmox/resolveManagementIp"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -13,6 +14,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> |
     const id = (params as any)?.id
 
     if (!id) return NextResponse.json({ error: "Missing params.id" }, { status: 400 })
+
+    const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW, "connection", id)
+    if (denied) return denied
 
     const conn = await getConnectionById(id)
 
@@ -207,6 +211,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const id = (params as any)?.id
 
     if (!id) return NextResponse.json({ error: "Missing params.id" }, { status: 400 })
+
+    const denied = await checkPermission(PERMISSIONS.CONNECTION_MANAGE, "connection", id)
+    if (denied) return denied
 
     const body = await req.json()
     const { action } = body

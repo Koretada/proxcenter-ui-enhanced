@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -16,6 +17,9 @@ export async function GET(
 ) {
   try {
     const { id, node } = await ctx.params
+
+    const denied = await checkPermission(PERMISSIONS.NODE_VIEW, "connection", id)
+    if (denied) return denied
 
     const conn = await getConnectionById(id)
 

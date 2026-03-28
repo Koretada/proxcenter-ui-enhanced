@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
 
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n))
 }
 
 export async function GET() {
+  const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW)
+  if (denied) return denied
+
   const now = Date.now()
   const points = 24
 

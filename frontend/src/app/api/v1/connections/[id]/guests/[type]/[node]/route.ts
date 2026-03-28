@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -14,7 +15,7 @@ export async function POST(
   try {
     const params = await Promise.resolve(ctx.params)
     const { id, type, node } = params as { id: string; type: string; node: string }
-    
+
     if (!id || !type || !node) {
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 })
     }
@@ -22,6 +23,9 @@ export async function POST(
     if (type !== 'qemu' && type !== 'lxc') {
       return NextResponse.json({ error: "Type must be 'qemu' or 'lxc'" }, { status: 400 })
     }
+
+    const denied = await checkPermission(PERMISSIONS.VM_CREATE, "connection", id)
+    if (denied) return denied
 
     const conn = await getConnectionById(id)
     const body = await req.json()

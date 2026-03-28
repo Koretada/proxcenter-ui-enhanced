@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 
 import { subscribe, type InventoryEvent } from "@/lib/cache/inventoryPoller"
 import { getTenantConnectionIds } from "@/lib/tenant"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -24,6 +25,9 @@ export const runtime = "nodejs"
  */
 
 export async function GET(_request: NextRequest) {
+  const denied = await checkPermission(PERMISSIONS.VM_VIEW)
+  if (denied) return denied
+
   // Resolve tenant connections upfront to filter events
   let tenantConnIds: Set<string>
   try {

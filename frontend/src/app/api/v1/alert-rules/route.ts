@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db/sqlite'
 import { getCurrentTenantId } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = 'nodejs'
 
@@ -57,6 +58,9 @@ type AlertRule = {
 // GET - Liste des règles
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_VIEW)
+    if (denied) return denied
+
     const db = getDb()
     const tenantId = await getCurrentTenantId()
 
@@ -105,6 +109,9 @@ return NextResponse.json(
 // POST - Créer une règle
 export async function POST(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const body = await req.json()
     const { name, description, enabled, metric, operator, threshold, duration, severity, scopeType, scopeTarget } = body
 

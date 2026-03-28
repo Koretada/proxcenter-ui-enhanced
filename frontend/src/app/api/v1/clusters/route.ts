@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getSessionPrisma } from "@/lib/tenant"
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -23,6 +24,9 @@ function round1(n: number) {
 
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW)
+    if (denied) return denied
+
     const prisma = await getSessionPrisma()
     // 1) Connexions SQLite - uniquement PVE (pas PBS)
     const connections = await prisma.connection.findMany({

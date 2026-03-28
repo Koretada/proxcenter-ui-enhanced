@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 
 import { pveFetch } from '@/lib/proxmox/client'
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = 'nodejs'
 
@@ -20,6 +21,10 @@ function round1(n: number) {
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
+
+  const denied = await checkPermission(PERMISSIONS.VM_VIEW, "connection", id)
+  if (denied) return denied
+
   const conn = getConnection(id)
 
   // 1) Nom du cluster (best effort)

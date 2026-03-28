@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { pveFetch } from '@/lib/proxmox/client'
 import { getConnectionById } from '@/lib/connections/getConnection'
 import { formatBytes as formatSize } from '@/utils/format'
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = 'nodejs'
 
@@ -382,6 +383,10 @@ export async function GET(
 ) {
   try {
     const { connectionId, node, upid } = await params
+
+    const denied = await checkPermission(PERMISSIONS.TASKS_VIEW)
+    if (denied) return denied
+
     const decodedUpid = decodeURIComponent(upid)
 
     const connection = await getConnectionById(connectionId)
@@ -542,6 +547,10 @@ export async function DELETE(
 ) {
   try {
     const { connectionId, node, upid } = await params
+
+    const denied = await checkPermission(PERMISSIONS.NODE_MANAGE, "connection", connectionId)
+    if (denied) return denied
+
     const decodedUpid = decodeURIComponent(upid)
 
     const connection = await getConnectionById(connectionId)

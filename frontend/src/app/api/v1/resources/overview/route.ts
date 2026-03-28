@@ -4,6 +4,7 @@ import { getSessionPrisma, getCurrentTenantId } from "@/lib/tenant"
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
 import { getDb } from "@/lib/db/sqlite"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -715,6 +716,9 @@ function loadHealthScoreHistory(connectionId: string | undefined, tenantId: stri
 
 export async function GET(request: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW)
+    if (denied) return denied
+
     const prisma = await getSessionPrisma()
     const tenantId = await getCurrentTenantId()
     // Parse query params (F4: connectionId filter)

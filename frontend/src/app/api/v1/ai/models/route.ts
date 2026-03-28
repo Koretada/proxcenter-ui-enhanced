@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
+
 const TIMEOUT_MS = 10_000
 
 const OPENAI_EXCLUDED = /embed|tts|whisper|dall-e|moderation|audio|realtime/i
@@ -72,6 +74,9 @@ async function fetchAnthropicModels(key: string): Promise<string[]> {
 // POST /api/v1/ai/models - Fetch available models for a provider
 export async function POST(request: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ADMIN_SETTINGS)
+    if (denied) return denied
+
     const body = await request.json()
     const { provider, ollamaUrl, openaiKey, openaiBaseUrl, anthropicKey } = body
 

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { pbsFetch } from "@/lib/proxmox/pbs-client"
 import { getPbsConnectionById } from "@/lib/connections/getConnection"
 import { formatBytes } from "@/utils/format"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -12,6 +13,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const id = (params as any)?.id
 
     if (!id) return NextResponse.json({ error: "Missing params.id" }, { status: 400 })
+
+    const denied = await checkPermission(PERMISSIONS.BACKUP_VIEW, "pbs", id)
+    if (denied) return denied
 
     const conn = await getPbsConnectionById(id)
 

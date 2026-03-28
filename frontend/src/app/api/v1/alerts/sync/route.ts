@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { getSessionPrisma, getCurrentTenantId } from "@/lib/tenant"
 import { generateFingerprint } from '@/lib/alerts/fingerprint'
 import { syncAlertsSchema } from '@/lib/schemas'
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = 'nodejs'
 
@@ -15,6 +16,9 @@ export const runtime = 'nodejs'
  */
 export async function POST(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const prisma = await getSessionPrisma()
     const rawBody = await req.json()
     const parseResult = syncAlertsSchema.safeParse(rawBody)

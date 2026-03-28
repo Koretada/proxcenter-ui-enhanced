@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getSessionPrisma } from "@/lib/tenant"
 import { pveFetch } from "@/lib/proxmox/client"
 import { decryptSecret } from "@/lib/crypto/secret"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -33,6 +34,9 @@ export const runtime = "nodejs"
  */
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.BACKUP_VIEW)
+    if (denied) return denied
+
     const prisma = await getSessionPrisma()
     // Récupérer toutes les connexions PVE et PBS
     const connections = await prisma.connection.findMany({

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getConnectionById } from "@/lib/connections/getConnection"
 import { pveFetch } from "@/lib/proxmox/client"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -18,6 +19,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> |
 
   try {
     if (!id) return NextResponse.json({ error: "Missing params.id" }, { status: 400 })
+
+    const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW, "connection", id)
+    if (denied) return denied
 
     if (!path.startsWith("/nodes/")) {
       return NextResponse.json({ error: "Invalid path (must start with /nodes/)" }, { status: 400 })

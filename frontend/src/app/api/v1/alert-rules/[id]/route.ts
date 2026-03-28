@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { getDb } from '@/lib/db/sqlite'
 import { getCurrentTenantId } from '@/lib/tenant'
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 import { METRIC_TYPES, OPERATORS, SEVERITIES } from '../route'
 
 export const runtime = 'nodejs'
@@ -11,6 +12,9 @@ type Params = { params: Promise<{ id: string }> }
 // GET - Détails d'une règle
 export async function GET(req: Request, { params }: Params) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_VIEW)
+    if (denied) return denied
+
     const { id } = await params
     const db = getDb()
     const tenantId = await getCurrentTenantId()
@@ -51,6 +55,9 @@ return NextResponse.json(
 // PUT - Modifier une règle
 export async function PUT(req: Request, { params }: Params) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const { id } = await params
     const body = await req.json()
     const { name, description, enabled, metric, operator, threshold, duration, severity, scopeType, scopeTarget } = body
@@ -122,6 +129,9 @@ return NextResponse.json(
 // PATCH - Activer/désactiver une règle
 export async function PATCH(req: Request, { params }: Params) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const { id } = await params
     const body = await req.json()
     const { enabled } = body
@@ -155,6 +165,9 @@ return NextResponse.json(
 // DELETE - Supprimer une règle
 export async function DELETE(req: Request, { params }: Params) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ALERTS_MANAGE)
+    if (denied) return denied
+
     const { id } = await params
     const db = getDb()
     const tenantId = await getCurrentTenantId()

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { pveFetch } from '@/lib/proxmox/client'
 import { getConnectionById } from '@/lib/connections/getConnection'
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = 'nodejs'
 
@@ -11,7 +12,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const connId = (params as any)?.id
 
     if (!connId) return NextResponse.json({ error: 'Missing params.id' }, { status: 400 })
-    
+
+    const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW, "connection", connId)
+    if (denied) return denied
+
     const conn = await getConnectionById(connId)
     
     if (!conn) {

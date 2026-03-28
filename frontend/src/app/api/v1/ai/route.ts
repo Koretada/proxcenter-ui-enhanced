@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
+
 /** Validate and reconstruct a user-provided URL (SSRF protection) */
 function validateAIUrl(input) {
   const parsed = new URL(input)
@@ -18,6 +20,9 @@ function sanitizeLog(str) {
 // POST /api/v1/ai/test - Tester la connexion au LLM
 export async function POST(request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.ADMIN_SETTINGS)
+    if (denied) return denied
+
     const settings = await request.json()
     
     if (settings.provider === 'ollama') {

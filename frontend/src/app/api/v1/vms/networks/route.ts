@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -85,6 +86,9 @@ function parseNetKeys(config: Record<string, unknown>, vmType: string): Array<{ 
 
 export async function POST(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.VM_VIEW)
+    if (denied) return denied
+
     const body = await req.json()
     const vms = body.vms || []
 

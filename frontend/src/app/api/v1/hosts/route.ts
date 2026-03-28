@@ -4,6 +4,7 @@ import { getSessionPrisma } from "@/lib/tenant"
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
 import { formatBytes, formatUptime } from "@/utils/format"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -13,6 +14,9 @@ function round1(n: number) {
 
 export async function GET(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.NODE_VIEW)
+    if (denied) return denied
+
     const prisma = await getSessionPrisma()
     const url = new URL(req.url)
     const connIdFilter = url.searchParams.get('connId')

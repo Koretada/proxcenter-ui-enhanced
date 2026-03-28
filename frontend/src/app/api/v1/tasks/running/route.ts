@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { pveFetch } from '@/lib/proxmox/client'
 import { getConnectionById } from '@/lib/connections/getConnection'
 import { getSessionPrisma } from "@/lib/tenant"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = 'nodejs'
 
@@ -86,6 +87,9 @@ return 'ri-loader-4-line'
 // GET /api/v1/tasks/running - Récupère toutes les tâches en cours
 export async function GET() {
   try {
+    const denied = await checkPermission(PERMISSIONS.TASKS_VIEW)
+    if (denied) return denied
+
     const prisma = await getSessionPrisma()
     // Récupérer uniquement les connexions PVE
     const connections = await prisma.connection.findMany({

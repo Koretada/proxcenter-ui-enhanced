@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 
 import { pveFetch } from "@/lib/proxmox/client"
 import { getConnectionById } from "@/lib/connections/getConnection"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -141,6 +142,10 @@ async function tryGuestsFallback(appBaseUrl: string, connId: string, type: strin
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
+
+  const denied = await checkPermission(PERMISSIONS.VM_VIEW, "connection", id)
+  if (denied) return denied
+
   const debug = req.headers.get("x-debug") === "1"
 
   const conn = await getConnectionById(id)

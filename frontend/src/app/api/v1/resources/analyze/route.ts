@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { formatBytes } from "@/utils/format"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -169,6 +170,9 @@ Génère entre 3 et 6 recommandations pertinentes basées sur les données.`
 
 export async function POST(req: Request) {
   try {
+    const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW)
+    if (denied) return denied
+
     const body = await req.json()
 
     const { kpis, topCpuVms, topRamVms } = body as {

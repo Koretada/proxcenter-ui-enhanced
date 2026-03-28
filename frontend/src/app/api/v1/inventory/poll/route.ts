@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { triggerPoll } from "@/lib/cache/inventoryPoller"
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 
@@ -12,6 +13,9 @@ export const runtime = "nodejs"
  * instead of waiting for the next 10s poll interval.
  */
 export async function POST() {
+  const denied = await checkPermission(PERMISSIONS.CONNECTION_VIEW)
+  if (denied) return denied
+
   triggerPoll()
   return NextResponse.json({ ok: true })
 }

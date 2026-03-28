@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { checkPermission, PERMISSIONS } from "@/lib/rbac"
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +14,10 @@ export async function GET(
 ) {
   try {
     const { connectionId } = await params
+
+    const denied = await checkPermission(PERMISSIONS.NODE_VIEW, "connection", connectionId)
+    if (denied) return denied
+
     const { searchParams } = new URL(request.url)
     const node = searchParams.get('node')
 
@@ -50,6 +56,10 @@ export async function POST(
 ) {
   try {
     const { connectionId } = await params
+
+    const denied = await checkPermission(PERMISSIONS.NODE_VIEW, "connection", connectionId)
+    if (denied) return denied
+
     const { searchParams } = new URL(request.url)
     const node = searchParams.get('node')
 
