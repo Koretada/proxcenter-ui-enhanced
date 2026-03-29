@@ -4785,7 +4785,8 @@
     "viewChanges": "Voir les changements",
     "changelog": "Historique des versions",
     "reportBug": "Signaler un bug",
-    "commitHistory": "Historique des commits",
+    "releaseHistory": "Historique des releases",
+    "current": "actuelle",
     "copyright": "Tous droits réservés."
   },
   "snapshotsTab": {

@@ -18,7 +18,7 @@ import {
   Button,
 } from '@mui/material'
 
-import { VERSION_NAME, APP_VERSION, GIT_SHA, GITHUB_URL } from '@/config/version'
+import { VERSION_NAME, APP_VERSION, GITHUB_URL, GITHUB_REPO } from '@/config/version'
 import { LogoIcon } from '@/components/layout/shared/Logo'
 
 interface VersionInfo {
@@ -31,6 +31,13 @@ interface VersionInfo {
   error: string | null
 }
 
+interface GHRelease {
+  tag_name: string
+  published_at: string
+  html_url: string
+  body: string
+}
+
 interface AboutDialogProps {
   open: boolean
   onClose: () => void
@@ -39,11 +46,14 @@ interface AboutDialogProps {
 export default function AboutDialog({ open, onClose }: AboutDialogProps) {
   const t = useTranslations()
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null)
+  const [releases, setReleases] = useState<GHRelease[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingReleases, setLoadingReleases] = useState(false)
 
   useEffect(() => {
     if (open) {
       fetchVersionInfo()
+      fetchReleases()
     }
   }, [open])
 
@@ -68,6 +78,25 @@ export default function AboutDialog({ open, onClose }: AboutDialogProps) {
       setLoading(false)
     }
   }
+
+  const fetchReleases = async () => {
+    setLoadingReleases(true)
+    try {
+      const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=10`, {
+        headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'ProxCenter' }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setReleases(data.filter((r: any) => !r.draft && !r.prerelease))
+      }
+    } catch {
+      // Ignore - timeline just won't show
+    } finally {
+      setLoadingReleases(false)
+    }
+  }
+
+  const isCurrent = (tag: string) => tag.replace(/^v/, '') === APP_VERSION
 
   return (
     <Dialog
@@ -129,7 +158,7 @@ export default function AboutDialog({ open, onClose }: AboutDialogProps) {
                   sx={{ fontWeight: 600 }}
                 />
               )}
-              {!loading && !versionInfo?.updateAvailable && !versionInfo?.error && (
+              {!loading && versionInfo && !versionInfo.updateAvailable && !versionInfo.error && (
                 <Chip
                   label={t('about.upToDate')}
                   color="success"
@@ -138,18 +167,6 @@ export default function AboutDialog({ open, onClose }: AboutDialogProps) {
                 />
               )}
             </Box>
-            {GIT_SHA && (
-              <Typography
-                variant="caption"
-                component="a"
-                href={`${GITHUB_URL}/commit/${GIT_SHA}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem', opacity: 0.5, textDecoration: 'none', '&:hover': { opacity: 0.8 } }}
-              >
-                {GIT_SHA.substring(0, 7)}
-              </Typography>
-            )}
           </Box>
 
           {versionInfo?.updateAvailable && versionInfo?.latestVersion && (
@@ -197,12 +214,81 @@ export default function AboutDialog({ open, onClose }: AboutDialogProps) {
             <Typography variant="body2">
               {t('about.newVersionAvailable', { version: versionInfo.latestVersion })}
             </Typography>
-            {versionInfo.releaseDate && (
-              <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', mt: 0.5 }}>
-                {new Date(versionInfo.releaseDate).toLocaleDateString()}
-              </Typography>
-            )}
           </Alert>
+        )}
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Release Timeline */}
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+          {t('about.releaseHistory')}
+        </Typography>
+
+        {loadingReleases && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress size={20} />
+          </Box>
+        )}
+
+        {!loadingReleases && releases.length > 0 && (
+          <Box sx={{ position: 'relative', pl: 3, mb: 2 }}>
+            {/* Vertical line */}
+            <Box sx={{
+              position: 'absolute',
+              left: 8,
+              top: 4,
+              bottom: 4,
+              width: 2,
+              bgcolor: 'divider',
+              borderRadius: 1
+            }} />
+
+            {releases.map((release) => {
+              const current = isCurrent(release.tag_name)
+              return (
+                <Box key={release.tag_name} sx={{ position: 'relative', mb: 2, '&:last-child': { mb: 0 } }}>
+                  {/* Dot */}
+                  <Box sx={{
+                    position: 'absolute',
+                    left: -19,
+                    top: 4,
+                    width: current ? 14 : 10,
+                    height: current ? 14 : 10,
+                    borderRadius: '50%',
+                    bgcolor: current ? 'primary.main' : 'divider',
+                    border: current ? '2px solid' : 'none',
+                    borderColor: 'primary.light',
+                    mt: current ? '-2px' : 0
+                  }} />
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25 }}>
+                    <Link
+                      href={release.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontSize: '0.8rem',
+                        fontWeight: current ? 700 : 600,
+                        textDecoration: 'none',
+                        color: current ? 'primary.main' : 'text.primary',
+                        '&:hover': { textDecoration: 'underline' }
+                      }}
+                    >
+                      {release.tag_name}
+                    </Link>
+                    {current && (
+                      <Chip label={t('about.current')} size="small" color="primary" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700 }} />
+                    )}
+                  </Box>
+
+                  <Typography variant="caption" sx={{ opacity: 0.5 }}>
+                    {new Date(release.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </Typography>
+                </Box>
+              )
+            })}
+          </Box>
         )}
 
         <Divider sx={{ my: 2 }} />
