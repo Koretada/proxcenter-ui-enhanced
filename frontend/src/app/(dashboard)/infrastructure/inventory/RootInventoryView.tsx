@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import useSWR from 'swr'
 
 import {
   Box,
@@ -110,12 +111,22 @@ function RootInventoryView({
     return alerts
   }, [kpis, trends])
 
-  // Health score
+  // Real alerts from orchestrator
+  const fetcher = (url: string) => fetch(url).then(r => r.json())
+  const { data: activeAlertsData } = useSWR('/api/v1/orchestrator/alerts/active', fetcher, { refreshInterval: 30000 })
+  const activeAlerts = useMemo(() => {
+    const raw = activeAlertsData?.data || activeAlertsData || []
+    return Array.isArray(raw) ? raw : []
+  }, [activeAlertsData])
+
+  // Health score (includes real alerts from orchestrator)
   const { healthScore, healthBreakdown } = useMemo(() => {
     if (!kpis) return { healthScore: null, healthBreakdown: null }
-    const result = calculateHealthScoreWithDetails(kpis, predictiveAlerts)
+    const realCriticals = activeAlerts.filter((a: any) => a.severity === 'critical' || a.severity === 'high').length
+    const realWarnings = activeAlerts.filter((a: any) => a.severity === 'warning' || a.severity === 'medium').length
+    const result = calculateHealthScoreWithDetails(kpis, predictiveAlerts, undefined, { critical: realCriticals, warning: realWarnings })
     return { healthScore: result.score, healthBreakdown: result.breakdown }
-  }, [kpis, predictiveAlerts])
+  }, [kpis, predictiveAlerts, activeAlerts])
 
   // Resource percentages for bars
   const cpuPct = kpis ? kpis.cpu.used : 0
@@ -587,10 +598,14 @@ function RootInventoryView({
               <Box sx={{ minWidth: 0 }}>
                 <Stack direction="row" alignItems="center" gap={1.5} flexWrap="wrap">
                   <Typography variant="h6" fontWeight={600} noWrap>Infrastructure Health</Typography>
-                  {/* Alert status badge */}
+                  {/* Alert status badge (real + predictive) */}
                   {(() => {
-                    const criticals = predictiveAlerts.filter(a => a.severity === 'critical').length
-                    const warnings = predictiveAlerts.filter(a => a.severity === 'warning').length
+                    const realCriticals = activeAlerts.filter((a: any) => a.severity === 'critical' || a.severity === 'high').length
+                    const realWarnings = activeAlerts.filter((a: any) => a.severity === 'warning' || a.severity === 'medium').length
+                    const predCriticals = predictiveAlerts.filter(a => a.severity === 'critical').length
+                    const predWarnings = predictiveAlerts.filter(a => a.severity === 'warning').length
+                    const criticals = realCriticals + predCriticals
+                    const warnings = realWarnings + predWarnings
                     if (criticals > 0 || warnings > 0) {
                       return (
                         <Stack direction="row" alignItems="center" spacing={0.5} sx={{ bgcolor: alpha(criticals > 0 ? theme.palette.error.main : theme.palette.warning.main, 0.1), px: 1, py: 0.25, borderRadius: 1 }}>

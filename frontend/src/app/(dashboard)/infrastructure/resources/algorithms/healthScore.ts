@@ -14,6 +14,7 @@ export function calculateHealthScoreWithDetails(
   kpis: KpiData,
   alerts: PredictiveAlert[],
   thresholds: ResourceThresholds = DEFAULT_THRESHOLDS,
+  realAlerts?: { critical: number; warning: number },
 ): { score: number; breakdown: HealthScoreBreakdown } {
   let score = 100
   const breakdown: HealthScoreBreakdown = {
@@ -58,14 +59,16 @@ export function calculateHealthScoreWithDetails(
   else { breakdown.storage = { penalty: 0, reason: `${storagePctRound}% OK` } }
   score += breakdown.storage.penalty
 
-  // ===== Predictive alerts (max -30 points) =====
+  // ===== Alerts: predictive + real (max -30 points) =====
   let alertPenalty = 0
-  const critCount = alerts.filter(a => a.severity === 'critical').length
-  const warnCount = alerts.filter(a => a.severity === 'warning').length
-  alerts.forEach(alert => {
-    if (alert.severity === 'critical') alertPenalty += 12
-    else if (alert.severity === 'warning') alertPenalty += 5
-  })
+  const predCrit = alerts.filter(a => a.severity === 'critical').length
+  const predWarn = alerts.filter(a => a.severity === 'warning').length
+  const realCrit = realAlerts?.critical || 0
+  const realWarn = realAlerts?.warning || 0
+  const critCount = predCrit + realCrit
+  const warnCount = predWarn + realWarn
+  alertPenalty += critCount * 12
+  alertPenalty += warnCount * 5
   const cappedPenalty = Math.min(30, alertPenalty)
   breakdown.alerts = {
     penalty: -cappedPenalty,
