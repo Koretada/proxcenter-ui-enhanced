@@ -25,7 +25,6 @@
 </p>
 
 <p align="center">
-  <a href="https://sonarcloud.io/summary/overall?id=adminsyspro_proxcenter-ui"><img src="https://sonarcloud.io/api/project_badges/measure?project=adminsyspro_proxcenter-ui&metric=alert_status" alt="Quality Gate"></a>
   <a href="https://sonarcloud.io/summary/overall?id=adminsyspro_proxcenter-ui"><img src="https://sonarcloud.io/api/project_badges/measure?project=adminsyspro_proxcenter-ui&metric=security_rating" alt="Security Rating"></a>
   <a href="https://sonarcloud.io/summary/overall?id=adminsyspro_proxcenter-ui"><img src="https://sonarcloud.io/api/project_badges/measure?project=adminsyspro_proxcenter-ui&metric=reliability_rating" alt="Reliability Rating"></a>
   <a href="https://sonarcloud.io/summary/overall?id=adminsyspro_proxcenter-ui"><img src="https://sonarcloud.io/api/project_badges/measure?project=adminsyspro_proxcenter-ui&metric=sqale_rating" alt="Maintainability Rating"></a>
