@@ -157,7 +157,7 @@ export async function pveFetch<T>(
 
     // Check if another request is already performing failover
     const existingLock = getFailoverLock(connId)
-    if (existingLock) {
+    if (existingLock !== null) {
       const newUrl = await existingLock
       if (newUrl) return doRequest(newUrl)
       throw err // other failover also failed

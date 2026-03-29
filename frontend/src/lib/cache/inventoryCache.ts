@@ -123,7 +123,7 @@ export function getInflightFetch(tenantId = 'default'): Promise<CachedInventory>
 
 export function setInflightFetch(p: Promise<CachedInventory> | null, tenantId = 'default'): void {
   const store = getInflightStore()
-  if (p) {
+  if (p !== null) {
     store.set(tenantId, p)
   } else {
     store.delete(tenantId)

@@ -210,7 +210,7 @@ export async function POST(req: Request) {
 
             // If download returned a task UPID, wait for it to complete
             if (downloadResult) {
-              const upid = typeof downloadResult === "string" ? downloadResult : downloadResult
+              const upid = downloadResult
               await updateDeployment(deployment.id, "downloading", { taskUpid: String(upid) })
               await waitForTask(conn, body.node, String(upid))
             }

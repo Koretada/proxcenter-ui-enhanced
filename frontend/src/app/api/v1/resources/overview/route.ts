@@ -150,11 +150,6 @@ function aggregateRrdByDayPerNode(
     }
   }
   
-  // Debug avec le premier point VALIDE (pas le premier point qui peut être vide)
-  if (firstValidPoint) {
-  } else {
-  }
-  
   // Supprimer les jours sans données valides
   for (const [dayKey, dayData] of byDay) {
     if (dayData.cpu.length === 0 && dayData.ram.length === 0) {

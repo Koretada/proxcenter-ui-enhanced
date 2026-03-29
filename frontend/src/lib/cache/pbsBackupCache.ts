@@ -129,7 +129,7 @@ export function setInflightPbsFetch(
 ): void {
   const store = getInflightStore()
   const key = cacheKey(pbsId, tenantId)
-  if (p) {
+  if (p !== null) {
     store.set(key, p)
   } else {
     store.delete(key)

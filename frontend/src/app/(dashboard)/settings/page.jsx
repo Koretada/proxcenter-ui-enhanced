@@ -341,8 +341,8 @@ function ConnectionsTab() {
       behindProxy: isExtHypervisor ? false : !!formData.behindProxy,
       insecureTLS: !!formData.insecureTLS,
       // Location fields
-      latitude: formData.latitude !== '' && !isNaN(Number.parseFloat(formData.latitude)) ? Number.parseFloat(formData.latitude) : null,
-      longitude: formData.longitude !== '' && !isNaN(Number.parseFloat(formData.longitude)) ? Number.parseFloat(formData.longitude) : null,
+      latitude: formData.latitude !== '' && !Number.isNaN(Number.parseFloat(formData.latitude)) ? Number.parseFloat(formData.latitude) : null,
+      longitude: formData.longitude !== '' && !Number.isNaN(Number.parseFloat(formData.longitude)) ? Number.parseFloat(formData.longitude) : null,
       locationLabel: formData.locationLabel?.trim() || null,
       // PVE/PBS: API token
       ...(!isExtHypervisor && formData.apiToken.trim() && { apiToken: formData.apiToken.trim() }),
