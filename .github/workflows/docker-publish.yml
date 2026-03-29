@@ -73,12 +73,16 @@ jobs:
 
       - name: Resolve version
         id: resolve
+        env:
+          GH_REF: ${{ github.ref }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
+          if [[ "$GH_REF" == refs/tags/v* ]]; then
+            VERSION="$GH_REF_NAME"
             echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
-          elif [[ -n "${{ github.event.inputs.version }}" && "${{ github.event.inputs.version }}" != "latest" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$INPUT_VERSION" && "$INPUT_VERSION" != "latest" ]]; then
+            echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
           else
             echo "version=dev" >> "$GITHUB_OUTPUT"
           fi
@@ -95,7 +99,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=${{ steps.resolve.outputs.version }},enable=${{ steps.resolve.outputs.version != 'dev' }}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v7
@@ -170,11 +174,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Resolve backend ref
+        id: backend-ref
+        env:
+          GH_REF: ${{ github.ref }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          PAT: ${{ secrets.ORCHESTRATOR_PAT }}
+        run: |
+          REF="main"
+          if [[ "$GH_REF" == refs/tags/v* ]]; then
+            if git ls-remote --tags "https://x-access-token:${PAT}@github.com/adminsyspro/proxcenter-backend.git" "$GH_REF_NAME" | grep -q "$GH_REF_NAME"; then
+              REF="$GH_REF_NAME"
+            fi
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
       - name: Checkout backend repo
         uses: actions/checkout@v6
         with:
           repository: adminsyspro/proxcenter-backend
-          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'main' }}
+          ref: ${{ steps.backend-ref.outputs.ref }}
           path: backend
           token: ${{ secrets.ORCHESTRATOR_PAT }}
 
@@ -202,11 +221,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Resolve backend ref
+        id: backend-ref
+        env:
+          GH_REF: ${{ github.ref }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          PAT: ${{ secrets.ORCHESTRATOR_PAT }}
+        run: |
+          REF="main"
+          if [[ "$GH_REF" == refs/tags/v* ]]; then
+            if git ls-remote --tags "https://x-access-token:${PAT}@github.com/adminsyspro/proxcenter-backend.git" "$GH_REF_NAME" | grep -q "$GH_REF_NAME"; then
+              REF="$GH_REF_NAME"
+            fi
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
       - name: Checkout backend repo
         uses: actions/checkout@v6
         with:
           repository: adminsyspro/proxcenter-backend
-          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'main' }}
+          ref: ${{ steps.backend-ref.outputs.ref }}
           path: backend
           token: ${{ secrets.ORCHESTRATOR_PAT }}
 
@@ -222,12 +256,16 @@ jobs:
 
       - name: Resolve version
         id: resolve
+        env:
+          GH_REF: ${{ github.ref }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
+          if [[ "$GH_REF" == refs/tags/v* ]]; then
+            VERSION="$GH_REF_NAME"
             echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
-          elif [[ -n "${{ github.event.inputs.version }}" && "${{ github.event.inputs.version }}" != "latest" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$INPUT_VERSION" && "$INPUT_VERSION" != "latest" ]]; then
+            echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
           else
             echo "version=dev" >> "$GITHUB_OUTPUT"
           fi
@@ -244,7 +282,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=${{ steps.resolve.outputs.version }},enable=${{ steps.resolve.outputs.version != 'dev' }}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build and push Orchestrator
         uses: docker/build-push-action@v7
