@@ -177,7 +177,7 @@ export default function FailoverDialog({ open, onClose, plan, type, onConfirm, o
                         <Typography variant='caption' sx={{ color: 'error.main', fontSize: '0.65rem' }}>{vm.error}</Typography>
                       )}
                     </Box>
-                    {type === 'test' && targetConnId && vm.target_node && vm.target_vmid &&
+                    {type === 'test' && targetConnId && vm.target_node && vm.target_vmid != null &&
                      (vm.status === 'running' || vm.status === 'completed') && (
                       <Tooltip title={t('siteRecovery.failover.openConsole')}>
                         <IconButton

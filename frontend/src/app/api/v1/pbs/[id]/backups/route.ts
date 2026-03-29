@@ -134,7 +134,7 @@ async function getAllBackups(
   if (cached.status === 'stale') {
     // Serve stale data immediately, refresh in background
     const existing = getInflightPbsFetch(id, tenantId)
-    if (!existing) {
+    if (existing === null) {
       const refreshPromise = fetchAllPbsBackups(conn)
         .then(result => {
           setCachedPbsBackups(id, result.data, result.warnings, tenantId)
@@ -156,7 +156,7 @@ async function getAllBackups(
 
   // Cache miss — blocking fetch required (but deduplicate concurrent requests)
   let inflight = getInflightPbsFetch(id, tenantId)
-  if (inflight) {
+  if (inflight !== null) {
     const result = await inflight
     return { data: result.data, warnings: result.warnings, fromCache: false }
   }

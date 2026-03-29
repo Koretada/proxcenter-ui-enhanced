@@ -620,7 +620,7 @@ return null
           severity: oa.severity === 'critical' ? 'crit' : oa.severity === 'warning' ? 'warn' : oa.severity,
           message: oa.message,
           source: connNameMap.get(oa.connection_id) || oa.resource || 'Orchestrator',
-          sourceType: oa.resource_type === 'node' ? 'pve' : 'pve',
+          sourceType: 'pve',
           entityType: oa.resource_type,
           entityId: oa.resource,
           entityName: oa.resource,

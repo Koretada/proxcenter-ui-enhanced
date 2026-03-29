@@ -370,10 +370,6 @@ export default function ChangesPage() {
   const { data: response, isLoading, error, mutate } = useChanges({ limit: 300, resourceType: resourceType || undefined, action: action || undefined })
   const { data: settingsData, mutate: mutateSettings } = useSWRFetch('/api/v1/changes/settings')
 
-  if (!licenseLoading && !hasFeature(Features.CHANGE_TRACKING)) {
-    return <EnterpriseGuard requiredFeature={Features.CHANGE_TRACKING} featureName={t('changes.title')}><span /></EnterpriseGuard>
-  }
-
   const changes = response?.data || []
   const currentRetention = settingsData?.retentionDays || 30
 
@@ -461,6 +457,10 @@ export default function ChangesPage() {
       setSavingSettings(false)
     }
   }, [retentionDays, mutateSettings])
+
+  if (!licenseLoading && !hasFeature(Features.CHANGE_TRACKING)) {
+    return <EnterpriseGuard requiredFeature={Features.CHANGE_TRACKING} featureName={t('changes.title')}><span /></EnterpriseGuard>
+  }
 
   if (isLoading) return <CardsSkeleton count={3} />
 

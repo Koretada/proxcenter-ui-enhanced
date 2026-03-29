@@ -523,7 +523,7 @@ const EXTRA_MOCKS: MockDataMap = {
       data: Array.from({ length: 15 }, (_, i) => ({
         id: `audit-${String(i + 1).padStart(3, '0')}`,
         action: actions[i],
-        userId: i === 13 || i === 14 ? 'demo-user' : 'demo-user',
+        userId: 'demo-user',
         userName: 'Admin Demo',
         userEmail: 'admin@demo.proxcenter.io',
         ip: i % 3 === 0 ? '192.168.1.100' : i % 3 === 1 ? '10.0.0.42' : '172.16.0.15',

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 
 import ErrorPage from '@components/ErrorPage'
 
-export default function Error({ error, reset }) {
+export default function ErrorBoundary({ error, reset }) {
   const t = useTranslations('errorPages')
 
   useEffect(() => {

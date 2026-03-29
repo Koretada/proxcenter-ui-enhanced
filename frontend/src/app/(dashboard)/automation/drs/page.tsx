@@ -500,7 +500,7 @@ return 'neutral'
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                 {clusterName || clusterId.slice(0, 12)}
               </Typography>
-              {metrics.pve_version && (
+              {!!metrics.pve_version && (
                 <Chip
                   label={`PVE ${metrics.pve_version}`}
                   size="small"

@@ -562,7 +562,7 @@ export default function BackupDashboard({ pbsServers, onPbsClick, onDatastoreCli
                     py: 1.5, px: 2, cursor: onPbsClick ? 'pointer' : 'default',
                     transition: 'background 0.15s',
                     '&:hover': onPbsClick ? { bgcolor: alpha(theme.palette.primary.main, 0.04) } : {},
-                    '&:last-child': { pb: server.datastores.length > 0 ? 1.5 : 1.5 },
+                    '&:last-child': { pb: 1.5 },
                   }}
                 >
                   <Stack direction="row" alignItems="center" spacing={1.5}>

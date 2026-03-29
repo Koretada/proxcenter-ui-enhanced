@@ -13,14 +13,15 @@ import path from 'path'
 // ---------------------------------------------------------------------------
 const jsonPath = path.join(process.cwd(), 'src/lib/demo/mock-data.json')
 
-let MOCK_DATA: Record<string, any> = {}
-
-try {
-  const raw = fs.readFileSync(jsonPath, 'utf-8')
-  MOCK_DATA = JSON.parse(raw)
-} catch {
-  console.warn('[demo] Could not load mock-data.json from', jsonPath)
-}
+const MOCK_DATA: Record<string, any> = (() => {
+  try {
+    const raw = fs.readFileSync(jsonPath, 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    console.warn('[demo] Could not load mock-data.json from', jsonPath)
+    return {}
+  }
+})()
 
 // ---------------------------------------------------------------------------
 // Known connection / node identifiers used in the mock data

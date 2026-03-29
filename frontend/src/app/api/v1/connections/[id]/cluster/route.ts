@@ -93,7 +93,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
             name: nodeName,
             id: n.id,
             status: n.status,
-            ip: n.ip || st?.rootfs?.avail ? null : null, // IP pas toujours dispo
+            ip: n.ip || null, // IP pas toujours dispo
             cpuPct: round1((Number(st?.cpu || 0)) * 100),
             memPct: st?.memory?.total > 0 ? round1((Number(st?.memory?.used || 0) / Number(st?.memory?.total)) * 100) : 0,
             memUsed: Number(st?.memory?.used || 0),

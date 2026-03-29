@@ -147,7 +147,7 @@ return next
                       className={isExpanded ? 'ri-subtract-line' : 'ri-add-line'} 
                       style={{ fontSize: 18, opacity: 0.7 }} 
                     />
-                    {group.icon && group.icon}
+                    {group.icon}
                     {group.color && (
                       <Box sx={{
                         width: 12,

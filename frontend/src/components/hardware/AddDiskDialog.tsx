@@ -366,7 +366,7 @@ return match ? Number.parseInt(match[1]) : -1
 
             {/* Bus/Device + Index (disk & cdrom only) */}
             {(deviceType === 'disk' || deviceType === 'cdrom') && (
-            <Box sx={{ display: 'grid', gridTemplateColumns: (busType === 'ide' || busType === 'sata') ? '1fr auto' : '1fr auto', gap: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Bus/Device</InputLabel>
                 <Select value={busType} onChange={(e) => setBusType(e.target.value as any)} label="Bus/Device">

@@ -43,7 +43,7 @@ const SubMenuContent = (props, ref) => {
           const height = target.offsetHeight
 
           target.style.blockSize = '0px'
-          target.offsetHeight
+          void target.offsetHeight // force reflow
           target.style.blockSize = `${height}px`
           setTimeout(() => {
             target.style.overflow = 'auto'
@@ -56,7 +56,7 @@ const SubMenuContent = (props, ref) => {
         if (target) {
           target.style.overflow = 'hidden'
           target.style.blockSize = `${target.offsetHeight}px`
-          target.offsetHeight
+          void target.offsetHeight // force reflow
           target.style.blockSize = '0px'
           setTimeout(() => {
             target.style.overflow = 'auto'

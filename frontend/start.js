@@ -19,10 +19,10 @@ const dir = path.join(__dirname)
 process.env.NODE_ENV = 'production'
 process.chdir(__dirname)
 
-const PORT = parseInt(process.env.PORT, 10) || 3000
+const PORT = Number.parseInt(process.env.PORT, 10) || 3000
 const hostname = process.env.HOSTNAME || '0.0.0.0'
 
-let keepAliveTimeout = parseInt(process.env.KEEP_ALIVE_TIMEOUT, 10)
+let keepAliveTimeout = Number.parseInt(process.env.KEEP_ALIVE_TIMEOUT, 10)
 if (
   Number.isNaN(keepAliveTimeout) ||
   !Number.isFinite(keepAliveTimeout) ||

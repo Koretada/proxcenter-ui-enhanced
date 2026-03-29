@@ -513,7 +513,7 @@ return aId - bId
 async function blockingFetch(tenantId: string) {
   let inflight = getInflightFetch(tenantId)
 
-  if (!inflight) {
+  if (inflight === null) {
     const startTime = Date.now()
     inflight = fetchRawInventory()
       .then(result => {
@@ -537,7 +537,7 @@ async function blockingFetch(tenantId: string) {
  * Fire-and-forget — errors are logged but don't affect the current request.
  */
 function triggerBackgroundRevalidation(tenantId: string) {
-  if (getInflightFetch(tenantId)) return
+  if (getInflightFetch(tenantId) !== null) return
 
   const startTime = Date.now()
   const revalidation = fetchRawInventory()

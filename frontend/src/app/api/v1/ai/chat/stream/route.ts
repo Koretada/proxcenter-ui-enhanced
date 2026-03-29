@@ -259,7 +259,7 @@ export async function POST(request: Request) {
     const lastUserMessage = messages[messages.length - 1]
     const contextualizedMessage = `${systemPrompt}
 
-=== ${lang === 'fr' ? 'QUESTION' : 'QUESTION'} ===
+=== QUESTION ===
 ${lastUserMessage.content}
 
 ${lang === 'fr' ? 'Réponds en utilisant UNIQUEMENT les données ci-dessus.' : 'Respond using ONLY the data above.'}`
