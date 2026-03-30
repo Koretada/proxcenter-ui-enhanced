@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       networkBridge = "vmbr0",
       startAfterMigration = false,
       migrationType = "cold",
+      transferMode = "auto",
     } = body
 
     if (!sourceConnectionId || !sourceVmId || !targetConnectionId || !targetNode || !targetStorage) {
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
         targetConnectionId,
         targetNode,
         targetStorage,
-        config: JSON.stringify({ sourceConnectionId, sourceVmId, targetConnectionId, targetNode, targetStorage, networkBridge, startAfterMigration, migrationType, sourceType }),
+        config: JSON.stringify({ sourceConnectionId, sourceVmId, targetConnectionId, targetNode, targetStorage, networkBridge, startAfterMigration, migrationType, transferMode, sourceType }),
         status: "pending",
         currentStep: "pending",
         startedAt: new Date(),
@@ -78,7 +79,8 @@ export async function POST(req: Request) {
       targetStorage,
       networkBridge,
       startAfterMigration,
-      migrationType: migrationType as "cold" | "live",
+      migrationType: migrationType as "cold" | "live" | "sshfs_boot",
+      transferMode: transferMode as "https" | "sshfs",
     }
 
     // Run appropriate pipeline in background after response (pass tenantId for scoped DB access)

@@ -488,10 +488,12 @@ export default function InventoryDetails({
   const [migNetworkBridge, setMigNetworkBridge] = useState('')
   const [migBridges, setMigBridges] = useState<any[]>([])
   const [migStartAfter, setMigStartAfter] = useState(false)
-  const [migType, setMigType] = useState<'cold' | 'live'>('cold')
+  const [migType, setMigType] = useState<'cold' | 'live' | 'sshfs_boot'>('cold')
+  const [migTransferMode, setMigTransferMode] = useState<'https' | 'sshfs'>('sshfs')
   const [migPveConnections, setMigPveConnections] = useState<any[]>([])
   const [migNodes, setMigNodes] = useState<any[]>([])
   const [migStorages, setMigStorages] = useState<any[]>([])
+  const [migSshfsAvailable, setMigSshfsAvailable] = useState<boolean | null>(null) // null = not checked yet
   const [migStarting, setMigStarting] = useState(false)
   const [migJobId, setMigJobId] = useState<string | null>(null)
   const [migJob, setMigJob] = useState<any>(null)
@@ -508,7 +510,7 @@ export default function InventoryDetails({
   const [bulkMigLogsFilter, setBulkMigLogsFilter] = useState<string | null>(null)
   const bulkMigJobsRef = useRef(bulkMigJobs)
   bulkMigJobsRef.current = bulkMigJobs
-  const bulkMigConfigRef = useRef<{ sourceConnectionId: string; targetConnectionId: string; targetStorage: string; networkBridge: string; migrationType: string; startAfterMigration: boolean; sourceType: string } | null>(null)
+  const bulkMigConfigRef = useRef<{ sourceConnectionId: string; targetConnectionId: string; targetStorage: string; networkBridge: string; migrationType: string; transferMode: string; startAfterMigration: boolean; sourceType: string } | null>(null)
   // Snapshot of host info when bulk dialog opens (avoids null data when selection changes)
   const [bulkMigHostInfo, setBulkMigHostInfo] = useState<any>(null)
   const [extHostMigrations, setExtHostMigrations] = useState<any[]>([])
@@ -806,34 +808,59 @@ export default function InventoryDetails({
 
   const { favorites, toggleFavorite } = useFavorites({ propFavorites, propToggleFavorite })
 
-  // Fetch PVE connections when migration dialog opens (single or bulk)
+  // Fetch PVE connections + all their nodes when migration dialog opens
+  // Builds a flat list of { connId, connName, isCluster, node, status, ip } for the unified selector
+  const [migNodeOptions, setMigNodeOptions] = useState<any[]>([])
   useEffect(() => {
     if (!esxiMigrateVm && !bulkMigOpen) return
     setMigTargetConn(''); setMigTargetNode(''); setMigTargetStorage('')
-    setMigNodes([]); setMigStorages([])
+    setMigNodes([]); setMigStorages([]); setMigNodeOptions([])
     if (esxiMigrateVm) { setMigJobId(null); setMigJob(null) }
-    fetch('/api/v1/connections').then(r => r.json()).then(d => {
+    fetch('/api/v1/connections').then(r => r.json()).then(async (d) => {
       const pveConns = (d.data || d || []).filter((c: any) => c.type === 'pve')
       setMigPveConnections(pveConns)
-      if (pveConns.length === 1) setMigTargetConn(pveConns[0].id)
+      // Fetch nodes for each connection in parallel
+      const allOptions: any[] = []
+      await Promise.all(pveConns.map(async (conn: any) => {
+        try {
+          const res = await fetch(`/api/v1/connections/${conn.id}/nodes`)
+          const nd = await res.json()
+          const nodes = nd.data || nd || []
+          const isCluster = (conn.hosts?.length || nodes.length) > 1
+          for (const n of nodes) {
+            allOptions.push({
+              connId: conn.id,
+              connName: conn.name,
+              isCluster,
+              sshEnabled: conn.sshEnabled,
+              node: n.node || n.name || n,
+              status: n.status,
+              ip: n.ip,
+            })
+          }
+        } catch {}
+      }))
+      setMigNodeOptions(allOptions)
+      // Auto-select if only one node across all connections
+      if (allOptions.length === 1) {
+        setMigTargetConn(allOptions[0].connId)
+        setMigTargetNode(allOptions[0].node)
+        setMigNodes([allOptions[0]])
+      }
     }).catch(() => {})
   }, [esxiMigrateVm, bulkMigOpen])
 
-  // Fetch nodes when PVE connection is selected
+  // Fetch storages, bridges, and check sshfs when node is selected
   useEffect(() => {
-    if (!migTargetConn) { setMigNodes([]); setMigTargetNode(''); return }
-    fetch(`/api/v1/connections/${migTargetConn}/nodes`).then(r => r.json()).then(d => {
-      const nodes = d.data || d || []
-      setMigNodes(nodes)
-      if (nodes.length === 1) setMigTargetNode(nodes[0].node || nodes[0].name)
-    }).catch(() => {})
-  }, [migTargetConn])
-
-  // Fetch storages when node is selected (use first node for auto mode)
-  useEffect(() => {
-    if (!migTargetConn || !migTargetNode) { setMigStorages([]); setMigTargetStorage(''); return }
-    const fetchNode = migTargetNode === '__auto__' ? (migNodes[0]?.node || migNodes[0]) : migTargetNode
-    if (!fetchNode) return
+    if (!migTargetConn || !migTargetNode) { setMigStorages([]); setMigTargetStorage(''); setMigBridges([]); setMigNetworkBridge(''); setMigSshfsAvailable(null); return }
+    const connNodes = migNodeOptions.filter((o: any) => o.connId === migTargetConn)
+    const fetchNode = migTargetNode === '__auto__' ? (connNodes[0]?.node || migTargetNode) : migTargetNode
+    if (!fetchNode || fetchNode === '__auto__') return
+    // Check sshfs availability on target node
+    setMigSshfsAvailable(null)
+    fetch(`/api/v1/connections/${migTargetConn}/nodes/${fetchNode}/check-sshfs`).then(r => r.json()).then(d => {
+      setMigSshfsAvailable(d.data?.installed ?? false)
+    }).catch(() => setMigSshfsAvailable(false))
     fetch(`/api/v1/connections/${migTargetConn}/nodes/${fetchNode}/storages?content=images`).then(r => r.json()).then(d => {
       const storages = (d.data || d || []).filter((s: any) => {
         const content = s.content || ''
@@ -854,7 +881,7 @@ export default function InventoryDetails({
         setMigNetworkBridge(vmbr0 ? 'vmbr0' : bridges[0].iface)
       }
     }).catch(() => {})
-  }, [migTargetConn, migTargetNode, migNodes.length])
+  }, [migTargetConn, migTargetNode, migNodeOptions.length])
 
   // Cleanup TasksBar restore callback on unmount
   useEffect(() => {
@@ -960,6 +987,7 @@ export default function InventoryDetails({
                   targetStorage: cfg.targetStorage,
                   networkBridge: cfg.networkBridge,
                   migrationType: cfg.migrationType,
+                  transferMode: cfg.transferMode,
                   startAfterMigration: cfg.startAfterMigration,
                 }),
               })
@@ -6024,113 +6052,231 @@ return
               <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('inventoryPage.esxiMigration.targetProxmox')}</Typography>
                 <Stack spacing={2}>
-                  <TextField
-                    select label={t('inventoryPage.esxiMigration.targetCluster')} size="small" fullWidth
-                    value={migTargetConn}
-                    onChange={e => setMigTargetConn(e.target.value)}
-                  >
-                    <MenuItem value="" disabled>{t('inventoryPage.esxiMigration.selectCluster')}</MenuItem>
-                    {migPveConnections.map((c: any) => (
-                      <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select label={t('inventoryPage.esxiMigration.targetNode')} size="small" fullWidth
-                    value={migTargetNode}
-                    onChange={e => setMigTargetNode(e.target.value)}
-                    disabled={!migTargetConn || migNodes.length === 0}
-                  >
-                    <MenuItem value="" disabled>{t('inventoryPage.esxiMigration.selectNode')}</MenuItem>
-                    {migNodes.map((n: any) => (
-                      <MenuItem key={n.node || n.name} value={n.node || n.name}>{n.node || n.name}</MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select label={t('inventoryPage.esxiMigration.targetStorage')} size="small" fullWidth
-                    value={migTargetStorage}
-                    onChange={e => setMigTargetStorage(e.target.value)}
-                    disabled={!migTargetNode || migStorages.length === 0}
-                  >
-                    <MenuItem value="" disabled>{t('inventoryPage.esxiMigration.selectStorage')}</MenuItem>
-                    {migStorages.map((s: any) => (
-                      <MenuItem key={s.storage} value={s.storage}>
-                        {s.storage} ({s.type}) — {s.avail ? `${(s.avail / 1073741824).toFixed(1)} GB ${t('inventoryPage.esxiMigration.free')}` : ''}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select label={t('inventoryPage.esxiMigration.networkBridge')} size="small" fullWidth
-                    value={migNetworkBridge}
-                    onChange={e => setMigNetworkBridge(e.target.value)}
-                    disabled={!migTargetNode || migBridges.length === 0}
-                  >
-                    <MenuItem value="" disabled>{t('inventoryPage.esxiMigration.selectBridge')}</MenuItem>
-                    {migBridges.map((b: any) => (
-                      <MenuItem key={b.iface} value={b.iface}>
-                        {b.iface}{b.comments ? ` (${b.comments})` : ''}{b.cidr ? ` — ${b.cidr}` : ''}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  {/* Migration type selector */}
+                  <FormControl fullWidth size="small">
+                    <InputLabel>{t('inventoryPage.esxiMigration.targetNode')}</InputLabel>
+                    <Select
+                      value={migTargetConn && migTargetNode ? `${migTargetConn}::${migTargetNode}` : ''}
+                      onChange={e => {
+                        const val = e.target.value as string
+                        const [connId, node] = val.split('::')
+                        setMigTargetConn(connId || '')
+                        setMigTargetNode(node || '')
+                        setMigTargetStorage('')
+                        setMigNetworkBridge('')
+                      }}
+                      label={t('inventoryPage.esxiMigration.targetNode')}
+                      renderValue={(val) => {
+                        const [connId, node] = (val as string).split('::')
+                        const conn = migPveConnections.find((c: any) => c.id === connId)
+                        const opt = migNodeOptions.find((o: any) => o.connId === connId && o.node === node)
+                        const isCluster = conn?.hosts?.length > 1
+                        const isDarkRv = theme.palette.mode === 'dark'
+                        if (!conn) return ''
+                        return (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: 14, height: 14, flexShrink: 0 }}>
+                              <img src={isDarkRv ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                              <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: opt?.status === 'online' ? 'success.main' : 'error.main', border: '1.5px solid', borderColor: 'background.paper' }} />
+                            </Box>
+                            <Typography variant="body2" fontWeight={500}>{isCluster ? `${node} (${conn.name})` : conn.name}</Typography>
+                          </Box>
+                        )
+                      }}
+                    >
+                      {migPveConnections.map((conn: any, connIdx: number) => {
+                        const isCluster = conn.hosts?.length > 1
+                        const isDark = theme.palette.mode === 'dark'
+                        const connNodes = migNodeOptions.filter((o: any) => o.connId === conn.id)
+                        const items: React.ReactNode[] = []
+                        if (connIdx > 0) items.push(<Divider key={`div-${conn.id}`} />)
+                        if (isCluster) {
+                          // Cluster: header + indented nodes
+                          items.push(
+                            <MenuItem key={`header-${conn.id}`} disabled sx={{ opacity: '1 !important', py: 0.5, minHeight: 32, bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                <i className="ri-server-fill" style={{ fontSize: 14, opacity: 0.8 }} />
+                                <Typography variant="caption" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, color: 'text.secondary' }}>
+                                  {conn.name}
+                                </Typography>
+                                <Chip size="small" label="Cluster" sx={{ height: 16, fontSize: 9, fontWeight: 600 }} />
+                              </Box>
+                            </MenuItem>
+                          )
+                          connNodes.forEach((node: any) => {
+                            items.push(
+                              <MenuItem key={`${conn.id}::${node.node}`} value={`${conn.id}::${node.node}`} sx={{ pl: 4 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                  <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: 14, height: 14, flexShrink: 0 }}>
+                                    <img src={isDark ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                                    <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: node.status === 'online' ? 'success.main' : 'error.main', border: '1.5px solid', borderColor: 'background.paper' }} />
+                                  </Box>
+                                  <Typography variant="body2" fontWeight={500}>{node.node}</Typography>
+                                  {node.ip && <Typography variant="caption" sx={{ opacity: 0.6, ml: 'auto' }}>{node.ip}</Typography>}
+                                </Box>
+                              </MenuItem>
+                            )
+                          })
+                        } else {
+                          // Standalone: single selectable row with connection name
+                          const node = connNodes[0]
+                          if (node) {
+                            items.push(
+                              <MenuItem key={`${conn.id}::${node.node}`} value={`${conn.id}::${node.node}`}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                  <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: 14, height: 14, flexShrink: 0 }}>
+                                    <img src={isDark ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                                    <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: node.status === 'online' ? 'success.main' : 'error.main', border: '1.5px solid', borderColor: 'background.paper' }} />
+                                  </Box>
+                                  <Typography variant="body2" fontWeight={500}>{conn.name}</Typography>
+                                  {node.ip && <Typography variant="caption" sx={{ opacity: 0.6, ml: 'auto' }}>{node.ip}</Typography>}
+                                </Box>
+                              </MenuItem>
+                            )
+                          }
+                        }
+                        return items
+                      })}
+                    </Select>
+                  </FormControl>
+                  <FormControl fullWidth size="small" disabled={!migTargetNode || migStorages.length === 0}>
+                    <InputLabel>{t('inventoryPage.esxiMigration.targetStorage')}</InputLabel>
+                    <Select
+                      value={migTargetStorage}
+                      onChange={e => setMigTargetStorage(e.target.value)}
+                      label={t('inventoryPage.esxiMigration.targetStorage')}
+                      renderValue={(val) => {
+                        const s = migStorages.find((s: any) => s.storage === val)
+                        if (!s) return ''
+                        return (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <i className="ri-hard-drive-2-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                            <Typography variant="body2" fontWeight={500}>{s.storage}</Typography>
+                            <Typography variant="caption" sx={{ opacity: 0.5 }}>({s.type})</Typography>
+                          </Box>
+                        )
+                      }}
+                    >
+                      {migStorages.map((s: any) => {
+                        const usedPct = s.total && s.avail ? Math.round(((s.total - s.avail) / s.total) * 100) : 0
+                        return (
+                          <MenuItem key={s.storage} value={s.storage}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                              <i className="ri-hard-drive-2-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                              <Typography variant="body2" fontWeight={500}>{s.storage}</Typography>
+                              <Typography variant="caption" sx={{ opacity: 0.5 }}>({s.type})</Typography>
+                              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 100 }}>
+                                <Box sx={{ flex: 1, height: 4, bgcolor: 'action.hover', borderRadius: 0, overflow: 'hidden' }}>
+                                  <Box sx={{ height: '100%', width: `${usedPct}%`, bgcolor: usedPct > 85 ? 'error.main' : usedPct > 60 ? 'warning.main' : 'success.main', transition: 'width 0.3s' }} />
+                                </Box>
+                                <Typography variant="caption" sx={{ fontSize: '0.6rem', opacity: 0.6, whiteSpace: 'nowrap' }}>
+                                  {s.avail ? `${(s.avail / 1073741824).toFixed(1)} GB` : ''}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </MenuItem>
+                        )
+                      })}
+                    </Select>
+                  </FormControl>
+                  <FormControl fullWidth size="small" disabled={!migTargetNode || migBridges.length === 0}>
+                    <InputLabel>{t('inventoryPage.esxiMigration.networkBridge')}</InputLabel>
+                    <Select
+                      value={migNetworkBridge}
+                      onChange={e => setMigNetworkBridge(e.target.value)}
+                      label={t('inventoryPage.esxiMigration.networkBridge')}
+                      renderValue={(val) => {
+                        const b = migBridges.find((b: any) => b.iface === val)
+                        if (!b) return ''
+                        return (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <i className="ri-router-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                            <Typography variant="body2" fontWeight={500}>{b.iface}</Typography>
+                            {b.comments && <Typography variant="caption" sx={{ opacity: 0.5 }}>({b.comments})</Typography>}
+                          </Box>
+                        )
+                      }}
+                    >
+                      {migBridges.map((b: any) => (
+                        <MenuItem key={b.iface} value={b.iface}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                            <i className="ri-router-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                            <Typography variant="body2" fontWeight={500}>{b.iface}</Typography>
+                            {b.comments && <Typography variant="caption" sx={{ opacity: 0.5 }}>({b.comments})</Typography>}
+                            {b.cidr && <Typography variant="caption" sx={{ opacity: 0.5, ml: 'auto' }}>{b.cidr}</Typography>}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {/* Migration type selector — compact with tooltip */}
                   <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 0.75, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                       {t('inventoryPage.esxiMigration.migrationType')}
                     </Typography>
-                    <Stack spacing={1}>
+                    <Stack direction="row" spacing={1}>
                       {([
                         { value: 'cold' as const, icon: 'ri-shut-down-line', color: 'info.main', labelKey: 'migrationTypeCold', descKey: 'migrationTypeColdDesc' },
                         { value: 'live' as const, icon: 'ri-flashlight-line', color: 'success.main', labelKey: 'migrationTypeLive', descKey: 'migrationTypeLiveDesc' },
-                      ]).map(opt => {
-                        return (
-                        <Box
-                          key={opt.value}
-                          onClick={() => setMigType(opt.value)}
-                          sx={{
-                            p: 1.5,
-                            borderRadius: 1.5,
-                            border: '2px solid',
-                            borderColor: migType === opt.value ? `${opt.color}` : 'divider',
-                            bgcolor: migType === opt.value
-                              ? theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)'
-                              : 'transparent',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1.5,
-                            '&:hover': { borderColor: `${opt.color}`, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' },
-                          }}
-                        >
-                          <Box sx={{
-                            width: 36, height: 36, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            bgcolor: migType === opt.value ? `${opt.color}` : 'action.hover',
-                            color: migType === opt.value ? '#fff' : 'text.secondary',
-                            transition: 'all 0.15s',
-                          }}>
-                            <i className={opt.icon} style={{ fontSize: 18 }} />
-                          </Box>
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="body2" fontWeight={600} sx={{ color: 'text.primary' }}>
+                        { value: 'sshfs_boot' as const, icon: 'ri-speed-line', color: 'warning.main', labelKey: 'migrationTypeSshfsBoot', descKey: 'migrationTypeSshfsBootDesc' },
+                      ]).map(opt => (
+                        <MuiTooltip key={opt.value} title={t(`inventoryPage.esxiMigration.${opt.descKey}`)} arrow placement="top">
+                          <Box
+                            onClick={() => setMigType(opt.value)}
+                            sx={{
+                              flex: 1, py: 1, px: 1.5, borderRadius: 1.5, border: '2px solid', cursor: 'pointer', transition: 'all 0.15s',
+                              borderColor: migType === opt.value ? `${opt.color}` : 'divider',
+                              bgcolor: migType === opt.value ? (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)') : 'transparent',
+                              '&:hover': { borderColor: `${opt.color}` },
+                              display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center',
+                            }}
+                          >
+                            <i className={opt.icon} style={{ fontSize: 16, color: migType === opt.value ? theme.palette[opt.color.split('.')[0] as 'info' | 'success' | 'warning'].main : undefined, opacity: migType === opt.value ? 1 : 0.6 }} />
+                            <Typography variant="body2" fontWeight={migType === opt.value ? 700 : 500} fontSize={12} noWrap>
                               {t(`inventoryPage.esxiMigration.${opt.labelKey}`)}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
-                              {t(`inventoryPage.esxiMigration.${opt.descKey}`)}
-                            </Typography>
                           </Box>
-                          <Box sx={{
-                            width: 18, height: 18, borderRadius: '50%', border: '2px solid',
-                            borderColor: migType === opt.value ? `${opt.color}` : 'divider',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            {migType === opt.value && (
-                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: `${opt.color}` }} />
-                            )}
-                          </Box>
-                        </Box>
-                        )
-                      })}
+                        </MuiTooltip>
+                      ))}
                     </Stack>
                   </Box>
+
+                  {/* Transfer mode selector — compact with tooltip */}
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 0.75, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {t('inventoryPage.esxiMigration.transferMode')}
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      {([
+                        { value: 'sshfs' as const, icon: 'ri-folder-shared-line', color: 'warning.main', labelKey: 'transferModeSshfs', descKey: 'transferModeSshfsDesc' },
+                        { value: 'https' as const, icon: 'ri-download-cloud-line', color: 'info.main', labelKey: 'transferModeHttps', descKey: 'transferModeHttpsDesc' },
+                      ]).map(opt => (
+                        <MuiTooltip key={opt.value} title={t(`inventoryPage.esxiMigration.${opt.descKey}`)} arrow placement="top">
+                          <Box
+                            onClick={() => setMigTransferMode(opt.value)}
+                            sx={{
+                              flex: 1, py: 1, px: 1.5, borderRadius: 1.5, border: '2px solid', cursor: 'pointer', transition: 'all 0.15s',
+                              borderColor: migTransferMode === opt.value ? `${opt.color}` : 'divider',
+                              bgcolor: migTransferMode === opt.value ? (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)') : 'transparent',
+                              '&:hover': { borderColor: `${opt.color}` },
+                              display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center',
+                            }}
+                          >
+                            <i className={opt.icon} style={{ fontSize: 16, color: migTransferMode === opt.value ? theme.palette[opt.color.split('.')[0] as 'warning' | 'info'].main : undefined, opacity: migTransferMode === opt.value ? 1 : 0.6 }} />
+                            <Typography variant="body2" fontWeight={migTransferMode === opt.value ? 700 : 500} fontSize={12} noWrap>
+                              {t(`inventoryPage.esxiMigration.${opt.labelKey}`)}
+                            </Typography>
+                          </Box>
+                        </MuiTooltip>
+                      ))}
+                    </Stack>
+                  </Box>
+
+                  {/* sshfs not installed warning */}
+                  {migSshfsAvailable === false && (migTransferMode === 'sshfs' || migType === 'sshfs_boot') && (
+                    <Alert severity="warning" sx={{ fontSize: 12 }} icon={<i className="ri-folder-shared-line" style={{ fontSize: 18 }} />}>
+                      {t('inventoryPage.esxiMigration.sshfsNotInstalled')}
+                    </Alert>
+                  )}
 
                   <FormControlLabel
                     control={<Switch size="small" checked={migStartAfter} onChange={(_, v) => setMigStartAfter(v)} />}
@@ -6155,6 +6301,7 @@ return
                 <Typography variant="caption" color="primary">
                   {migType === 'cold' && t('inventoryPage.esxiMigration.coldMigrationInfo')}
                   {migType === 'live' && t('inventoryPage.esxiMigration.liveMigrationInfo')}
+                  {migType === 'sshfs_boot' && t('inventoryPage.esxiMigration.sshfsBootMigrationInfo')}
                 </Typography>
               </Box>
             </Stack>
@@ -6304,8 +6451,8 @@ return
             <>
               <Button onClick={() => setEsxiMigrateVm(null)} disabled={migStarting}>{t('common.cancel')}</Button>
               <Button
-                variant="contained"
-                disabled={!migTargetConn || !migTargetNode || !migTargetStorage || migStarting || (migTargetConn && !migPveConnections.find((c: any) => c.id === migTargetConn)?.sshEnabled)}
+                variant="outlined"
+                disabled={!migTargetConn || !migTargetNode || !migTargetStorage || migStarting || (migTargetConn && !migPveConnections.find((c: any) => c.id === migTargetConn)?.sshEnabled) || (migSshfsAvailable === false && (migTransferMode === 'sshfs' || migType === 'sshfs_boot'))}
                 sx={{ textTransform: 'none' }}
                 startIcon={migStarting ? <CircularProgress size={16} color="inherit" /> : <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} />}
                 onClick={async () => {
@@ -6323,6 +6470,7 @@ return
                         targetStorage: migTargetStorage,
                         networkBridge: migNetworkBridge,
                         migrationType: migType,
+                        transferMode: migTransferMode,
                         startAfterMigration: migStartAfter,
                       }),
                     })
@@ -6395,7 +6543,7 @@ return
                 </Button>
               )}
               {migJob && ['completed', 'failed', 'cancelled'].includes(migJob.status) && (
-                <Button onClick={() => { setEsxiMigrateVm(null); setMigJobId(null); setMigJob(null); setMigType('cold') }}>
+                <Button onClick={() => { setEsxiMigrateVm(null); setMigJobId(null); setMigJob(null); setMigType('cold'); setMigTransferMode('sshfs') }}>
                   {t('common.close')}
                 </Button>
               )}
@@ -6434,73 +6582,267 @@ return
                 <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="subtitle2" sx={{ mb: 1.5, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('inventoryPage.esxiMigration.targetProxmox')}</Typography>
                   <Stack spacing={2}>
-                    <Autocomplete size="small" options={migPveConnections} getOptionLabel={(o: any) => o.name || o.id}
-                      value={migPveConnections.find((c: any) => c.id === migTargetConn) || null}
-                      onChange={(_, v: any) => { setMigTargetConn(v?.id || ''); setMigTargetNode(''); setMigTargetStorage(''); setMigNetworkBridge('') }}
-                      renderInput={(p) => <TextField {...p} label={t('inventoryPage.esxiMigration.targetCluster')} placeholder={t('inventoryPage.esxiMigration.selectCluster')} />}
-                    />
-                    {migTargetConn && (
-                      <Autocomplete size="small"
-                        options={[{ node: '__auto__', label: t('inventoryPage.esxiMigration.autoDistribute') }, ...migNodes.map((n: any) => ({ node: n.node || n, label: n.node || n }))]}
-                        getOptionLabel={(o: any) => o.label || o.node || o}
-                        value={migTargetNode === '__auto__' ? { node: '__auto__', label: t('inventoryPage.esxiMigration.autoDistribute') } : migNodes.find((n: any) => (n.node || n) === migTargetNode) ? { node: migTargetNode, label: migTargetNode } : null}
-                        onChange={(_, v: any) => { setMigTargetNode(v?.node || ''); setMigTargetStorage(''); setMigNetworkBridge('') }}
-                        renderInput={(p) => <TextField {...p} label={t('inventoryPage.esxiMigration.targetNode')} placeholder={t('inventoryPage.esxiMigration.selectNode')} />}
-                        renderOption={(props, option: any) => (
-                          <li {...props} key={option.node}>
-                            {option.node === '__auto__' ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <i className="ri-equalizer-line" style={{ fontSize: 16, color: theme.palette.primary.main }} />
-                                <Box>
-                                  <Typography variant="body2" fontWeight={600} fontSize={13}>{option.label}</Typography>
-                                  <Typography variant="caption" color="text.secondary" fontSize={10}>{t('inventoryPage.esxiMigration.autoDistributeDesc')}</Typography>
-                                </Box>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>{t('inventoryPage.esxiMigration.targetNode')}</InputLabel>
+                      <Select
+                        value={migTargetConn && migTargetNode ? (migTargetNode === '__auto__' ? '__auto__' : `${migTargetConn}::${migTargetNode}`) : ''}
+                        onChange={e => {
+                          const val = e.target.value as string
+                          if (val === '__auto__') {
+                            const firstConn = migNodeOptions[0]
+                            setMigTargetConn(firstConn?.connId || '')
+                            setMigTargetNode('__auto__')
+                          } else {
+                            const [connId, node] = val.split('::')
+                            setMigTargetConn(connId || '')
+                            setMigTargetNode(node || '')
+                          }
+                          setMigTargetStorage('')
+                          setMigNetworkBridge('')
+                        }}
+                        label={t('inventoryPage.esxiMigration.targetNode')}
+                        renderValue={(val) => {
+                          if (val === '__auto__') return (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <i className="ri-equalizer-line" style={{ fontSize: 14, color: theme.palette.primary.main }} />
+                              <Typography variant="body2" fontWeight={500}>{t('inventoryPage.esxiMigration.autoDistribute')}</Typography>
+                            </Box>
+                          )
+                          const [connId, node] = (val as string).split('::')
+                          const conn = migPveConnections.find((c: any) => c.id === connId)
+                          const opt = migNodeOptions.find((o: any) => o.connId === connId && o.node === node)
+                          const isCluster = conn?.hosts?.length > 1
+                          const isDarkRv = theme.palette.mode === 'dark'
+                          if (!conn) return ''
+                          return (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: 14, height: 14, flexShrink: 0 }}>
+                                <img src={isDarkRv ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                                <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: opt?.status === 'online' ? 'success.main' : 'error.main', border: '1.5px solid', borderColor: 'background.paper' }} />
                               </Box>
-                            ) : (
-                              <Typography variant="body2" fontSize={13}>{option.label}</Typography>
-                            )}
-                          </li>
-                        )}
-                      />
-                    )}
+                              <Typography variant="body2" fontWeight={500}>{isCluster ? `${node} (${conn.name})` : conn.name}</Typography>
+                            </Box>
+                          )
+                        }}
+                      >
+                        <MenuItem value="__auto__">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <i className="ri-equalizer-line" style={{ fontSize: 16, color: theme.palette.primary.main }} />
+                            <Box>
+                              <Typography variant="body2" fontWeight={600} fontSize={13}>{t('inventoryPage.esxiMigration.autoDistribute')}</Typography>
+                              <Typography variant="caption" color="text.secondary" fontSize={10}>{t('inventoryPage.esxiMigration.autoDistributeDesc')}</Typography>
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                        {migPveConnections.map((conn: any, connIdx: number) => {
+                          const isCluster = conn.hosts?.length > 1
+                          const isDark = theme.palette.mode === 'dark'
+                          const connNodes = migNodeOptions.filter((o: any) => o.connId === conn.id)
+                          const items: React.ReactNode[] = []
+                          items.push(<Divider key={`div-${conn.id}`} />)
+                          if (isCluster) {
+                            items.push(
+                              <MenuItem key={`header-${conn.id}`} disabled sx={{ opacity: '1 !important', py: 0.5, minHeight: 32, bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                  <i className="ri-server-fill" style={{ fontSize: 14, opacity: 0.8 }} />
+                                  <Typography variant="caption" fontWeight={700} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, color: 'text.secondary' }}>
+                                    {conn.name}
+                                  </Typography>
+                                  <Chip size="small" label="Cluster" sx={{ height: 16, fontSize: 9, fontWeight: 600 }} />
+                                </Box>
+                              </MenuItem>
+                            )
+                            connNodes.forEach((node: any) => {
+                              items.push(
+                                <MenuItem key={`${conn.id}::${node.node}`} value={`${conn.id}::${node.node}`} sx={{ pl: 4 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                    <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: 14, height: 14, flexShrink: 0 }}>
+                                      <img src={isDark ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                                      <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: node.status === 'online' ? 'success.main' : 'error.main', border: '1.5px solid', borderColor: 'background.paper' }} />
+                                    </Box>
+                                    <Typography variant="body2" fontWeight={500}>{node.node}</Typography>
+                                    {node.ip && <Typography variant="caption" sx={{ opacity: 0.6, ml: 'auto' }}>{node.ip}</Typography>}
+                                  </Box>
+                                </MenuItem>
+                              )
+                            })
+                          } else {
+                            const node = connNodes[0]
+                            if (node) {
+                              items.push(
+                                <MenuItem key={`${conn.id}::${node.node}`} value={`${conn.id}::${node.node}`}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                    <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: 14, height: 14, flexShrink: 0 }}>
+                                      <img src={isDark ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+                                      <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: node.status === 'online' ? 'success.main' : 'error.main', border: '1.5px solid', borderColor: 'background.paper' }} />
+                                    </Box>
+                                    <Typography variant="body2" fontWeight={500}>{conn.name}</Typography>
+                                    {node.ip && <Typography variant="caption" sx={{ opacity: 0.6, ml: 'auto' }}>{node.ip}</Typography>}
+                                  </Box>
+                                </MenuItem>
+                              )
+                            }
+                          }
+                          return items
+                        })}
+                      </Select>
+                    </FormControl>
                     {migTargetNode && (
                       <>
-                        <Autocomplete size="small" options={migStorages} getOptionLabel={(o: any) => `${o.storage} (${o.type}, ${formatBytes(o.avail || 0)} ${t('inventoryPage.esxiMigration.free')})`}
-                          value={migStorages.find((s: any) => s.storage === migTargetStorage) || null}
-                          onChange={(_, v: any) => setMigTargetStorage(v?.storage || '')}
-                          renderInput={(p) => <TextField {...p} label={t('inventoryPage.esxiMigration.targetStorage')} placeholder={t('inventoryPage.esxiMigration.selectStorage')}
-                            helperText={migTargetNode === '__auto__' ? t('inventoryPage.esxiMigration.sharedStorageHint') : undefined} />}
-                        />
-                        <Autocomplete size="small" options={migBridges} getOptionLabel={(o: any) => o.iface || o}
-                          value={migBridges.find((b: any) => (b.iface || b) === migNetworkBridge) || null}
-                          onChange={(_, v: any) => setMigNetworkBridge(v?.iface || v || '')}
-                          renderInput={(p) => <TextField {...p} label={t('inventoryPage.esxiMigration.networkBridge')} placeholder={t('inventoryPage.esxiMigration.selectBridge')} />}
-                        />
+                        <FormControl fullWidth size="small">
+                          <InputLabel>{t('inventoryPage.esxiMigration.targetStorage')}</InputLabel>
+                          <Select
+                            value={migTargetStorage}
+                            onChange={e => setMigTargetStorage(e.target.value)}
+                            label={t('inventoryPage.esxiMigration.targetStorage')}
+                            renderValue={(val) => {
+                              const s = migStorages.find((s: any) => s.storage === val)
+                              if (!s) return ''
+                              return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <i className="ri-hard-drive-2-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                                  <Typography variant="body2" fontWeight={500}>{s.storage}</Typography>
+                                  <Typography variant="caption" sx={{ opacity: 0.5 }}>({s.type})</Typography>
+                                </Box>
+                              )
+                            }}
+                          >
+                            {migStorages.map((s: any) => {
+                              const usedPct = s.total && s.avail ? Math.round(((s.total - s.avail) / s.total) * 100) : 0
+                              return (
+                                <MenuItem key={s.storage} value={s.storage}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                    <i className="ri-hard-drive-2-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                                    <Typography variant="body2" fontWeight={500}>{s.storage}</Typography>
+                                    <Typography variant="caption" sx={{ opacity: 0.5 }}>({s.type})</Typography>
+                                    <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 100 }}>
+                                      <Box sx={{ flex: 1, height: 4, bgcolor: 'action.hover', borderRadius: 0, overflow: 'hidden' }}>
+                                        <Box sx={{ height: '100%', width: `${usedPct}%`, bgcolor: usedPct > 85 ? 'error.main' : usedPct > 60 ? 'warning.main' : 'success.main', transition: 'width 0.3s' }} />
+                                      </Box>
+                                      <Typography variant="caption" sx={{ fontSize: '0.6rem', opacity: 0.6, whiteSpace: 'nowrap' }}>
+                                        {s.avail ? `${(s.avail / 1073741824).toFixed(1)} GB` : ''}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                </MenuItem>
+                              )
+                            })}
+                          </Select>
+                          {migTargetNode === '__auto__' && <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.5 }}>{t('inventoryPage.esxiMigration.sharedStorageHint')}</Typography>}
+                        </FormControl>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>{t('inventoryPage.esxiMigration.networkBridge')}</InputLabel>
+                          <Select
+                            value={migNetworkBridge}
+                            onChange={e => setMigNetworkBridge(e.target.value)}
+                            label={t('inventoryPage.esxiMigration.networkBridge')}
+                            renderValue={(val) => {
+                              const b = migBridges.find((b: any) => b.iface === val)
+                              if (!b) return ''
+                              return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <i className="ri-router-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                                  <Typography variant="body2" fontWeight={500}>{b.iface}</Typography>
+                                  {b.comments && <Typography variant="caption" sx={{ opacity: 0.5 }}>({b.comments})</Typography>}
+                                </Box>
+                              )
+                            }}
+                          >
+                            {migBridges.map((b: any) => (
+                              <MenuItem key={b.iface} value={b.iface}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                  <i className="ri-router-line" style={{ fontSize: 14, opacity: 0.7 }} />
+                                  <Typography variant="body2" fontWeight={500}>{b.iface}</Typography>
+                                  {b.comments && <Typography variant="caption" sx={{ opacity: 0.5 }}>({b.comments})</Typography>}
+                                  {b.cidr && <Typography variant="caption" sx={{ opacity: 0.5, ml: 'auto' }}>{b.cidr}</Typography>}
+                                </Box>
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
                       </>
                     )}
                   </Stack>
                 </Box>
 
-                {/* Migration type */}
-                <Box sx={{ display: 'flex', gap: 1.5 }}>
-                  {(['cold', 'live'] as const).map(type => (
-                    <Box key={type} onClick={() => setMigType(type)} sx={{
-                      flex: 1, p: 1.5, borderRadius: 1.5, cursor: 'pointer', border: '2px solid',
-                      borderColor: migType === type ? 'primary.main' : 'divider',
-                      bgcolor: migType === type ? (theme.palette.mode === 'dark' ? 'rgba(var(--mui-palette-primary-mainChannel) / 0.08)' : 'rgba(var(--mui-palette-primary-mainChannel) / 0.04)') : 'transparent',
-                    }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <i className={type === 'cold' ? 'ri-shut-down-line' : 'ri-flashlight-line'} style={{ fontSize: 16, color: type === 'cold' ? theme.palette.info.main : theme.palette.success.main }} />
-                        <Typography variant="body2" fontWeight={700} fontSize={12}>
-                          {type === 'cold' ? t('inventoryPage.esxiMigration.migrationTypeCold') : t('inventoryPage.esxiMigration.migrationTypeLive')}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ))}
+                {/* Migration type — compact with tooltip */}
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 0.75, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {t('inventoryPage.esxiMigration.migrationType')}
+                  </Typography>
+                  <Stack direction="row" spacing={1}>
+                    {([
+                      { value: 'cold' as const, icon: 'ri-shut-down-line', color: 'info.main', labelKey: 'migrationTypeCold', descKey: 'migrationTypeColdDesc' },
+                      { value: 'live' as const, icon: 'ri-flashlight-line', color: 'success.main', labelKey: 'migrationTypeLive', descKey: 'migrationTypeLiveDesc' },
+                      { value: 'sshfs_boot' as const, icon: 'ri-speed-line', color: 'warning.main', labelKey: 'migrationTypeSshfsBoot', descKey: 'migrationTypeSshfsBootDesc' },
+                    ]).map(opt => (
+                      <MuiTooltip key={opt.value} title={t(`inventoryPage.esxiMigration.${opt.descKey}`)} arrow placement="top">
+                        <Box
+                          onClick={() => setMigType(opt.value)}
+                          sx={{
+                            flex: 1, py: 1, px: 1.5, borderRadius: 1.5, border: '2px solid', cursor: 'pointer', transition: 'all 0.15s',
+                            borderColor: migType === opt.value ? `${opt.color}` : 'divider',
+                            bgcolor: migType === opt.value ? (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)') : 'transparent',
+                            '&:hover': { borderColor: `${opt.color}` },
+                            display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center',
+                          }}
+                        >
+                          <i className={opt.icon} style={{ fontSize: 16, color: migType === opt.value ? theme.palette[opt.color.split('.')[0] as 'info' | 'success' | 'warning'].main : undefined, opacity: migType === opt.value ? 1 : 0.6 }} />
+                          <Typography variant="body2" fontWeight={migType === opt.value ? 700 : 500} fontSize={12} noWrap>
+                            {t(`inventoryPage.esxiMigration.${opt.labelKey}`)}
+                          </Typography>
+                        </Box>
+                      </MuiTooltip>
+                    ))}
+                  </Stack>
                 </Box>
 
+                {/* Transfer mode — compact with tooltip */}
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 0.75, color: 'text.secondary', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {t('inventoryPage.esxiMigration.transferMode')}
+                  </Typography>
+                  <Stack direction="row" spacing={1}>
+                    {([
+                      { value: 'auto' as const, icon: 'ri-magic-line', color: 'primary.main', labelKey: 'transferModeAuto', descKey: 'transferModeAutoDesc' },
+                      { value: 'sshfs' as const, icon: 'ri-folder-shared-line', color: 'warning.main', labelKey: 'transferModeSshfs', descKey: 'transferModeSshfsDesc' },
+                      { value: 'https' as const, icon: 'ri-download-cloud-line', color: 'info.main', labelKey: 'transferModeHttps', descKey: 'transferModeHttpsDesc' },
+                    ]).map(opt => (
+                      <MuiTooltip key={opt.value} title={t(`inventoryPage.esxiMigration.${opt.descKey}`)} arrow placement="top">
+                        <Box
+                          onClick={() => setMigTransferMode(opt.value)}
+                          sx={{
+                            flex: 1, py: 1, px: 1.5, borderRadius: 1.5, border: '2px solid', cursor: 'pointer', transition: 'all 0.15s',
+                            borderColor: migTransferMode === opt.value ? `${opt.color}` : 'divider',
+                            bgcolor: migTransferMode === opt.value ? (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)') : 'transparent',
+                            '&:hover': { borderColor: `${opt.color}` },
+                            display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center',
+                          }}
+                        >
+                          <i className={opt.icon} style={{ fontSize: 16, color: migTransferMode === opt.value ? theme.palette[opt.color.split('.')[0] as 'warning' | 'info'].main : undefined, opacity: migTransferMode === opt.value ? 1 : 0.6 }} />
+                          <Typography variant="body2" fontWeight={migTransferMode === opt.value ? 700 : 500} fontSize={12} noWrap>
+                            {t(`inventoryPage.esxiMigration.${opt.labelKey}`)}
+                          </Typography>
+                        </Box>
+                      </MuiTooltip>
+                    ))}
+                  </Stack>
+                </Box>
+
+                {/* sshfs not installed warning */}
+                {migSshfsAvailable === false && (migTransferMode === 'sshfs' || migType === 'sshfs_boot') && (
+                  <Alert severity="warning" sx={{ fontSize: 12 }} icon={<i className="ri-folder-shared-line" style={{ fontSize: 18 }} />}>
+                    {t('inventoryPage.esxiMigration.sshfsNotInstalled')}
+                  </Alert>
+                )}
+
+                <FormControlLabel
+                  control={<Switch size="small" checked={migStartAfter} onChange={(_, v) => setMigStartAfter(v)} />}
+                  label={<Typography variant="body2">{t('inventoryPage.esxiMigration.startAfterMigration')}</Typography>}
+                />
+
                 {migTargetConn && !migPveConnections.find((c: any) => c.id === migTargetConn)?.sshEnabled && (
-                  <Alert severity="error" sx={{ fontSize: 12 }}>{t('inventoryPage.esxiMigration.sshRequired')}</Alert>
+                  <Alert severity="error" sx={{ fontSize: 12 }} icon={<i className="ri-ssh-line" style={{ fontSize: 18 }} />}>{t('inventoryPage.esxiMigration.sshRequired')}</Alert>
                 )}
 
                 {migType === 'cold' && bulkMigHostInfo?.vms && (() => {
@@ -6650,8 +6992,8 @@ return
             <>
               <Button onClick={() => setBulkMigOpen(false)} disabled={bulkMigStarting}>{t('common.cancel')}</Button>
               <Button
-                variant="contained"
-                disabled={!migTargetConn || !migTargetNode || !migTargetStorage || bulkMigStarting || (migTargetConn && !migPveConnections.find((c: any) => c.id === migTargetConn)?.sshEnabled) || (migType === 'cold' && bulkMigHostInfo?.vms?.some((vm: any) => bulkMigSelected.has(vm.vmid) && vm.status === 'running'))}
+                variant="outlined"
+                disabled={!migTargetConn || !migTargetNode || !migTargetStorage || bulkMigStarting || (migTargetConn && !migPveConnections.find((c: any) => c.id === migTargetConn)?.sshEnabled) || (migSshfsAvailable === false && (migTransferMode === 'sshfs' || migType === 'sshfs_boot')) || (migType === 'cold' && bulkMigHostInfo?.vms?.some((vm: any) => bulkMigSelected.has(vm.vmid) && vm.status === 'running'))}
                 sx={{ textTransform: 'none' }}
                 startIcon={bulkMigStarting ? <CircularProgress size={16} color="inherit" /> : <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} />}
                 onClick={async () => {
@@ -6687,6 +7029,7 @@ return
                           targetStorage: migTargetStorage,
                           networkBridge: migNetworkBridge,
                           migrationType: migType,
+                          transferMode: migTransferMode,
                           startAfterMigration: migStartAfter,
                         }),
                       })
@@ -6719,6 +7062,7 @@ return
                     targetStorage: migTargetStorage,
                     networkBridge: migNetworkBridge,
                     migrationType: migType,
+                    transferMode: migTransferMode,
                     startAfterMigration: migStartAfter,
                     sourceType,
                   }
