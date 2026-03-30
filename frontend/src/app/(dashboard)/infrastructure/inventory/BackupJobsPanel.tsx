@@ -688,7 +688,7 @@ export default function BackupJobsPanel({ connectionId, onError }: BackupJobsPan
               </Box>
 
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                <Autocomplete
+                <Autocomplete<{ label: string; value: string }, false, false, true>
                   freeSolo
                   size="small"
                   options={[
@@ -706,7 +706,7 @@ export default function BackupJobsPanel({ connectionId, onError }: BackupJobsPan
                     { label: t('inventory.scheduleFirstDayOfYear'), value: '01-01 00:00' },
                   ]}
                   getOptionLabel={(opt) => typeof opt === 'string' ? opt : opt.label}
-                  value={formData.schedule}
+                  value={formData.schedule as any}
                   onChange={(_, newValue) => {
                     const val = typeof newValue === 'string' ? newValue : newValue?.value || ''
                     setFormData(prev => ({ ...prev, schedule: val }))
