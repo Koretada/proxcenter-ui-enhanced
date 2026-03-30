@@ -3226,7 +3226,7 @@ return vm?.isCluster ?? false
             vmInfo={selection?.type === 'vm' ? parseVmId(selection.id) : null}
             guestInfo={guestInfo}
             guestInfoLoading={guestInfoLoading}
-            clusterPveVersion={selection?.type === 'cluster' ? clusterPveVersion : undefined}
+            clusterPveVersion={(selection?.type as string) === 'cluster' ? clusterPveVersion : undefined}
             connId={selection?.type === 'node' ? parseNodeId(selection.id).connId : undefined}
             nodeName={selection?.type === 'node' ? parseNodeId(selection.id).node : undefined}
             onRefreshSubscription={async () => {
