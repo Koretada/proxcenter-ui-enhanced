@@ -6804,7 +6804,6 @@ return
                   </Typography>
                   <Stack direction="row" spacing={1}>
                     {([
-                      { value: 'auto' as const, icon: 'ri-magic-line', color: 'primary.main', labelKey: 'transferModeAuto', descKey: 'transferModeAutoDesc' },
                       { value: 'sshfs' as const, icon: 'ri-folder-shared-line', color: 'warning.main', labelKey: 'transferModeSshfs', descKey: 'transferModeSshfsDesc' },
                       { value: 'https' as const, icon: 'ri-download-cloud-line', color: 'info.main', labelKey: 'transferModeHttps', descKey: 'transferModeHttpsDesc' },
                     ]).map(opt => (
