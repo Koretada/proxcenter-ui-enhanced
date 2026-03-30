@@ -36,7 +36,7 @@ interface MigrationConfig {
   networkBridge: string
   startAfterMigration: boolean
   migrationType?: "cold" | "live" | "sshfs_boot"
-  transferMode?: "https" | "sshfs"
+  transferMode?: "https" | "sshfs" | "auto"
 }
 
 interface LogEntry {
