@@ -1227,7 +1227,7 @@ export default function NodeTabs(props: any) {
                                                       }
                                                     }}
                                                   />
-                                                  <Typography variant="caption">{disk.wearout}%</Typography>
+                                                  <Typography variant="caption">{100 - (disk.wearout || 0)}%</Typography>
                                                 </Box>
                                               ) : (
                                                 <Typography variant="caption" sx={{ opacity: 0.5 }}>N/A</Typography>
