@@ -798,6 +798,7 @@
       "storage": "Storage",
       "template": "Template",
       "templateHelperText": "Enter the template filename (must be downloaded on the storage first)",
+      "noTemplatesFound": "No templates found on this storage. Download a template via the Proxmox GUI first.",
       "diskSizeGib": "Disk size (GiB)",
       "cores": "Cores",
       "cpuLimit": "CPU limit",

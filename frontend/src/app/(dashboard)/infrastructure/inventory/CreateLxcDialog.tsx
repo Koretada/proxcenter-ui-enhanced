@@ -63,6 +63,7 @@ function CreateLxcDialog({
   const [nodes, setNodes] = useState<any[]>([])
   const [storages, setStorages] = useState<any[]>([])
   const [templates, setTemplates] = useState<any[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
   const [pools, setPools] = useState<any[]>([])
   const [loadingData, setLoadingData] = useState(false)
 
@@ -423,6 +424,43 @@ return
     }
   }
 
+  // Load available templates when template storage or node changes
+  useEffect(() => {
+    if (!selectedConnection || !resolvedNode || !templateStorage) {
+      setTemplates([])
+      return
+    }
+
+    let cancelled = false
+    setLoadingTemplates(true)
+
+    fetch(`/api/v1/connections/${encodeURIComponent(selectedConnection)}/nodes/${encodeURIComponent(resolvedNode)}/storage/${encodeURIComponent(templateStorage)}/content?content=vztmpl`)
+      .then(res => res.json())
+      .then(json => {
+        if (cancelled) return
+        const items = (json.data || []).map((item: any) => {
+          // volid is like "local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
+          const volid = item.volid || ''
+          const filename = volid.includes('/') ? volid.split('/').pop() : volid
+          return {
+            volid,
+            filename,
+            size: item.size || 0,
+            format: item.format || '',
+          }
+        }).sort((a: any, b: any) => a.filename.localeCompare(b.filename))
+        setTemplates(items)
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTemplates(false)
+      })
+
+    return () => { cancelled = true }
+  }, [selectedConnection, resolvedNode, templateStorage])
+
   const handleCreate = async () => {
     setCreating(true)
     setError(null)
@@ -779,19 +817,50 @@ return
               <Stack spacing={1.5}>
                 <FormControl fullWidth size="small">
                   <InputLabel>{t('inventory.createLxc.storage')}</InputLabel>
-                  <Select value={templateStorage} onChange={(e) => setTemplateStorage(e.target.value)} label={t('inventory.createLxc.storage')}>
-                    {templateStoragesList.map(s => <MenuItem key={s.storage} value={s.storage}>{s.storage}</MenuItem>)}
+                  <Select value={templateStorage} onChange={(e) => { setTemplateStorage(e.target.value); setTemplate('') }} label={t('inventory.createLxc.storage')}>
+                    {templateStoragesList.map(s => (
+                      <MenuItem key={s.storage} value={s.storage}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+                          <span>{s.storage}</span>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, opacity: 0.5 }}>
+                            <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={12} height={12} />
+                            <Typography variant="caption">
+                              {s.node || (s.nodes?.join(', '))}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
-                <TextField
-                  label={t('inventory.createLxc.template')}
-                  value={template}
-                  onChange={(e) => setTemplate(e.target.value)}
-                  size="small"
-                  fullWidth
-                  placeholder={t('inventory.createLxc.templatePlaceholder')}
-                  helperText={t('inventory.createLxc.templateHelperText')}
-                />
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('inventory.createLxc.template')}</InputLabel>
+                  <Select
+                    value={template}
+                    onChange={(e) => setTemplate(e.target.value)}
+                    label={t('inventory.createLxc.template')}
+                    disabled={loadingTemplates || templates.length === 0}
+                    startAdornment={loadingTemplates ? <CircularProgress size={16} sx={{ mr: 1 }} /> : undefined}
+                  >
+                    {templates.map((tmpl: any) => (
+                      <MenuItem key={tmpl.filename} value={tmpl.filename}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontSize: 12 }}>{tmpl.filename}</Typography>
+                          {tmpl.size > 0 && (
+                            <Typography variant="caption" sx={{ opacity: 0.5, flexShrink: 0 }}>
+                              {(tmpl.size / 1024 / 1024).toFixed(0)} MB
+                            </Typography>
+                          )}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {!loadingTemplates && templates.length === 0 && templateStorage && (
+                    <Typography variant="caption" sx={{ mt: 0.5, opacity: 0.6 }}>
+                      {t('inventory.createLxc.noTemplatesFound')}
+                    </Typography>
+                  )}
+                </FormControl>
               </Stack>
             </Box>
           </Stack>

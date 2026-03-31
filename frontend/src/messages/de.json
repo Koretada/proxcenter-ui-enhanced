@@ -779,6 +779,7 @@
       "storage": "Storage",
       "template": "Template",
       "templateHelperText": "Geben Sie den Template-Dateinamen ein (muss zuvor auf dem Storage heruntergeladen sein)",
+      "noTemplatesFound": "Keine Templates auf diesem Storage gefunden. Laden Sie ein Template uber die Proxmox-Oberflache herunter.",
       "diskSizeGib": "Festplattengröße (GiB)",
       "cores": "Kerne",
       "cpuLimit": "CPU-Limit",

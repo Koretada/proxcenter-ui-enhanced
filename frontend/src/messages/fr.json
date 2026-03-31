@@ -798,6 +798,7 @@
       "storage": "Stockage",
       "template": "Template",
       "templateHelperText": "Entrez le nom du fichier template (doit être téléchargé sur le stockage au préalable)",
+      "noTemplatesFound": "Aucun template trouvé sur ce stockage. Téléchargez un template via l'interface Proxmox.",
       "diskSizeGib": "Taille du disque (Gio)",
       "cores": "Cœurs",
       "cpuLimit": "Limite CPU",
