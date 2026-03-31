@@ -3406,7 +3406,10 @@
       "validating": "Kompatibilität wird geprüft...",
       "validationSuccess": "Alle Prüfungen bestanden - bereit zur Migration",
       "disks": "{count} Festplatte ({size} GiB)",
-      "disksPlural": "{count} Festplatten ({size} GiB)"
+      "disksPlural": "{count} Festplatten ({size} GiB)",
+      "sshNotEnabled": "SSH auf der Quellverbindung nicht aktiviert",
+      "sshNotEnabledDesc": "Die Quell-VM bleibt nach der Migration gesperrt (lock: migrate). Sie müssen sie manuell entsperren:",
+      "sshUnlockCommand": "qm unlock {vmid}"
     },
     "cdrom": {
       "useIso": "CD/DVD-Abbilddatei (ISO) verwenden",

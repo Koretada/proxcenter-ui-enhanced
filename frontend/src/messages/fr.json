@@ -3425,7 +3425,10 @@
       "validating": "Vérification de la compatibilité...",
       "validationSuccess": "Toutes les vérifications sont passées - prêt à migrer",
       "disks": "{count} disque ({size} Gio)",
-      "disksPlural": "{count} disques ({size} Gio)"
+      "disksPlural": "{count} disques ({size} Gio)",
+      "sshNotEnabled": "SSH non activé sur la connexion source",
+      "sshNotEnabledDesc": "La VM source restera verrouillée (lock: migrate) après la migration. Vous devrez la déverrouiller manuellement :",
+      "sshUnlockCommand": "qm unlock {vmid}"
     },
     "cdrom": {
       "useIso": "Utiliser une image CD/DVD (ISO)",
@@ -3635,8 +3638,8 @@
     "healthWarning": "WARNING",
     "healthError": "ERREUR",
     "healthUnknown": "INCONNU",
-    "rShort": "L",
-    "wShort": "É",
+    "rShort": "Read",
+    "wShort": "Write",
     "live": "LIVE",
     "iopsCeph": "IOPS Ceph",
     "osdsAndPools": "OSDs & Pools",

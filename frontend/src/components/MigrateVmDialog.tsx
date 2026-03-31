@@ -1083,13 +1083,13 @@ export function MigrateVmDialog({
             {sourceSSHEnabled === false && (
               <Alert severity="info" icon={<i className="ri-information-line" />}>
                 <Typography variant="body2" fontWeight={500} sx={{ mb: 0.5 }}>
-                  SSH non activé sur la connexion source
+                  {t('hardware.crossCluster.sshNotEnabled')}
                 </Typography>
                 <Typography variant="caption" sx={{ display: 'block' }}>
-                  La VM source restera verrouillée (<code>lock: migrate</code>) après la migration. Vous devrez la déverrouiller manuellement :
+                  {t('hardware.crossCluster.sshNotEnabledDesc')}
                 </Typography>
                 <Typography variant="caption" component="code" sx={{ display: 'block', mt: 0.5, fontFamily: '"JetBrains Mono", monospace', bgcolor: 'action.hover', px: 1, py: 0.5, borderRadius: 0.5 }}>
-                  qm unlock {vmid}
+                  {t('hardware.crossCluster.sshUnlockCommand', { vmid })}
                 </Typography>
               </Alert>
             )}

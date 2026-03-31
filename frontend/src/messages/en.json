@@ -3425,7 +3425,10 @@
       "validating": "Validating compatibility...",
       "validationSuccess": "All checks passed - ready to migrate",
       "disks": "{count} disk ({size} GiB)",
-      "disksPlural": "{count} disks ({size} GiB)"
+      "disksPlural": "{count} disks ({size} GiB)",
+      "sshNotEnabled": "SSH not enabled on source connection",
+      "sshNotEnabledDesc": "The source VM will stay locked (lock: migrate) after migration. You will need to unlock it manually:",
+      "sshUnlockCommand": "qm unlock {vmid}"
     },
     "cdrom": {
       "useIso": "Use CD/DVD disc image file (ISO)",
