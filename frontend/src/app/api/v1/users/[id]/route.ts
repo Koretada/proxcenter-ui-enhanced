@@ -46,15 +46,21 @@ return NextResponse.json({ error: error?.message || "Erreur serveur" }, { status
 // PATCH /api/v1/users/[id] - Modifier un utilisateur
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    // RBAC: Check admin.users permission
-    const denied = await checkPermission(PERMISSIONS.ADMIN_USERS)
-
-    if (denied) return denied
-
     const session = await getServerSession(authOptions)
     const { id } = await params
     const body = await req.json()
     const { name, enabled, password } = body
+
+    const isSelf = session?.user?.id === id
+    const selfServiceFields = new Set(["name", "password"])
+    const hasAdminFields = Object.keys(body).some(k => !selfServiceFields.has(k))
+
+    // Self-service: users can change their own name/password without admin.users
+    // Admin fields (enabled, role, etc.) or editing another user requires admin.users
+    if (!isSelf || hasAdminFields) {
+      const denied = await checkPermission(PERMISSIONS.ADMIN_USERS)
+      if (denied) return denied
+    }
 
     const db = getDb()
     const tenantId = await getCurrentTenantId()
