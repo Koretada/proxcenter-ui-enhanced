@@ -858,18 +858,30 @@ return migratingVmIds.has(`${connId}:${vmid}`)
   // Migration tree expanded items (persisted)
   const [migrationExpandedItems, setMigrationExpandedItems] = useState<string[]>([])
 
+  // Sections principales (accordéon : une seule ouverte à la fois)
+  const mainSections = ['pve', 'storage', 'pbs', 'migrate-ext']
+
   const toggleSection = (key: string) => {
     setCollapsedSections(prev => {
-      const next = new Set(prev)
+      const isMainSection = mainSections.includes(key)
+      const wasCollapsed = prev.has(key)
 
-      if (next.has(key)) {
+      if (isMainSection && wasCollapsed) {
+        // Ouvrir cette section, fermer les autres sections principales
+        const next = new Set(prev)
+        mainSections.forEach(s => next.add(s))
+        next.delete(key)
+        return next
+      }
+
+      // Toggle simple (fermer, ou sections non-principales comme host:xxx, pool:xxx)
+      const next = new Set(prev)
+      if (wasCollapsed) {
         next.delete(key)
       } else {
         next.add(key)
       }
-
-      
-return next
+      return next
     })
   }
 
@@ -3258,15 +3270,19 @@ return (
         {/* ── Proxmox VE Section ── */}
         {filteredClusters.length > 0 && (
           <Box
+            onClick={() => {
+              toggleSection('pve')
+              onSelect({ type: 'root', id: 'root' })
+            }}
             sx={{
               display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75,
               bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
               borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
-              cursor: 'default', '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)' },
+              cursor: 'pointer', '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)' },
             }}
           >
-            <i className={collapsedSections.has('pve') ? 'ri-add-line' : 'ri-subtract-line'} style={{ fontSize: 14, opacity: 0.7, cursor: 'pointer' }} onClick={() => toggleSection('pve')} />
-            <Box onClick={() => onSelect({ type: 'root', id: 'root' })} sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}>
+            <i className={collapsedSections.has('pve') ? 'ri-add-line' : 'ri-subtract-line'} style={{ fontSize: 14, opacity: 0.7 }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" style={{ width: 14, height: 14 }} />
               <Typography variant="body2" sx={{ fontWeight: 700 }}>{t('inventory.headerProxmoxVe')}</Typography>
             </Box>
@@ -3506,7 +3522,7 @@ return (
               onSelect({ type: 'storage-root', id: 'storage-root' })
             }}
             sx={{
-              display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, mt: 1,
+              display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75,
               bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
               borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
               cursor: 'pointer', '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)' },
@@ -3669,7 +3685,7 @@ return (
               onSelect({ type: 'network-root', id: 'network-root' })
             }}
             sx={{
-              display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, mt: 1,
+              display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75,
               bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
               borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
               cursor: 'pointer', '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)' },
@@ -3800,7 +3816,7 @@ return (
               onSelect({ type: 'backup-root', id: 'backup-root' })
             }}
             sx={{
-              display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, mt: 1,
+              display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75,
               bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
               borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
               cursor: 'pointer', '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)' },
@@ -3925,7 +3941,7 @@ return (
                 onSelect({ type: 'migration-root', id: 'migration-root' })
               }}
               sx={{
-                display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, mt: 1,
+                display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75,
                 bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
                 borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider',
                 cursor: 'pointer', '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)' },

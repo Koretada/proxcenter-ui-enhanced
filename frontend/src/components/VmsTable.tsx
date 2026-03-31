@@ -1621,6 +1621,7 @@ return true
       display: 'flex',
       flexDirection: 'column',
       minHeight: maxHeight === 'auto' ? 0 : 400,
+      flex: typeof maxHeight === 'string' && maxHeight !== 'auto' ? 1 : undefined,
       overflow: 'hidden',
     }}>
       {/* Toolbar avec toggle densité et bouton IP/Snap */}

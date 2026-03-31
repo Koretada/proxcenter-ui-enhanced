@@ -504,14 +504,19 @@ return () => setPageInfo('', '', '')
         // IMPORTANT: permettre aux enfants de scroller
         minHeight: 0,
 
+        // Remonter les blocs au plus près du header (absorber le padding-top du StyledMain)
+        mt: { lg: '-12px' },
+
         // Layout : 2 panneaux côte à côte (sur desktop)
         display: 'flex',
         flexDirection: { xs: 'column', lg: 'row' },
 
-        // Hauteur maximale - occupe tout l'espace disponible avec marge pour la barre de tâches
-        height: { xs: 'auto', lg: 'calc(100vh - 130px)' },
-        maxHeight: { lg: 'calc(100vh - 130px)' },
+        // Hauteur dynamique — remplit l'espace entre le navbar et la taskbar
+        // 76px = 44px header + 20px paddings restants (bottom 12px + top absorbé 8px buffer)
+        height: { xs: 'auto', lg: 'calc(100vh - 76px - var(--taskbar-height, 0px))' },
+        maxHeight: { lg: 'calc(100vh - 76px - var(--taskbar-height, 0px))' },
         overflow: 'hidden',
+        transition: 'height 0.2s ease, max-height 0.2s ease',
 
         // Curseur de resize global pendant le drag
         cursor: isResizing ? 'col-resize' : 'default',
@@ -645,7 +650,7 @@ return () => setPageInfo('', '', '')
           overflow: 'hidden',
         }}
       >
-        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
           <InventoryDetails
             selection={selection}
             onSelect={(sel: any) => setSelection(sel)}

@@ -88,9 +88,9 @@ return next
   })
   
   return (
-    <Box sx={{ p: 2, height: 'calc(100vh - 180px)', overflow: 'auto' }}>
-      <Card variant="outlined" sx={{ width: '100%', borderRadius: 2 }}>
-        <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+    <Box sx={{ height: 'calc(100vh - 76px - var(--taskbar-height, 0px))', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: 13 }}>
+      <Card variant="outlined" sx={{ width: '100%', flex: 1, minHeight: 0, borderRadius: 0, border: 'none', display: 'flex', flexDirection: 'column' }}>
+        <CardContent sx={{ p: 0, '&:last-child': { pb: 0 }, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
           <Box sx={{ 
             px: 2, 
@@ -101,8 +101,8 @@ return next
             alignItems: 'center',
             justifyContent: 'space-between',
           }}>
-            <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <i className={icon} style={{ fontSize: 20, opacity: 0.7 }} />
+            <Typography fontWeight={900} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13 }}>
+              <i className={icon} style={{ fontSize: 18, opacity: 0.7 }} />
               {title} ({groups.length} {t('inventoryPage.groups')}, {allVms.length} VMs)
             </Typography>
             <Stack direction="row" spacing={0.5}>
@@ -120,7 +120,7 @@ return next
           </Box>
           
           {/* Groups */}
-          <Box sx={{ maxHeight: 'calc(100vh - 280px)', overflow: 'auto' }}>
+          <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
             {groups.map(group => {
               const isExpanded = expanded.has(group.key)
               const runningCount = group.vms.filter(v => v.status === 'running').length
@@ -156,19 +156,19 @@ return next
                         bgcolor: group.color
                       }} />
                     )}
-                    <Typography fontWeight={700} sx={{ flex: 1 }}>
+                    <Typography fontWeight={700} sx={{ flex: 1, fontSize: 13 }}>
                       {group.label}
                     </Typography>
                     {group.sublabel && (
-                      <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                      <Typography variant="caption" sx={{ opacity: 0.6, fontSize: 11 }}>
                         {group.sublabel}
                       </Typography>
                     )}
-                    <Chip 
-                      size="small" 
+                    <Chip
+                      size="small"
                       label={`${runningCount}/${group.vms.length}`}
                       color={runningCount > 0 ? 'success' : 'default'}
-                      sx={{ height: 20, fontSize: '0.7rem' }}
+                      sx={{ height: 20, fontSize: 11 }}
                     />
                   </Box>
                   
