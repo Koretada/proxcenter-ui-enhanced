@@ -1138,6 +1138,37 @@ export default function RollingUpdateWizard({
               </Card>
             )}
             
+            {/* Reboot prediction + skip summary */}
+            {preflightResult.updates_available && preflightResult.updates_available.length > 0 && (() => {
+              const kernelNodes = preflightResult.updates_available.filter(u => u.kernel_update)
+              const noUpdateNodes = preflightResult.updates_available.filter(u => u.package_count === 0)
+              if (kernelNodes.length === 0 && noUpdateNodes.length === 0) return null
+              return (
+                <Stack spacing={1}>
+                  {kernelNodes.length > 0 && (
+                    <Alert severity="warning" icon={<i className="ri-restart-line" />}>
+                      <Typography variant="body2" fontWeight={600}>
+                        {t('updates.rebootPrediction', { count: kernelNodes.length, total: preflightResult.updates_available.length })}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {kernelNodes.map(n => n.node).join(', ')}
+                      </Typography>
+                    </Alert>
+                  )}
+                  {noUpdateNodes.length > 0 && (
+                    <Alert severity="info" icon={<i className="ri-skip-forward-line" />}>
+                      <Typography variant="body2" fontWeight={600}>
+                        {t('updates.nodesSkipped', { count: noUpdateNodes.length })}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {noUpdateNodes.map(n => n.node).join(', ')}
+                      </Typography>
+                    </Alert>
+                  )}
+                </Stack>
+              )
+            })()}
+
             {/* Migration plan */}
             {preflightResult.migration_plan && preflightResult.migration_plan.vms_to_migrate > 0 && (
               <Card variant="outlined">

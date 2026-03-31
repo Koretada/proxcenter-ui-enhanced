@@ -4579,6 +4579,8 @@
     "availableUpdatesTitle": "Mises à jour disponibles",
     "packagesCount": "{count} paquets",
     "rebootRequiredTooltip": "Redémarrage requis",
+    "rebootPrediction": "{count}/{total} noeuds nécessiteront probablement un redémarrage (mises à jour kernel détectées)",
+    "nodesSkipped": "{count} noeud(s) seront ignorés (déjà à jour)",
     "migrationPlan": "Plan de migration",
     "vmsMigrated": "{count} VMs seront migrées",
     "vmsShutdown": ", {count} seront éteintes",

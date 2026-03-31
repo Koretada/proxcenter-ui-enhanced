@@ -4584,6 +4584,8 @@
     "availableUpdatesTitle": "Available Updates",
     "packagesCount": "{count} packages",
     "rebootRequiredTooltip": "Reboot required",
+    "rebootPrediction": "{count}/{total} nodes will likely require a reboot (kernel updates detected)",
+    "nodesSkipped": "{count} node(s) will be skipped (already up-to-date)",
     "migrationPlan": "Migration Plan",
     "vmsMigrated": "{count} VMs will be migrated",
     "vmsShutdown": ", {count} will be shut down",

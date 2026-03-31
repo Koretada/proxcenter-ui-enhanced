@@ -4553,6 +4553,8 @@
     "availableUpdatesTitle": "可用更新",
     "packagesCount": "{count} 个软件包",
     "rebootRequiredTooltip": "需要重启",
+    "rebootPrediction": "{count}/{total} 个节点可能需要重启（检测到内核更新）",
+    "nodesSkipped": "{count} 个节点将被跳过（已是最新）",
     "migrationPlan": "迁移计划",
     "vmsMigrated": "{count} 个虚拟机将被迁移",
     "vmsShutdown": "，{count} 个将被关闭",

@@ -4555,6 +4555,8 @@
     "availableUpdatesTitle": "verfügbar aktualisierens",
     "packagesCount": "{count} Pakete",
     "rebootRequiredTooltip": "Reboot erforderlich",
+    "rebootPrediction": "{count}/{total} Knoten erfordern wahrscheinlich einen Neustart (Kernel-Updates erkannt)",
+    "nodesSkipped": "{count} Knoten werden übersprungen (bereits aktuell)",
     "migrationPlan": "Migrationsplan",
     "vmsMigrated": "{count} VMs werden migriert",
     "vmsShutdown": ", {count} werden heruntergefahren",
