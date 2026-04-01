@@ -314,8 +314,14 @@ describe('parseMarkdown', () => {
     expect(parseMarkdown('* item 1')).toContain('<li>item 1</li>')
   })
 
-  it('escapes HTML entities', () => {
-    expect(parseMarkdown('<script>alert("xss")</script>')).toContain('&lt;script&gt;')
+  it('preserves existing HTML tags (DOMPurify sanitizes at call site)', () => {
+    expect(parseMarkdown('<img src="https://example.com/logo.png"/>')).toContain('<img src="https://example.com/logo.png"/>')
+    expect(parseMarkdown('<a href="https://example.com">link</a>')).toContain('<a href="https://example.com">link</a>')
+  })
+
+  it('escapes HTML inside code blocks', () => {
+    const result = parseMarkdown('```\n<script>alert("xss")</script>\n```')
+    expect(result).toContain('&lt;script&gt;')
   })
 
   it('converts code blocks', () => {
@@ -326,6 +332,24 @@ describe('parseMarkdown', () => {
 
   it('converts blockquotes', () => {
     expect(parseMarkdown('> quote')).toContain('<blockquote>quote</blockquote>')
+  })
+
+  it('converts markdown tables', () => {
+    const table = '| Field | Value |\n|-------|-------|\n| **Name** | Test |\n| Role | DB |'
+    const result = parseMarkdown(table)
+    expect(result).toContain('<table>')
+    expect(result).toContain('<th>Field</th>')
+    expect(result).toContain('<th>Value</th>')
+    expect(result).toContain('<td><strong>Name</strong></td>')
+    expect(result).toContain('<td>DB</td>')
+    expect(result).toContain('</table>')
+  })
+
+  it('converts tables with links inside cells', () => {
+    const table = '| Link |\n|------|\n| [View](https://example.com) |'
+    const result = parseMarkdown(table)
+    expect(result).toContain('<table>')
+    expect(result).toContain('<a href="https://example.com"')
   })
 })
 

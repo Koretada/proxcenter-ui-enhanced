@@ -155,14 +155,50 @@ export function formatUptime(seconds: number): string {
 return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
+/**
+ * Lightweight Markdown-to-HTML converter.
+ * Existing HTML tags (e.g. <img>, <a> from Proxmox) pass through untouched.
+ * IMPORTANT: the output MUST be sanitized with DOMPurify at every call site.
+ */
 export function parseMarkdown(md: string): string {
   if (!md) return ''
 
-  let html = md
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+  // Collect protected blocks (HTML tags, code blocks) so inline markdown
+  // transforms (bold, italic…) cannot touch URLs or code content.
+  const shields: string[] = []
+  const shield = (s: string) => { shields.push(s); return `\x00${shields.length - 1}\x00` }
+
+  // 1. Protect fenced code blocks
+  let html = md.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, _lang, code) => {
+    const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return shield(`<pre><code>${escaped}</code></pre>`)
+  })
+
+  // 2. Protect existing HTML tags (e.g. <img src='…'/>, <a href='…'>…</a>)
+  html = html.replace(/<[a-z/][^>]*>/gi, tag => shield(tag))
+
+  // 3. Parse tables before inline transforms so | pipes aren't mangled
+  html = html.replace(
+    /^(\|.+\|)\r?\n(\|[\s:|-]+\|)\r?\n((?:\|.+\|\r?\n?)+)/gm,
+    (_, headerRow: string, _separatorRow: string, bodyRows: string) => {
+      const parseRow = (row: string) =>
+        row.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+
+      const headers = parseRow(headerRow)
+      const thCells = headers.map(h => `<th>${h}</th>`).join('')
+
+      const rows = bodyRows.trim().split('\n')
+      const tbodyRows = rows.map(row => {
+        const cells = parseRow(row)
+        return `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`
+      }).join('')
+
+      return `<table><thead><tr>${thCells}</tr></thead><tbody>${tbodyRows}</tbody></table>`
+    }
+  )
+
+  // 4. Inline & block transforms (safe: HTML tags are shielded)
+  html = html
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/^### (.*)$/gm, '<h3>$1</h3>')
     .replace(/^## (.*)$/gm, '<h2>$1</h2>')
@@ -181,7 +217,7 @@ export function parseMarkdown(md: string): string {
     })
     .replace(/^---$/gm, '<hr />')
     .replace(/^\*\*\*$/gm, '<hr />')
-    .replace(/^&gt; (.*)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^> (.*)$/gm, '<blockquote>$1</blockquote>')
     .replace(/^[\*\-] (.*)$/gm, '<li>$1</li>')
     .replace(/^\d+\. (.*)$/gm, '<li>$1</li>')
     .replace(/\n\n/g, '</p><p>')
@@ -189,12 +225,33 @@ export function parseMarkdown(md: string): string {
 
   html = html.replace(/(<li>.*?<\/li>)+/g, '<ul>$&</ul>')
 
+  // 5. Restore all shielded blocks
+  html = html.replace(/\x00(\d+)\x00/g, (_, i) => shields[Number(i)])
+
   if (!html.startsWith('<')) {
     html = '<p>' + html + '</p>'
   }
 
   return html
 }
+
+export const markdownSx = {
+  '& a': { color: 'primary.main' },
+  '& img': { maxWidth: '100%', height: 'auto' },
+  '& table': { borderCollapse: 'collapse', width: '100%', my: 1 },
+  '& th, & td': { border: '1px solid', borderColor: 'divider', p: 1, textAlign: 'left' },
+  '& th': { fontWeight: 600, bgcolor: 'action.hover' },
+  '& h1': { fontSize: '1.8em', fontWeight: 700, mt: 2, mb: 1 },
+  '& h2': { fontSize: '1.5em', fontWeight: 700, mt: 2, mb: 1 },
+  '& h3': { fontSize: '1.2em', fontWeight: 700, mt: 1.5, mb: 0.5 },
+  '& p': { my: 1 },
+  '& ul, & ol': { pl: 3, my: 1 },
+  '& li': { my: 0.5 },
+  '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace', fontSize: '0.9em' },
+  '& pre': { bgcolor: 'grey.900', p: 2, borderRadius: 1, overflow: 'auto', '& code': { bgcolor: 'transparent', p: 0 } },
+  '& blockquote': { borderLeft: '4px solid', borderColor: 'primary.main', pl: 2, ml: 0, opacity: 0.8, fontStyle: 'italic' },
+  '& hr': { border: 'none', borderTop: '1px solid', borderColor: 'divider', my: 2 },
+} as const
 
 /* ------------------------------------------------------------------ */
 /* Parsing IDs                                                        */

@@ -69,7 +69,7 @@ const EditNetworkDialog = dynamic(() => import('@/components/HardwareModals').th
 const EditScsiControllerDialog = dynamic(() => import('@/components/HardwareModals').then(mod => ({ default: mod.EditScsiControllerDialog })), { ssr: false })
 
 import type { InventorySelection, DetailsPayload, RrdTimeframe, SeriesPoint, Status } from '../types'
-import { formatBps, formatOsType, formatTime, formatUptime, parseMarkdown, parseNodeId, parseVmId, cpuPct, pct, buildSeriesFromRrd, fetchRrd, tagColor } from '../helpers'
+import { formatBps, formatOsType, formatTime, formatUptime, parseMarkdown, markdownSx, parseNodeId, parseVmId, cpuPct, pct, buildSeriesFromRrd, fetchRrd, tagColor } from '../helpers'
 import { AreaPctChart, AreaBpsChart2 } from '../components/RrdCharts'
 import InventorySummary from '../components/InventorySummary'
 import { SaveIcon, AddIcon, CloseIcon } from '../components/IconWrappers'
@@ -1537,7 +1537,13 @@ export default function VmDetailTabs(props: any) {
                                   </Box>
                                 </td>
                                 <td style={{ padding: '6px 16px', borderBottom: '1px solid var(--mui-palette-divider)', opacity: data.description ? 1 : 0.5, fontStyle: data.description ? 'normal' : 'italic' }}>
-                                  {data.description || t('common.noData')}
+                                  {data.description ? (
+                                    <Box
+                                      component="span"
+                                      sx={{ '& p': { m: 0 }, '& a': { color: 'primary.main' }, '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace', fontSize: '0.9em' } }}
+                                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(parseMarkdown(data.description)) }}
+                                    />
+                                  ) : t('common.noData')}
                                 </td>
                                 <td style={{ padding: '6px 16px', borderBottom: '1px solid var(--mui-palette-divider)', textAlign: 'center' }}>
                                   <MuiTooltip title={t('common.edit')}>
@@ -3074,16 +3080,12 @@ return (
                               }}
                             >
                               {vmNotes ? (
-                                /<[a-z][\s\S]*>/i.test(vmNotes) ? (
-                                  <Box
-                                    sx={{ '& a': { color: 'primary.main' }, '& img': { maxWidth: '100%' }, lineHeight: 1.8, fontSize: '0.875rem' }}
-                                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(vmNotes, { ALLOWED_TAGS: ['h1','h2','h3','h4','h5','h6','p','br','b','i','u','strong','em','a','ul','ol','li','table','thead','tbody','tr','th','td','hr','pre','code','blockquote','span','div','img','sup','sub','dl','dt','dd'], ALLOWED_ATTR: ['href','src','alt','title','class','style','target','width','height','colspan','rowspan'], ADD_ATTR: ['target'] }) }}
-                                  />
-                                ) : (
-                                  <Typography variant="body2" sx={{ lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-                                    {vmNotes}
-                                  </Typography>
-                                )
+                                <Box
+                                  sx={{ lineHeight: 1.8, fontSize: '0.875rem', ...markdownSx }}
+                                  dangerouslySetInnerHTML={{
+                                    __html: DOMPurify.sanitize(parseMarkdown(vmNotes), { ALLOWED_TAGS: ['h1','h2','h3','h4','h5','h6','p','br','b','i','u','strong','em','a','ul','ol','li','table','thead','tbody','tr','th','td','hr','pre','code','blockquote','span','div','img','sup','sub','dl','dt','dd'], ALLOWED_ATTR: ['href','src','alt','title','class','style','target','width','height','colspan','rowspan'], ADD_ATTR: ['target'] })
+                                  }}
+                                />
                               ) : (
                                 <Typography variant="body2" sx={{ opacity: 0.5, fontStyle: 'italic' }}>
                                   {t('inventory.noNotes')}

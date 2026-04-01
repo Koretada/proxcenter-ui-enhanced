@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
+import DOMPurify from 'dompurify'
 
 import {
   Alert,
@@ -57,7 +58,7 @@ import SnapshotsTab from '@/components/SnapshotsTab'
 import RollingUpdateWizard from '@/components/RollingUpdateWizard'
 
 import type { InventorySelection, DetailsPayload, RrdTimeframe, SeriesPoint, Status } from '../types'
-import { formatBps, formatTime, formatUptime, parseMarkdown, parseNodeId, parseVmId, cpuPct, pct, buildSeriesFromRrd, fetchRrd, tagColor } from '../helpers'
+import { formatBps, formatTime, formatUptime, parseMarkdown, markdownSx, parseNodeId, parseVmId, cpuPct, pct, buildSeriesFromRrd, fetchRrd, tagColor } from '../helpers'
 import { AreaPctChart, AreaBpsChart2 } from '../components/RrdCharts'
 import InventorySummary from '../components/InventorySummary'
 import HaGroupDialog from '../HaGroupDialog'
@@ -2074,23 +2075,8 @@ export default function ClusterTabs(props: any) {
                       >
                         {clusterNotesContent ? (
                           <Box 
-                            dangerouslySetInnerHTML={{ __html: parseMarkdown(clusterNotesContent) }}
-                            sx={{ 
-                              '& img': { maxWidth: '100%', height: 'auto' },
-                              '& a': { color: 'primary.main' },
-                              '& table': { borderCollapse: 'collapse', width: '100%' },
-                              '& th, & td': { border: '1px solid', borderColor: 'divider', p: 1 },
-                              '& h1': { fontSize: '1.8em', fontWeight: 700, mt: 2, mb: 1 },
-                              '& h2': { fontSize: '1.5em', fontWeight: 700, mt: 2, mb: 1 },
-                              '& h3': { fontSize: '1.2em', fontWeight: 700, mt: 1.5, mb: 0.5 },
-                              '& p': { my: 1 },
-                              '& ul, & ol': { pl: 3, my: 1 },
-                              '& li': { my: 0.5 },
-                              '& code': { bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5, fontFamily: 'monospace', fontSize: '0.9em' },
-                              '& pre': { bgcolor: 'grey.900', p: 2, borderRadius: 1, overflow: 'auto', '& code': { bgcolor: 'transparent', p: 0 } },
-                              '& blockquote': { borderLeft: '4px solid', borderColor: 'primary.main', pl: 2, ml: 0, opacity: 0.8, fontStyle: 'italic' },
-                              '& hr': { border: 'none', borderTop: '1px solid', borderColor: 'divider', my: 2 },
-                            }}
+                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(parseMarkdown(clusterNotesContent)) }}
+                            sx={markdownSx}
                           />
                         ) : (
                           <Box sx={{ textAlign: 'center', py: 4, opacity: 0.5 }}>
