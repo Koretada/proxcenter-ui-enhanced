@@ -38,8 +38,21 @@ export async function POST(req: Request) {
     return NextResponse.json(data)
   } catch (e: any) {
     console.error("License activation failed:", e?.message)
+
+    const msg = e?.message || ""
+    if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "The ProxCenter backend (orchestrator) is not reachable. Enterprise features require the backend container to be running. If you upgraded from Community to Enterprise, please follow the Enterprise installation guide to deploy the backend container.",
+          code: "ORCHESTRATOR_UNAVAILABLE",
+        },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json(
-      { success: false, error: e?.message || "Failed to activate license" },
+      { success: false, error: msg || "Failed to activate license" },
       { status: 500 }
     )
   }

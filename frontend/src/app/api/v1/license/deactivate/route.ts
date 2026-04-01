@@ -26,8 +26,21 @@ export async function DELETE() {
     return NextResponse.json(data)
   } catch (e: any) {
     console.error("License deactivation failed:", e?.message)
+
+    const msg = e?.message || ""
+    if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "The ProxCenter backend (orchestrator) is not reachable. Enterprise features require the backend container to be running. If you upgraded from Community to Enterprise, please follow the Enterprise installation guide to deploy the backend container.",
+          code: "ORCHESTRATOR_UNAVAILABLE",
+        },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json(
-      { success: false, error: e?.message || "Failed to deactivate license" },
+      { success: false, error: msg || "Failed to deactivate license" },
       { status: 500 }
     )
   }
