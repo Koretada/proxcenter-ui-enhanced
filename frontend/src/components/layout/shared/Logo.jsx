@@ -17,10 +17,10 @@ import { useBranding } from '@/contexts/BrandingContext'
 
 const LogoText = styled.span`
   color: ${({ color }) => color ?? 'var(--mui-palette-text-primary)'};
-  font-size: 1.25rem;
+  font-size: 0.875rem;
   line-height: 1.2;
-  font-weight: 600;
-  letter-spacing: 0.15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   transition: ${({ transitionDuration }) =>
     `margin-inline-start ${transitionDuration}ms ease-in-out, opacity ${transitionDuration}ms ease-in-out`};
@@ -32,7 +32,7 @@ const LogoText = styled.span`
 `
 
 // Logo SVG ProxCenter - chevrons accent + adaptatif au thème
-export const LogoIcon = ({ size = 28, accentColor = '#F29221' }) => {
+export const LogoIcon = ({ size = 24, accentColor = '#F29221' }) => {
   // Calculer la hauteur proportionnelle (ratio original: 220x170)
   const height = (size * 170) / 220
 
@@ -94,9 +94,9 @@ const Logo = ({ color }) => {
   return (
     <div className='flex items-center min-bs-[24px]' style={{ opacity: brandingLoading ? 0 : 1, transition: 'opacity 0.2s ease-in' }}>
       {branding.logoUrl ? (
-        <img src={branding.logoUrl} alt={branding.appName || themeConfig.templateName} style={{ height: 28, width: 'auto', objectFit: 'contain' }} />
+        <img src={branding.logoUrl} alt={branding.appName || themeConfig.templateName} style={{ height: 24, width: 'auto', objectFit: 'contain' }} />
       ) : (
-        <LogoIcon size={28} accentColor={accentColor} />
+        <LogoIcon size={24} accentColor={accentColor} />
       )}
       <LogoText
         color={color}

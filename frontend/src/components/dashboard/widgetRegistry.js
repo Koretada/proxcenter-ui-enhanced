@@ -24,15 +24,7 @@ const UptimeNodesWidget = dynamic(() => import('./widgets/UptimeNodesWidget'), {
 const BackupRecentWidget = dynamic(() => import('./widgets/BackupRecentWidget'), { ssr: false })
 const QuickStatsWidget = dynamic(() => import('./widgets/QuickStatsWidget'), { ssr: false })
 
-// Widgets Zero Trust / Security (optimized - minimal HTTP calls)
-const ZeroTrustScoreWidget = dynamic(() => import('./widgets/ZeroTrustScoreWidget'), { ssr: false })
-const ZeroTrustSecurityGroupsWidget = dynamic(() => import('./widgets/ZeroTrustSecurityGroupsWidget'), { ssr: false })
 
-// VM Status Waffle Chart
-const VmStatusWaffleWidget = dynamic(() => import('./widgets/VmStatusWaffleWidget'), { ssr: false })
-
-// Resource Trends Chart
-const ResourceTrendsWidget = dynamic(() => import('./widgets/ResourceTrendsWidget'), { ssr: false })
 
 // Infrastructure Global Chart (per-node CPU/RAM)
 const InfraGlobalChartWidget = dynamic(() => import('./widgets/InfraGlobalChartWidget'), { ssr: false })
@@ -40,20 +32,45 @@ const InfraGlobalChartWidget = dynamic(() => import('./widgets/InfraGlobalChartW
 // VM Heatmap (CPU/RAM utilization grid)
 const VmHeatmapWidget = dynamic(() => import('./widgets/VmHeatmapWidget'), { ssr: false })
 
+// Backup Calendar
+const BackupCalendarWidget = dynamic(() => import('./widgets/BackupCalendarWidget'), { ssr: false })
+
+// Nodes Gauges, Clusters Gauges & Cluster Health
+const NodesGaugesWidget = dynamic(() => import('./widgets/NodesGaugesWidget'), { ssr: false })
+const ClustersGaugesWidget = dynamic(() => import('./widgets/ClustersGaugesWidget'), { ssr: false })
+const ClusterHealthWidget = dynamic(() => import('./widgets/ClusterHealthWidget'), { ssr: false })
+
+// Section Header
+const SectionHeaderWidget = dynamic(() => import('./widgets/SectionHeaderWidget'), { ssr: false })
+
 // Enterprise: DRS & Site Recovery
 const DrsStatusWidget = dynamic(() => import('./widgets/DrsStatusWidget'), { ssr: false })
 const SiteRecoveryWidget = dynamic(() => import('./widgets/SiteRecoveryWidget'), { ssr: false })
 
 export const WIDGET_REGISTRY = {
+  'section-header': {
+    type: 'section-header',
+    name: 'Section',
+    description: 'Collapsible section header',
+    icon: 'ri-separator',
+    category: 'infrastructure',
+    defaultSize: { w: 12, h: 1 },
+    minSize: { w: 4, h: 1 },
+    maxSize: { w: 12, h: 1 },
+    noContainer: true,
+    isSection: true,
+    component: SectionHeaderWidget,
+  },
   'kpi-clusters': {
     type: 'kpi-clusters',
     name: 'Clusters / Nodes',
     description: 'Number of clusters and nodes',
     icon: 'ri-server-line',
     category: 'infrastructure',
-    defaultSize: { w: 3, h: 2 },
-    minSize: { w: 2, h: 2 },
+    defaultSize: { w: 2, h: 2 },
+    minSize: { w: 1, h: 1 },
     maxSize: { w: 6, h: 3 },
+    noContainer: true,
     component: KpiClustersWidget,
   },
   'kpi-vms': {
@@ -62,9 +79,10 @@ export const WIDGET_REGISTRY = {
     description: 'Number of running VMs',
     icon: 'ri-computer-line',
     category: 'infrastructure',
-    defaultSize: { w: 3, h: 2 },
-    minSize: { w: 2, h: 2 },
+    defaultSize: { w: 2, h: 2 },
+    minSize: { w: 1, h: 1 },
     maxSize: { w: 6, h: 3 },
+    noContainer: true,
     component: KpiVmsWidget,
   },
   'kpi-lxc': {
@@ -73,9 +91,10 @@ export const WIDGET_REGISTRY = {
     description: 'Number of running LXC containers',
     icon: 'ri-instance-line',
     category: 'infrastructure',
-    defaultSize: { w: 3, h: 2 },
-    minSize: { w: 2, h: 2 },
+    defaultSize: { w: 2, h: 2 },
+    minSize: { w: 1, h: 1 },
     maxSize: { w: 6, h: 3 },
+    noContainer: true,
     component: KpiLxcWidget,
   },
   'kpi-backups': {
@@ -84,9 +103,10 @@ export const WIDGET_REGISTRY = {
     description: 'PBS backup stats',
     icon: 'ri-shield-check-line',
     category: 'backup',
-    defaultSize: { w: 3, h: 2 },
-    minSize: { w: 2, h: 2 },
+    defaultSize: { w: 2, h: 2 },
+    minSize: { w: 1, h: 1 },
     maxSize: { w: 6, h: 3 },
+    noContainer: true,
     component: KpiBackupsWidget,
   },
   'kpi-alerts': {
@@ -95,9 +115,10 @@ export const WIDGET_REGISTRY = {
     description: 'Number of alerts',
     icon: 'ri-alarm-warning-line',
     category: 'monitoring',
-    defaultSize: { w: 3, h: 2 },
-    minSize: { w: 2, h: 2 },
+    defaultSize: { w: 2, h: 2 },
+    minSize: { w: 1, h: 1 },
     maxSize: { w: 6, h: 3 },
+    noContainer: true,
     component: KpiAlertsWidget,
   },
   'quick-stats': {
@@ -109,6 +130,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 12, h: 2 },
     minSize: { w: 6, h: 2 },
     maxSize: { w: 12, h: 2 },
+    noContainer: true,
     component: QuickStatsWidget,
   },
   'resources-gauges': {
@@ -120,6 +142,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 4, h: 4 },
     minSize: { w: 3, h: 3 },
     maxSize: { w: 12, h: 6 },
+    noContainer: true,
     component: ResourcesGaugesWidget,
   },
   'top-consumers': {
@@ -131,6 +154,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 6, h: 4 },
     minSize: { w: 4, h: 3 },
     maxSize: { w: 12, h: 8 },
+    noContainer: true,
     component: TopConsumersWidget,
   },
   'nodes-table': {
@@ -142,6 +166,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 6, h: 5 },
     minSize: { w: 4, h: 3 },
     maxSize: { w: 12, h: 10 },
+    noContainer: true,
     component: NodesTableWidget,
   },
   'uptime-nodes': {
@@ -153,6 +178,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 4, h: 4 },
     minSize: { w: 3, h: 3 },
     maxSize: { w: 6, h: 8 },
+    noContainer: true,
     component: UptimeNodesWidget,
   },
   'pbs-overview': {
@@ -161,10 +187,23 @@ export const WIDGET_REGISTRY = {
     description: 'Proxmox Backup Server overview',
     icon: 'ri-shield-check-line',
     category: 'backup',
-    defaultSize: { w: 5, h: 4 },
-    minSize: { w: 3, h: 3 },
-    maxSize: { w: 8, h: 8 },
+    defaultSize: { w: 3, h: 5 },
+    minSize: { w: 2, h: 3 },
+    maxSize: { w: 12, h: 20 },
+    noContainer: true,
     component: PbsOverviewWidget,
+  },
+  'backup-calendar': {
+    type: 'backup-calendar',
+    name: 'Backup Calendar',
+    description: 'Backup history over 30 days',
+    icon: 'ri-calendar-check-line',
+    category: 'backup',
+    defaultSize: { w: 6, h: 5 },
+    minSize: { w: 3, h: 3 },
+    maxSize: { w: 12, h: 20 },
+    noContainer: true,
+    component: BackupCalendarWidget,
   },
   'backup-recent': {
     type: 'backup-recent',
@@ -175,6 +214,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 4, h: 4 },
     minSize: { w: 3, h: 3 },
     maxSize: { w: 6, h: 6 },
+    noContainer: true,
     component: BackupRecentWidget,
   },
   'clusters-list': {
@@ -186,6 +226,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 4, h: 3 },
     minSize: { w: 3, h: 2 },
     maxSize: { w: 6, h: 6 },
+    noContainer: true,
     component: ClustersListWidget,
   },
   'guests-summary': {
@@ -197,6 +238,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 4, h: 3 },
     minSize: { w: 3, h: 2 },
     maxSize: { w: 6, h: 4 },
+    noContainer: true,
     component: GuestsSummaryWidget,
   },
   'alerts-list': {
@@ -208,6 +250,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 5, h: 5 },
     minSize: { w: 3, h: 3 },
     maxSize: { w: 8, h: 10 },
+    noContainer: true,
     component: AlertsListWidget,
   },
   'activity-feed': {
@@ -219,6 +262,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 5, h: 5 },
     minSize: { w: 3, h: 3 },
     maxSize: { w: 8, h: 10 },
+    noContainer: true,
     component: ActivityFeedWidget,
   },
   'storage-pools': {
@@ -230,6 +274,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 4, h: 5 },
     minSize: { w: 3, h: 3 },
     maxSize: { w: 6, h: 8 },
+    noContainer: true,
     component: StoragePoolsWidget,
   },
   'ceph-status': {
@@ -241,81 +286,73 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 4, h: 4 },
     minSize: { w: 3, h: 3 },
     maxSize: { w: 6, h: 6 },
+    noContainer: true,
     component: CephStatusWidget,
   },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // WIDGETS ZERO TRUST / SECURITY (optimized - 1 HTTP call per cluster max)
-  // ═══════════════════════════════════════════════════════════════════════════
-  'zerotrust-score': {
-    type: 'zerotrust-score',
-    name: 'Zero Trust Overview',
-    description: 'Security score by cluster',
-    icon: 'ri-shield-keyhole-line',
-    category: 'security',
-    defaultSize: { w: 4, h: 4 },
-    minSize: { w: 3, h: 3 },
-    maxSize: { w: 6, h: 6 },
-    component: ZeroTrustScoreWidget,
-  },
-  'zerotrust-securitygroups': {
-    type: 'zerotrust-securitygroups',
-    name: 'Security Groups',
-    description: 'Security groups list by cluster',
-    icon: 'ri-shield-line',
-    category: 'security',
-    defaultSize: { w: 4, h: 4 },
-    minSize: { w: 3, h: 3 },
-    maxSize: { w: 6, h: 6 },
-    component: ZeroTrustSecurityGroupsWidget,
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // VM STATUS WAFFLE CHART
-  // ═══════════════════════════════════════════════════════════════════════════
-  'vm-status-waffle': {
-    type: 'vm-status-waffle',
-    name: 'Guest Status (Waffle)',
-    description: 'Waffle view of guests by cluster and status',
-    icon: 'ri-grid-fill',
-    category: 'infrastructure',
-    defaultSize: { w: 6, h: 5 },
-    minSize: { w: 4, h: 3 },
-    maxSize: { w: 12, h: 8 },
-    component: VmStatusWaffleWidget,
-  },
-  'resource-trends': {
-    type: 'resource-trends',
-    name: 'Resource Trends',
-    description: 'CPU/RAM evolution over 1h, 24h or 7d',
-    icon: 'ri-line-chart-line',
-    category: 'resources',
-    defaultSize: { w: 6, h: 4 },
-    minSize: { w: 4, h: 3 },
-    maxSize: { w: 12, h: 6 },
-    component: ResourceTrendsWidget,
-  },
   'infra-global-chart': {
     type: 'infra-global-chart',
     name: 'Infra CPU/RAM',
     description: 'Per-node CPU/RAM across all infrastructure',
     icon: 'ri-line-chart-fill',
     category: 'resources',
-    defaultSize: { w: 6, h: 5 },
-    minSize: { w: 4, h: 3 },
-    maxSize: { w: 12, h: 8 },
+    defaultSize: { w: 8, h: 6 },
+    minSize: { w: 4, h: 4 },
+    maxSize: { w: 12, h: 20 },
+    noContainer: true,
     component: InfraGlobalChartWidget,
   },
   'vm-heatmap': {
     type: 'vm-heatmap',
-    name: 'Guest Heatmap',
-    description: 'CPU/RAM heatmap of all guests',
-    icon: 'ri-fire-fill',
-    category: 'resources',
+    name: 'Guest Map',
+    description: 'Status, CPU/RAM heatmap of all guests',
+    icon: 'ri-grid-fill',
+    category: 'infrastructure',
     defaultSize: { w: 6, h: 5 },
     minSize: { w: 3, h: 3 },
-    maxSize: { w: 12, h: 8 },
+    maxSize: { w: 12, h: 12 },
+    noContainer: true,
     component: VmHeatmapWidget,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NODES GAUGES & CLUSTER HEALTH
+  // ═══════════════════════════════════════════════════════════════════════════
+  'nodes-gauges': {
+    type: 'nodes-gauges',
+    name: 'Nodes Gauges',
+    description: 'Per-node circular gauges (CPU, RAM, Disk)',
+    icon: 'ri-donut-chart-line',
+    category: 'infrastructure',
+    defaultSize: { w: 8, h: 6 },
+    minSize: { w: 3, h: 3 },
+    maxSize: { w: 12, h: 20 },
+    noContainer: true,
+    component: NodesGaugesWidget,
+  },
+  'clusters-gauges': {
+    type: 'clusters-gauges',
+    name: 'Clusters Gauges',
+    description: 'Per-cluster gauges, sparklines and health score',
+    icon: 'ri-donut-chart-line',
+    category: 'infrastructure',
+    defaultSize: { w: 8, h: 6 },
+    minSize: { w: 3, h: 3 },
+    maxSize: { w: 12, h: 20 },
+    noContainer: true,
+    component: ClustersGaugesWidget,
+  },
+  'cluster-health': {
+    type: 'cluster-health',
+    name: 'Cluster Health',
+    description: 'Health score with key metrics',
+    icon: 'ri-heart-pulse-line',
+    category: 'infrastructure',
+    defaultSize: { w: 4, h: 5 },
+    minSize: { w: 3, h: 4 },
+    maxSize: { w: 6, h: 8 },
+    noContainer: true,
+    component: ClusterHealthWidget,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -327,9 +364,10 @@ export const WIDGET_REGISTRY = {
     description: 'DRS status, active migrations and recommendations',
     icon: 'ri-swap-line',
     category: 'automation',
-    defaultSize: { w: 4, h: 4 },
-    minSize: { w: 3, h: 3 },
-    maxSize: { w: 6, h: 6 },
+    defaultSize: { w: 8, h: 6 },
+    minSize: { w: 4, h: 4 },
+    maxSize: { w: 12, h: 20 },
+    noContainer: true,
     component: DrsStatusWidget,
   },
   'site-recovery': {
@@ -341,6 +379,7 @@ export const WIDGET_REGISTRY = {
     defaultSize: { w: 4, h: 4 },
     minSize: { w: 3, h: 3 },
     maxSize: { w: 6, h: 6 },
+    noContainer: true,
     component: SiteRecoveryWidget,
   },
 }
@@ -348,7 +387,6 @@ export const WIDGET_REGISTRY = {
 export const WIDGET_CATEGORIES = [
   { id: 'infrastructure', name: 'Infrastructure', icon: 'ri-server-line' },
   { id: 'resources', name: 'Resources', icon: 'ri-pie-chart-line' },
-  { id: 'security', name: 'Security / Zero Trust', icon: 'ri-shield-keyhole-line' },
   { id: 'backup', name: 'Backups', icon: 'ri-shield-check-line' },
   { id: 'storage', name: 'Storage', icon: 'ri-hard-drive-2-line' },
   { id: 'monitoring', name: 'Monitoring', icon: 'ri-alarm-warning-line' },

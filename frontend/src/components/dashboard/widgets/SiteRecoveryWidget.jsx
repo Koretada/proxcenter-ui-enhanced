@@ -2,12 +2,12 @@
 
 import React, { useMemo } from 'react'
 import { useTranslations } from 'next-intl'
-import { Box, Typography, Chip, CircularProgress, alpha, Stack } from '@mui/material'
+import { Box, Typography, Chip, CircularProgress, Stack, useTheme } from '@mui/material'
 import { useLicense } from '@/contexts/LicenseContext'
 import { useReplicationHealth } from '@/hooks/useSiteRecovery'
 
 function ScoreRing({ score, size = 56 }) {
-  const color = score >= 80 ? 'var(--mui-palette-success-main)' : score >= 50 ? 'var(--mui-palette-warning-main)' : 'var(--mui-palette-error-main)'
+  const color = score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444'
   const circumference = 2 * Math.PI * 14
   const dashLen = (score / 100) * circumference
 
@@ -15,7 +15,7 @@ function ScoreRing({ score, size = 56 }) {
     <Box sx={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
       <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
         <circle cx="18" cy="18" r="14" fill="none"
-          stroke="var(--mui-palette-divider)" strokeWidth="3" opacity={0.3} />
+          stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
         <circle cx="18" cy="18" r="14" fill="none"
           stroke={color} strokeWidth="3"
           strokeDasharray={`${dashLen} ${circumference}`}
@@ -32,8 +32,16 @@ function ScoreRing({ score, size = 56 }) {
   )
 }
 
+function statColor(value, goodThreshold, warnThreshold) {
+  if (value >= goodThreshold) return '#22c55e'
+  if (value >= warnThreshold) return '#f59e0b'
+  return '#ef4444'
+}
+
 function SiteRecoveryWidget({ data, loading, config }) {
   const t = useTranslations()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const { isEnterprise } = useLicense()
   const { data: health, isLoading: healthLoading } = useReplicationHealth(isEnterprise)
 
@@ -51,20 +59,39 @@ function SiteRecoveryWidget({ data, loading, config }) {
     return Math.round(coveragePct * 0.4 + rpoPct * 0.4 + errorScore * 0.2)
   }, [health])
 
+  // Dark vignette wrapper for empty/loading states
+  const darkShell = (children) => (
+    <Box
+      {...(!isDark && { 'data-dark': '' })}
+      sx={{
+        bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+        border: '1px solid',
+        borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+        borderRadius: 2.5,
+        p: 1.5,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {children}
+    </Box>
+  )
+
   if (!isEnterprise) {
-    return (
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 2, textAlign: 'center' }}>
-        <i className='ri-vip-crown-fill' style={{ fontSize: 32, color: 'var(--mui-palette-warning-main)', marginBottom: 8 }} />
-        <Typography variant='caption' sx={{ opacity: 0.6 }}>Enterprise</Typography>
-      </Box>
+    return darkShell(
+      <>
+        <i className='ri-vip-crown-fill' style={{ fontSize: 32, color: '#f59e0b', marginBottom: 8 }} />
+        <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.4)' }}>Enterprise</Typography>
+      </>
     )
   }
 
   if (healthLoading) {
-    return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <CircularProgress size={24} />
-      </Box>
+    return darkShell(
+      <CircularProgress size={24} sx={{ color: 'rgba(255,255,255,0.4)' }} />
     )
   }
 
@@ -86,23 +113,58 @@ function SiteRecoveryWidget({ data, loading, config }) {
 
   if (!hasData) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 1.5 }}>
-        <Typography variant='caption' sx={{ opacity: 0.6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, mb: 1.5 }}>
+      <Box
+        {...(!isDark && { 'data-dark': '' })}
+        sx={{
+          bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+          border: '1px solid',
+          borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+          borderRadius: 2.5,
+          p: 1.5,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'border-color 0.2s, box-shadow 0.2s',
+          '&:hover': {
+            borderColor: 'rgba(255,255,255,0.15)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          },
+        }}
+      >
+        <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, mb: 1.5, fontSize: 10 }}>
           Site Recovery
         </Typography>
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
-          <i className='ri-shield-star-line' style={{ fontSize: 28, marginBottom: 4 }} />
-          <Typography variant='caption'>{t('dashboard.widgetSr.noJobs')}</Typography>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <i className='ri-shield-star-line' style={{ fontSize: 28, color: 'rgba(255,255,255,0.3)', marginBottom: 4 }} />
+          <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.4)' }}>{t('dashboard.widgetSr.noJobs')}</Typography>
         </Box>
       </Box>
     )
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 1.5, overflow: 'hidden' }}>
+    <Box
+      {...(!isDark && { 'data-dark': '' })}
+      sx={{
+        bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+        border: '1px solid',
+        borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+        borderRadius: 2.5,
+        p: 1.5,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        '&:hover': {
+          borderColor: 'rgba(255,255,255,0.15)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        },
+      }}
+    >
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-        <Typography variant='caption' sx={{ opacity: 0.6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>
           Site Recovery
         </Typography>
         <Chip
@@ -118,22 +180,16 @@ function SiteRecoveryWidget({ data, loading, config }) {
         {srScore !== null && (
           <Box sx={{
             display: 'flex', alignItems: 'center', gap: 1.5, p: 1, borderRadius: 1,
-            bgcolor: (theme) => alpha(
-              srScore >= 80 ? theme.palette.success.main : srScore >= 50 ? theme.palette.warning.main : theme.palette.error.main,
-              0.06
-            ),
+            bgcolor: `${statColor(srScore, 80, 50)}10`,
             border: '1px solid',
-            borderColor: (theme) => alpha(
-              srScore >= 80 ? theme.palette.success.main : srScore >= 50 ? theme.palette.warning.main : theme.palette.error.main,
-              0.15
-            )
+            borderColor: `${statColor(srScore, 80, 50)}25`,
           }}>
             <ScoreRing score={srScore} size={44} />
             <Box>
-              <Typography variant='caption' sx={{ color: 'text.secondary', fontSize: 9, display: 'block' }}>
+              <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 9, display: 'block' }}>
                 {t('dashboard.widgetSr.protectionScore')}
               </Typography>
-              <Typography variant='body2' sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+              <Typography variant='body2' sx={{ fontWeight: 700, lineHeight: 1.2, color: '#fff' }}>
                 {srScore >= 80 ? t('dashboard.widgetSr.healthy') : srScore >= 50 ? t('dashboard.widgetSr.attention') : t('dashboard.widgetSr.critical')}
               </Typography>
             </Box>
@@ -144,29 +200,25 @@ function SiteRecoveryWidget({ data, loading, config }) {
         <Stack direction='row' spacing={0.75}>
           <Box sx={{
             flex: 1, p: 0.75, borderRadius: 1, textAlign: 'center',
-            bgcolor: (theme) => alpha(
-              coveragePct >= 80 ? theme.palette.success.main : coveragePct >= 50 ? theme.palette.warning.main : theme.palette.error.main,
-              0.08
-            )
+            bgcolor: `${statColor(coveragePct, 80, 50)}12`,
           }}>
             <Typography variant='h6' sx={{
               fontWeight: 900, lineHeight: 1,
-              color: coveragePct >= 80 ? 'success.main' : coveragePct >= 50 ? 'warning.main' : 'error.main'
+              color: statColor(coveragePct, 80, 50),
+              fontFamily: '"JetBrains Mono", monospace',
             }}>{coveragePct}%</Typography>
-            <Typography variant='caption' sx={{ color: 'text.secondary', fontSize: 8 }}>{t('dashboard.widgetSr.coverage')}</Typography>
+            <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 8 }}>{t('dashboard.widgetSr.coverage')}</Typography>
           </Box>
           <Box sx={{
             flex: 1, p: 0.75, borderRadius: 1, textAlign: 'center',
-            bgcolor: (theme) => alpha(
-              rpoCompliance >= 90 ? theme.palette.success.main : rpoCompliance >= 60 ? theme.palette.warning.main : theme.palette.error.main,
-              0.08
-            )
+            bgcolor: `${statColor(rpoCompliance, 90, 60)}12`,
           }}>
             <Typography variant='h6' sx={{
               fontWeight: 900, lineHeight: 1,
-              color: rpoCompliance >= 90 ? 'success.main' : rpoCompliance >= 60 ? 'warning.main' : 'error.main'
+              color: statColor(rpoCompliance, 90, 60),
+              fontFamily: '"JetBrains Mono", monospace',
             }}>{rpoCompliance}%</Typography>
-            <Typography variant='caption' sx={{ color: 'text.secondary', fontSize: 8 }}>RPO</Typography>
+            <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 8 }}>RPO</Typography>
           </Box>
         </Stack>
 
@@ -174,24 +226,24 @@ function SiteRecoveryWidget({ data, loading, config }) {
         <Stack direction='row' spacing={0.75}>
           <Box sx={{
             flex: 1, p: 0.75, borderRadius: 1, textAlign: 'center',
-            bgcolor: (theme) => alpha(theme.palette.info.main, 0.08)
+            bgcolor: 'rgba(59,130,246,0.1)',
           }}>
-            <Typography variant='h6' sx={{ fontWeight: 900, lineHeight: 1, color: 'info.main' }}>{totalJobs}</Typography>
-            <Typography variant='caption' sx={{ color: 'text.secondary', fontSize: 8 }}>{t('dashboard.widgetSr.jobs')}</Typography>
+            <Typography variant='h6' sx={{ fontWeight: 900, lineHeight: 1, color: '#3b82f6', fontFamily: '"JetBrains Mono", monospace' }}>{totalJobs}</Typography>
+            <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 8 }}>{t('dashboard.widgetSr.jobs')}</Typography>
           </Box>
           <Box sx={{
             flex: 1, p: 0.75, borderRadius: 1, textAlign: 'center',
-            bgcolor: (theme) => alpha(theme.palette.primary.main, syncing > 0 ? 0.12 : 0.05)
+            bgcolor: syncing > 0 ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.06)',
           }}>
-            <Typography variant='h6' sx={{ fontWeight: 900, lineHeight: 1, color: 'primary.main' }}>{syncing}</Typography>
-            <Typography variant='caption' sx={{ color: 'text.secondary', fontSize: 8 }}>{t('dashboard.widgetSr.syncing')}</Typography>
+            <Typography variant='h6' sx={{ fontWeight: 900, lineHeight: 1, color: '#6366f1', fontFamily: '"JetBrains Mono", monospace' }}>{syncing}</Typography>
+            <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 8 }}>{t('dashboard.widgetSr.syncing')}</Typography>
           </Box>
           <Box sx={{
             flex: 1, p: 0.75, borderRadius: 1, textAlign: 'center',
-            bgcolor: (theme) => alpha(theme.palette.error.main, errors > 0 ? 0.12 : 0.05)
+            bgcolor: errors > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.06)',
           }}>
-            <Typography variant='h6' sx={{ fontWeight: 900, lineHeight: 1, color: errors > 0 ? 'error.main' : 'text.secondary' }}>{errors}</Typography>
-            <Typography variant='caption' sx={{ color: 'text.secondary', fontSize: 8 }}>{t('dashboard.widgetSr.errors')}</Typography>
+            <Typography variant='h6' sx={{ fontWeight: 900, lineHeight: 1, color: errors > 0 ? '#ef4444' : 'rgba(255,255,255,0.3)', fontFamily: '"JetBrains Mono", monospace' }}>{errors}</Typography>
+            <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 8 }}>{t('dashboard.widgetSr.errors')}</Typography>
           </Box>
         </Stack>
       </Stack>

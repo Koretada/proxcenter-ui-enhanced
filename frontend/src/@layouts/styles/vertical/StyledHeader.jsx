@@ -163,7 +163,7 @@ const StyledHeader = styled.header`
     inline-size: 100%;
   }
 
-  ${({ overrideStyles }) => overrideStyles}
+${({ overrideStyles }) => overrideStyles}
 `
 
 export default StyledHeader

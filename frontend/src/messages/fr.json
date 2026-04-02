@@ -291,14 +291,17 @@
       "activityFeed": "Activité récente",
       "storagePools": "Stockages",
       "cephStatus": "État Ceph",
-      "zerotrustScore": "Vue Zero Trust",
-      "zerotrustSecuritygroups": "Groupes de sécurité",
       "vmStatusWaffle": "État des guests (Waffle)",
       "resourceTrends": "Tendances ressources",
       "infraGlobalChart": "Infra CPU/RAM",
       "vmHeatmap": "Heatmap guests",
       "drsStatus": "État DRS",
-      "siteRecovery": "Reprise d'activité"
+      "siteRecovery": "Reprise d'activité",
+      "sectionHeader": "Section",
+      "backupCalendar": "Calendrier Backups",
+      "nodesGauges": "Jauges Nodes",
+      "clustersGauges": "Jauges Clusters",
+      "clusterHealth": "Santé Cluster"
     },
     "widgetDescs": {
       "kpiClusters": "Affiche le nombre de clusters et nodes",
@@ -319,14 +322,16 @@
       "activityFeed": "Tâches et événements récents",
       "storagePools": "Liste des storages PVE",
       "cephStatus": "État du cluster Ceph",
-      "zerotrustScore": "Score de sécurité par cluster (firewall + policies)",
-      "zerotrustSecuritygroups": "Liste des Security Groups par cluster",
       "vmStatusWaffle": "Vue waffle des guests par cluster et status",
       "resourceTrends": "Évolution CPU/RAM sur 1h, 24h ou 7j",
       "infraGlobalChart": "CPU/RAM par nœud sur toute l'infrastructure",
       "vmHeatmap": "Heatmap CPU/RAM de tous les guests",
       "drsStatus": "Status DRS, migrations actives et recommandations",
-      "siteRecovery": "Protection VMs, conformité RPO et status réplication"
+      "siteRecovery": "Protection VMs, conformité RPO et status réplication",
+      "backupCalendar": "Historique backups sur 30 jours",
+      "nodesGauges": "Jauges circulaires par nœud (CPU, RAM, Disk)",
+      "clustersGauges": "Jauges par cluster avec sparklines et score",
+      "clusterHealth": "Score de santé avec métriques clés"
     },
     "widgetDrs": {
       "automatic": "Automatique",

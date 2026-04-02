@@ -1,31 +1,63 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Box, Typography, useTheme } from '@mui/material'
+
+function CircularGauge({ value, max, size = 56, strokeWidth = 4.5, color }) {
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const pct = max > 0 ? value / max : 0
+  const [mounted, setMounted] = useState(false)
+  const offset = mounted ? circumference - pct * circumference : circumference
+
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 50); return () => clearTimeout(t) }, [])
+
+  return (
+    <Box sx={{ position: 'relative', width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeWidth} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+      </svg>
+      <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 800, fontFamily: '"JetBrains Mono", monospace', color, lineHeight: 1 }}>
+          {value}
+        </Typography>
+        <Typography sx={{ fontSize: 7, opacity: 0.5, fontWeight: 700 }}>/{max}</Typography>
+      </Box>
+    </Box>
+  )
+}
 
 function KpiLxcWidget({ data, loading }) {
   const t = useTranslations()
   const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const secondaryColor = theme.palette.secondary.main
   const summary = data?.summary || {}
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', p: 1 }}>
-      <Box sx={{
-        width: 44, height: 44, borderRadius: 2,
-        bgcolor: `${secondaryColor}18`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0, mr: 1.5
-      }}>
-        <i className='ri-instance-line' style={{ fontSize: 22, color: secondaryColor }} />
-      </Box>
+    <Box
+      {...(!isDark && { 'data-dark': '' })}
+      sx={{
+        bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+        border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+        borderRadius: 2.5, p: 1.5, height: '100%',
+        display: 'flex', alignItems: 'center', gap: 1.5,
+      }}
+    >
+      <CircularGauge value={summary.lxcRunning || 0} max={summary.lxcTotal || 0} color={secondaryColor} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant='caption' sx={{ opacity: 0.6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          LXC ({t('common.active').toLowerCase()} / {t('common.total').toLowerCase()})
+        <Typography sx={{ fontSize: 10, opacity: 0.65, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          LXC
         </Typography>
-        <Typography variant='h6' sx={{ fontWeight: 800, color: secondaryColor, lineHeight: 1.2 }}>
+        <Typography sx={{ fontSize: 18, fontWeight: 800, color: secondaryColor, lineHeight: 1.2, fontFamily: '"JetBrains Mono", monospace' }}>
           {summary.lxcRunning || 0} / {summary.lxcTotal || 0}
+        </Typography>
+        <Typography sx={{ fontSize: 10, opacity: 0.6 }}>
+          {t('common.active').toLowerCase()} / {t('common.total').toLowerCase()}
         </Typography>
       </Box>
     </Box>

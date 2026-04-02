@@ -4,12 +4,47 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
-  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
-  Divider, IconButton, List, ListItemButton, ListItemText, Table, TableBody,
-  TableCell, TableRow, Typography
+  Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
+  Divider, IconButton, Table, TableBody, TableCell, TableRow, Typography, useTheme
 } from '@mui/material'
 
-function AlertDetailDialog({ alert, open, onClose, onNavigate, router, t }) {
+// ─── Entity icon with status dot ─────────────────────────────────────────────
+function EntityIcon({ entityType, severity }) {
+  const dotColor = severity === 'crit' ? '#f44336' : severity === 'warn' ? '#ff9800' : '#3b82f6'
+  const isNode = entityType === 'node'
+  const icon = isNode ? null
+    : entityType === 'cluster' ? 'ri-server-line'
+    : entityType === 'server' ? 'ri-shield-check-line'
+    : 'ri-alarm-warning-line'
+
+  return (
+    <Box sx={{ position: 'relative', width: 16, height: 16, flexShrink: 0 }}>
+      {isNode
+        ? <img src='/images/proxmox-logo-dark.svg' alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+        : <i className={icon} style={{ fontSize: 14, opacity: 0.7 }} />
+      }
+      <Box sx={{
+        position: 'absolute', bottom: -1, right: -1, width: 6, height: 6, borderRadius: '50%',
+        bgcolor: dotColor, border: '1.5px solid #1e1e2d',
+      }} />
+    </Box>
+  )
+}
+
+// ─── Detail Dialog ───────────────────────────────────────────────────────────
+function NodeLabel({ name, online, isDark }) {
+  return (
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+      <Box sx={{ position: 'relative', width: 16, height: 16, flexShrink: 0 }}>
+        <img src={isDark ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+        <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 7, height: 7, borderRadius: '50%', bgcolor: online !== false ? '#4caf50' : '#f44336', border: '1.5px solid', borderColor: 'background.paper' }} />
+      </Box>
+      {name}
+    </Box>
+  )
+}
+
+function AlertDetailDialog({ alert, open, onClose, onNavigate, router, t, nodeStatusMap, isDark }) {
   if (!alert) return null
 
   const severityConfig = {
@@ -17,38 +52,41 @@ function AlertDetailDialog({ alert, open, onClose, onNavigate, router, t }) {
     warn: { label: 'WARNING', color: 'warning' },
     info: { label: 'INFO', color: 'info' },
   }
-
   const cfg = severityConfig[alert.severity] || severityConfig.info
 
   function getEntityLink(a) {
-    if (a.entityType === 'node' && a.connId && a.entityId) {
-      return `/infrastructure/inventory?selectType=node&selectId=${a.connId}:${a.entityId}`
-    }
-    if (a.entityType === 'cluster' && a.connId) {
-      return `/infrastructure/inventory?selectType=cluster&selectId=${a.connId}`
-    }
+    if (a.entityType === 'node' && a.connId && a.entityId) return `/infrastructure/inventory?selectType=node&selectId=${a.connId}:${a.entityId}`
+    if (a.entityType === 'cluster' && a.connId) return `/infrastructure/inventory?selectType=cluster&selectId=${a.connId}`
     return null
   }
 
   const entityLink = getEntityLink(alert)
-
   const sourceValue = entityLink ? (
-    <Typography
-      variant='body2'
-      component='span'
-      sx={{ fontSize: 13, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-      onClick={() => { router.push(entityLink); onClose() }}
-    >
-      {alert.source} <i className='ri-external-link-line' style={{ fontSize: 11 }} />
-    </Typography>
-  ) : alert.source
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+      <Box sx={{ position: 'relative', width: 16, height: 16, flexShrink: 0 }}>
+        <img src={isDark ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={14} height={14} style={{ opacity: 0.8 }} />
+        <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 7, height: 7, borderRadius: '50%', bgcolor: nodeStatusMap?.[alert.source] !== false ? '#4caf50' : '#f44336', border: '1.5px solid', borderColor: 'background.paper' }} />
+      </Box>
+      <Typography
+        variant='body2' component='span'
+        sx={{ fontSize: 13, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+        onClick={() => { router.push(entityLink); onClose() }}
+      >
+        {alert.source} <i className='ri-external-link-line' style={{ fontSize: 11 }} />
+      </Typography>
+    </Box>
+  ) : <NodeLabel name={alert.source} online={nodeStatusMap?.[alert.source]} isDark={isDark} />
+
+  const nodeOnline = nodeStatusMap?.[alert.entityName] ?? nodeStatusMap?.[alert.source]
 
   const rows = [
     { label: t('alerts.detail.severity'), value: <Chip size='small' label={cfg.label} color={cfg.color} sx={{ height: 22, fontSize: 11 }} /> },
     { label: t('alerts.detail.message'), value: alert.message },
     { label: t('alerts.detail.source'), value: sourceValue },
     { label: t('alerts.detail.sourceType'), value: (alert.sourceType || 'pve').toUpperCase() },
-    alert.entityName && { label: t('alerts.detail.entity'), value: alert.entityName },
+    alert.entityName && { label: t('alerts.detail.entity'), value: alert.entityType === 'node'
+      ? <NodeLabel name={alert.entityName} online={nodeOnline} isDark={isDark} />
+      : alert.entityName },
     alert.entityType && { label: t('alerts.detail.entityType'), value: alert.entityType },
     alert.metric && { label: t('alerts.detail.metric'), value: alert.metric },
     alert.currentValue != null && { label: t('alerts.detail.currentValue'), value: `${alert.currentValue}%` },
@@ -63,9 +101,7 @@ function AlertDetailDialog({ alert, open, onClose, onNavigate, router, t }) {
           <i className='ri-alarm-warning-line' style={{ fontSize: 20 }} />
           {t('alerts.detail.title')}
         </Box>
-        <IconButton size='small' onClick={onClose}>
-          <i className='ri-close-line' />
-        </IconButton>
+        <IconButton size='small' onClick={onClose}><i className='ri-close-line' /></IconButton>
       </DialogTitle>
       <Divider />
       <DialogContent sx={{ p: 0 }}>
@@ -73,12 +109,8 @@ function AlertDetailDialog({ alert, open, onClose, onNavigate, router, t }) {
           <TableBody>
             {rows.map((row, idx) => (
               <TableRow key={idx}>
-                <TableCell sx={{ fontWeight: 600, width: 140, color: 'text.secondary', fontSize: 13, border: 'none', py: 1.25, pl: 3 }}>
-                  {row.label}
-                </TableCell>
-                <TableCell sx={{ fontSize: 13, border: 'none', py: 1.25 }}>
-                  {row.value}
-                </TableCell>
+                <TableCell sx={{ fontWeight: 600, width: 140, color: 'text.secondary', fontSize: 13, border: 'none', py: 1.25, pl: 3 }}>{row.label}</TableCell>
+                <TableCell sx={{ fontSize: 13, border: 'none', py: 1.25 }}>{row.value}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -87,12 +119,7 @@ function AlertDetailDialog({ alert, open, onClose, onNavigate, router, t }) {
       <Divider />
       <DialogActions sx={{ px: 3, py: 1.5 }}>
         {onNavigate && (
-          <Button
-            variant='outlined'
-            size='small'
-            startIcon={<i className='ri-external-link-line' />}
-            onClick={() => { onNavigate(); onClose() }}
-          >
+          <Button variant='outlined' size='small' startIcon={<i className='ri-external-link-line' />} onClick={() => { onNavigate(); onClose() }}>
             {t('alerts.detail.goToEntity')}
           </Button>
         )}
@@ -102,96 +129,116 @@ function AlertDetailDialog({ alert, open, onClose, onNavigate, router, t }) {
   )
 }
 
+// ─── Main Widget ─────────────────────────────────────────────────────────────
 function AlertsListWidget({ data, loading }) {
   const t = useTranslations()
   const router = useRouter()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const [selectedAlert, setSelectedAlert] = useState(null)
 
-  function getAlertLink(alert) {
-    if (alert.entityType === 'node' && alert.connId && alert.entityId) {
-      return `/infrastructure/inventory?selectType=node&selectId=${alert.connId}:${alert.entityId}`
-    }
-    if (alert.entityType === 'cluster' && alert.entityId) {
-      return `/infrastructure/inventory?selectType=cluster&selectId=${alert.entityId}`
-    }
-    return null
+  const alerts = data?.alerts || []
+
+  // Build node name -> online status map
+  const nodeStatusMap = {}
+  for (const n of (data?.nodes || [])) {
+    nodeStatusMap[n.name] = n.status === 'online'
   }
 
-  const alerts = data?.alerts || []
+  function getAlertLink(alert) {
+    if (alert.entityType === 'node' && alert.connId && alert.entityId) return `/infrastructure/inventory?selectType=node&selectId=${alert.connId}:${alert.entityId}`
+    if (alert.entityType === 'cluster' && alert.entityId) return `/infrastructure/inventory?selectType=cluster&selectId=${alert.entityId}`
+    return null
+  }
 
   function timeAgo(date) {
     const now = new Date()
     const past = new Date(date)
     const diff = Math.floor((now - past) / 1000)
-
     if (diff < 60) return t('time.justNow')
     if (diff < 3600) return t('time.minutesAgo', { count: Math.floor(diff / 60) })
     if (diff < 86400) return t('time.hoursAgo', { count: Math.floor(diff / 3600) })
-
     return t('time.daysAgo', { count: Math.floor(diff / 86400) })
+  }
+
+  function getSeverityColor(severity) {
+    if (severity === 'crit') return '#f44336'
+    if (severity === 'warn') return '#ff9800'
+    return '#3b82f6'
+  }
+
+  const darkCard = {
+    bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+    border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+    borderRadius: 2.5, p: 1.5,
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+    '&:hover': { borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.15)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' },
   }
 
   if (alerts.length === 0) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
-        <Alert severity='success' sx={{ width: '100%' }}>{t('alerts.noActiveAlerts')}</Alert>
+      <Box {...(!isDark && { 'data-dark': '' })} sx={{ height: '100%', ...darkCard, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: 0.65 }}>
+          <i className='ri-checkbox-circle-line' style={{ fontSize: 18, color: '#4caf50' }} />
+          <Typography sx={{ fontSize: 12 }}>{t('alerts.noActiveAlerts')}</Typography>
+        </Box>
       </Box>
     )
   }
 
-  const severityConfig = {
-    crit: { label: 'CRIT', color: 'error' },
-    warn: { label: 'WARN', color: 'warning' },
-    info: { label: 'INFO', color: 'info' },
-  }
-
   return (
     <>
-      <List dense disablePadding sx={{ height: '100%', overflow: 'auto', p: 0.5 }}>
+      <Box {...(!isDark && { 'data-dark': '' })} sx={{ height: '100%', ...darkCard, overflow: 'auto' }}>
         {alerts.map((alert, idx) => {
-          const cfg = severityConfig[alert.severity] || severityConfig.info
+          const sevColor = getSeverityColor(alert.severity)
+          const sevLabel = alert.severity === 'crit' ? 'CRIT' : alert.severity === 'warn' ? 'WARN' : 'INFO'
 
           return (
-            <ListItemButton
+            <Box
               key={idx}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={() => setSelectedAlert(alert)}
               sx={{
-                px: 0.5, py: 0.5, borderRadius: 0.5,
+                display: 'flex', alignItems: 'center', gap: 0.75,
+                px: 0.75, py: 0.6,
+                borderBottom: idx < alerts.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
               }}
             >
-              <ListItemText
-                primary={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <Chip
-                      size='small'
-                      label={cfg.label}
-                      color={cfg.color}
-                      sx={{ height: 18, fontSize: 9, minWidth: 40 }}
-                    />
-                    <Typography variant='caption' sx={{
-                      fontWeight: 600, overflow: 'hidden',
-                      textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11
-                    }}>
-                      {alert.message}
-                    </Typography>
-                  </Box>
-                }
-                secondary={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
-                    <Typography variant='caption' sx={{ opacity: 0.5, fontSize: 9 }}>
-                      {timeAgo(alert.time)}
-                    </Typography>
-                    <Typography variant='caption' sx={{ opacity: 0.4, fontSize: 9 }}>
-                      • {alert.source}
-                    </Typography>
-                  </Box>
-                }
-              />
-            </ListItemButton>
+              {/* Severity badge */}
+              <Box sx={{
+                px: 0.5, py: 0.1, borderRadius: 0.5, flexShrink: 0,
+                bgcolor: `${sevColor}18`, color: sevColor,
+                fontSize: 8, fontWeight: 800, fontFamily: '"JetBrains Mono", monospace', lineHeight: 1.4,
+              }}>
+                {sevLabel}
+              </Box>
+
+              {/* Message */}
+              <Typography sx={{ fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                {alert.message}
+              </Typography>
+
+              {/* Source with Proxmox logo + node online status dot */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, flexShrink: 0 }}>
+                <Box sx={{ position: 'relative', width: 14, height: 14, flexShrink: 0 }}>
+                  <img src='/images/proxmox-logo-dark.svg' alt="" width={12} height={12} style={{ opacity: 0.7 }} />
+                  <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 5, height: 5, borderRadius: '50%', bgcolor: nodeStatusMap[alert.source] === false ? '#f44336' : '#4caf50', border: '1px solid #1e1e2d' }} />
+                </Box>
+                <Typography sx={{ fontSize: 9, opacity: 0.65, fontFamily: '"JetBrains Mono", monospace', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {alert.source}
+                </Typography>
+              </Box>
+
+              {/* Time ago */}
+              <Typography sx={{ fontSize: 9, opacity: 0.5, flexShrink: 0 }}>
+                {timeAgo(alert.time)}
+              </Typography>
+            </Box>
           )
         })}
-      </List>
+      </Box>
 
       <AlertDetailDialog
         alert={selectedAlert}
@@ -200,6 +247,8 @@ function AlertsListWidget({ data, loading }) {
         onNavigate={selectedAlert && getAlertLink(selectedAlert) ? () => router.push(getAlertLink(selectedAlert)) : null}
         router={router}
         t={t}
+        nodeStatusMap={nodeStatusMap}
+        isDark={isDark}
       />
     </>
   )

@@ -1,35 +1,67 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography, useTheme } from '@mui/material'
+
+function CircularGauge({ value, max, size = 56, strokeWidth = 4.5, color }) {
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const pct = max > 0 ? value / max : 0
+  const [mounted, setMounted] = useState(false)
+  const offset = mounted ? circumference - pct * circumference : circumference
+
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 50); return () => clearTimeout(t) }, [])
+
+  return (
+    <Box sx={{ position: 'relative', width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeWidth} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+      </svg>
+      <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 800, fontFamily: '"JetBrains Mono", monospace', color, lineHeight: 1 }}>
+          {value}
+        </Typography>
+        <Typography sx={{ fontSize: 7, opacity: 0.5, fontWeight: 700 }}>/{max}</Typography>
+      </Box>
+    </Box>
+  )
+}
 
 function KpiBackupsWidget({ data, loading }) {
   const t = useTranslations()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const pbs = data?.pbs || {}
+  const total = pbs.backups24h?.total || 0
+  const ok = pbs.backups24h?.ok || 0
   const hasError = pbs.backups24h?.error > 0
   const hasServers = pbs.servers > 0
 
   const color = hasError ? '#ff9800' : hasServers ? '#4caf50' : '#9e9e9e'
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', p: 1 }}>
-      <Box sx={{ 
-        width: 44, height: 44, borderRadius: 2, 
-        bgcolor: `${color}18`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0, mr: 1.5
-      }}>
-        <i className='ri-shield-check-line' style={{ fontSize: 22, color }} />
-      </Box>
+    <Box
+      {...(!isDark && { 'data-dark': '' })}
+      sx={{
+        bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+        border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+        borderRadius: 2.5, p: 1.5, height: '100%',
+        display: 'flex', alignItems: 'center', gap: 1.5,
+      }}
+    >
+      <CircularGauge value={ok} max={total || (hasServers ? 1 : 0)} color={color} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant='caption' sx={{ opacity: 0.6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <Typography sx={{ fontSize: 10, opacity: 0.65, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {t('dashboard.widgets.backups')} PBS (24h)
         </Typography>
-        <Typography variant='h6' sx={{ fontWeight: 800, color, lineHeight: 1.2 }}>
-          {pbs.backups24h?.total > 0 ? `${pbs.backups24h?.ok || 0} / ${pbs.backups24h?.total || 0}` : '—'}
+        <Typography sx={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1.2, fontFamily: '"JetBrains Mono", monospace' }}>
+          {total > 0 ? `${ok} / ${total}` : '\u2014'}
         </Typography>
-        <Typography variant='caption' sx={{ opacity: 0.5 }}>
+        <Typography sx={{ fontSize: 10, opacity: 0.6 }}>
           {hasError ? `${pbs.backups24h.error} ${t('jobs.failed').toLowerCase()}` : hasServers ? `${pbs.servers} PBS` : t('common.noData')}
         </Typography>
       </Box>

@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { useTranslations } from 'next-intl'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography, useTheme } from '@mui/material'
 
 function formatUptime(seconds) {
   if (!seconds || seconds <= 0) return '—'
@@ -20,60 +20,90 @@ function getUptimeColor(seconds) {
   if (!seconds) return '#9e9e9e'
   const days = seconds / 86400
 
-  if (days > 30) return '#4caf50'  // Plus de 30 jours
-  if (days > 7) return '#8bc34a'   // Plus de 7 jours
-  if (days > 1) return '#ff9800'   // Plus de 1 jour
-  
-return '#f44336'                  // Moins de 1 jour (récemment redémarré)
+  if (days > 30) return '#4caf50'
+  if (days > 7) return '#8bc34a'
+  if (days > 1) return '#ff9800'
+
+  return '#f44336'
 }
 
 function UptimeNodesWidget({ data, loading }) {
   const t = useTranslations()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const nodes = data?.nodes || []
 
   if (nodes.length === 0) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
-        <Typography variant='caption' sx={{ opacity: 0.6 }}>{t('common.noData')}</Typography>
+      <Box
+        {...(!isDark && { 'data-dark': '' })}
+        sx={{
+          height: '100%',
+          bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+          border: '1px solid',
+          borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+          borderRadius: 2.5,
+          p: 1.5,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Typography variant='caption' sx={{ opacity: 0.65 }}>{t('common.noData')}</Typography>
       </Box>
     )
   }
 
-  // Trier par uptime décroissant
   const sortedNodes = [...nodes].sort((a, b) => (b.uptime || 0) - (a.uptime || 0))
 
   return (
-    <Box sx={{ height: '100%', overflow: 'auto', p: 0.5 }}>
+    <Box
+      {...(!isDark && { 'data-dark': '' })}
+      sx={{
+        height: '100%',
+        bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+        border: '1px solid',
+        borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+        borderRadius: 2.5,
+        p: 1.5,
+        overflow: 'auto',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        '&:hover': {
+          borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.15)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        },
+      }}
+    >
       {sortedNodes.map((node, idx) => {
         const color = node.status === 'online' ? getUptimeColor(node.uptime) : '#f44336'
-        
+
         return (
-          <Box 
+          <Box
             key={idx}
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'space-between',
               py: 0.75,
               borderBottom: idx < sortedNodes.length - 1 ? '1px solid' : 'none',
-              borderColor: 'divider'
+              borderColor: 'rgba(255,255,255,0.08)',
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Box sx={{ 
-                width: 8, height: 8, borderRadius: '50%', 
-                bgcolor: node.status === 'online' ? '#4caf50' : '#f44336' 
+              <Box sx={{
+                width: 8, height: 8, borderRadius: '50%',
+                bgcolor: node.status === 'online' ? '#4caf50' : '#f44336'
               }} />
               <Typography variant='caption' sx={{ fontWeight: 600, fontSize: 11 }}>
                 {node.name}
               </Typography>
-              <Typography variant='caption' sx={{ opacity: 0.5, fontSize: 10 }}>
+              <Typography variant='caption' sx={{ opacity: 0.65, fontSize: 10 }}>
                 {node.connection}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <i className='ri-time-line' style={{ fontSize: 12, color, opacity: 0.8 }} />
-              <Typography variant='caption' sx={{ fontWeight: 700, color, fontSize: 11 }}>
+              <Typography variant='caption' sx={{ fontWeight: 700, color, fontSize: 11, fontFamily: '"JetBrains Mono", monospace' }}>
                 {node.status === 'online' ? formatUptime(node.uptime) : t('common.offline')}
               </Typography>
             </Box>

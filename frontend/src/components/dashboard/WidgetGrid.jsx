@@ -16,8 +16,8 @@ import { DEFAULT_LAYOUT, PRESET_LAYOUTS } from './types'
 import { CardsSkeleton } from '@/components/skeletons'
 
 const GRID_COLS = { lg: 12, md: 12, sm: 6, xs: 4, xxs: 2 }
-const ROW_HEIGHT = 60
-const MARGIN = [12, 12]
+const ROW_HEIGHT = 40
+const MARGIN = [6, 4]
 
 // Génère un ID unique
 function generateId() {
@@ -25,12 +25,62 @@ function generateId() {
 }
 
 // Composant Widget Container
+// No-container wrapper
+function NoContainerWrapper({ config, data, loading, editMode, onRemove, onUpdateSettings, widgetDef, widgetName, WidgetComponent, t }) {
+  return (
+    <Box sx={{
+      height: '100%', position: 'relative', overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+      ...(editMode && {
+        border: '2px dashed',
+        borderColor: 'primary.main',
+        borderRadius: 3,
+        opacity: 0.9,
+      }),
+    }}>
+      {editMode && (
+        <Box
+          className="widget-drag-handle"
+          sx={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            px: 1.5, py: 0.5,
+            bgcolor: 'primary.main', color: 'primary.contrastText',
+            cursor: 'move', flexShrink: 0,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <i className={widgetDef.icon} style={{ fontSize: 14 }} />
+            <Typography variant='caption' sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {widgetName}
+            </Typography>
+          </Box>
+          <Tooltip title={t('common.delete')}>
+            <IconButton size='small' onClick={onRemove} sx={{ p: 0.25, color: 'inherit' }}>
+              <i className='ri-close-line' style={{ fontSize: 14 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )}
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {loading ? (
+          <Box sx={{ height: '100%', p: 0.5 }}>
+            <Skeleton variant="rounded" width="100%" height="100%" sx={{ borderRadius: 0.5 }} />
+          </Box>
+        ) : (
+          <WidgetComponent config={config} data={data} loading={loading} onUpdateSettings={onUpdateSettings} />
+        )}
+      </Box>
+    </Box>
+  )
+}
+
 function WidgetContainer({
   config,
   data,
   loading,
   editMode,
   onRemove,
+  onUpdateSettings,
   t,
 }) {
   const widgetDef = WIDGET_REGISTRY[config.type]
@@ -42,9 +92,30 @@ function WidgetContainer({
 
   if (!WidgetComponent) {
     return (
-      <Card variant='outlined' sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Card variant='outlined' sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
         <Typography variant='caption' color='error'>{t('dashboard.unknownWidget')} {config.type}</Typography>
+        <IconButton size='small' onClick={onRemove} color='error'>
+          <i className='ri-delete-bin-line' style={{ fontSize: 16 }} />
+        </IconButton>
       </Card>
+    )
+  }
+
+  // No container mode: widget renders directly, only show edit controls as overlay
+  if (widgetDef.noContainer) {
+    return (
+      <NoContainerWrapper
+        config={config}
+        data={data}
+        loading={loading}
+        editMode={editMode}
+        onRemove={onRemove}
+        onUpdateSettings={onUpdateSettings}
+        widgetDef={widgetDef}
+        widgetName={widgetName}
+        WidgetComponent={WidgetComponent}
+        t={t}
+      />
     )
   }
 
@@ -103,7 +174,7 @@ function WidgetContainer({
             <Skeleton variant="rounded" width="100%" height="100%" sx={{ borderRadius: 0.5 }} />
           </Box>
         ) : (
-          <WidgetComponent config={config} data={data} loading={loading} />
+          <WidgetComponent config={config} data={data} loading={loading} onUpdateSettings={onUpdateSettings} />
         )}
       </CardContent>
     </Card>
@@ -206,6 +277,7 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
   const [saving, setSaving] = useState(false)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' })
   const [layoutLoaded, setLayoutLoaded] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
 
   // Mesure de la largeur du conteneur (requis par react-grid-layout v2.x)
   const [containerWidth, setContainerWidth] = useState(1200) // Largeur par défaut
@@ -298,20 +370,44 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
     }
   }, [t])
 
-  // Convertir notre layout en format react-grid-layout
-  const gridLayout = layout.map(w => ({
-    i: w.id,
-    x: w.x,
-    y: w.y,
-    w: w.w,
-    h: w.h,
-    minW: w.minW || 2,
-    minH: w.minH || 2,
-    maxW: w.maxW || 12,
-    maxH: w.maxH || 12,
-    isDraggable: editMode,
-    isResizable: editMode,
-  }))
+  // Compute which widgets are hidden by collapsed sections
+  const hiddenBySection = useMemo(() => {
+    const hidden = new Set()
+    // Sort by y position to process in order
+    const sorted = [...layout].sort((a, b) => a.y - b.y || a.x - b.x)
+    let currentCollapsed = false
+
+    for (const w of sorted) {
+      const def = WIDGET_REGISTRY[w.type]
+      if (def?.isSection) {
+        currentCollapsed = w.settings?.collapsed || false
+      } else if (currentCollapsed) {
+        hidden.add(w.id)
+      }
+    }
+    return hidden
+  }, [layout])
+
+  // Visible layout (hide widgets in collapsed sections, unless in edit mode)
+  const visibleLayout = editMode ? layout : layout.filter(w => !hiddenBySection.has(w.id))
+
+  // Convertir notre layout en format react-grid-layout (registry overrides saved min/max)
+  const gridLayout = visibleLayout.map(w => {
+    const def = WIDGET_REGISTRY[w.type]
+    return {
+      i: w.id,
+      x: w.x,
+      y: w.y,
+      w: w.w,
+      h: w.h,
+      minW: def?.minSize?.w ?? w.minW ?? 2,
+      minH: def?.minSize?.h ?? w.minH ?? 2,
+      maxW: def?.maxSize?.w ?? w.maxW ?? 12,
+      maxH: def?.maxSize?.h ?? w.maxH ?? 12,
+      isDraggable: editMode,
+      isResizable: editMode && !def?.isSection, // sections not resizable in height
+    }
+  })
 
   // Handler pour les changements de layout (drag/resize)
   const handleLayoutChange = useCallback((newGridLayout) => {
@@ -370,6 +466,14 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
     setSnackbar({ open: true, message: t('dashboard.widgetRemoved'), severity: 'info' })
   }
 
+  // Update widget settings
+  const handleUpdateSettings = useCallback((id, newSettings) => {
+    const updated = layout.map(w => w.id === id ? { ...w, settings: { ...w.settings, ...newSettings } } : w)
+    saveLayout(updated)
+  }, [layout, saveLayout])
+
+
+
   // Appliquer un layout prédéfini
   const handleApplyPreset = (presetId) => {
     const preset = PRESET_LAYOUTS[presetId]
@@ -398,6 +502,25 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
     setLayoutMenuAnchor(null)
   }
 
+  const dashboardRef = useRef(null)
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      dashboardRef.current?.requestFullscreen?.().catch(() => {})
+      setFullscreen(true)
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+      setFullscreen(false)
+    }
+  }, [])
+
+  // Listen for fullscreen exit via Escape
+  useEffect(() => {
+    const handler = () => setFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
   if (!layoutLoaded) {
     return (
       <Box sx={{ pt: 2 }}>
@@ -407,68 +530,10 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Toolbar */}
-      <Box sx={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: 1,
-        mb: 0.5,
-        flexWrap: 'wrap',
-        alignItems: 'center'
-      }}>
-        {saving && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}>
-            <CircularProgress size={16} />
-            <Typography variant='caption' sx={{ opacity: 0.6 }}>{t('dashboard.saving')}</Typography>
-          </Box>
-        )}
-        {editMode && (
-          <>
-            <Button
-              variant='outlined'
-              size='small'
-              startIcon={<i className='ri-add-line' />}
-              onClick={() => setAddDialogOpen(true)}
-            >
-              {t('dashboard.add')}
-            </Button>
-            <Button
-              variant='outlined'
-              size='small'
-              onClick={(e) => setLayoutMenuAnchor(e.currentTarget)}
-            >
-              {t('dashboard.layouts')}
-            </Button>
-          </>
-        )}
-        <Tooltip title={editMode ? t('dashboard.finish') : t('dashboard.customize')}>
-          <IconButton
-            onClick={() => setEditMode(!editMode)}
-            size='small'
-            color={editMode ? 'primary' : 'default'}
-            sx={editMode ? {
-              bgcolor: 'primary.main',
-              color: 'primary.contrastText',
-              '&:hover': { bgcolor: 'primary.dark' }
-            } : {}}
-          >
-            <i className={editMode ? 'ri-check-line' : 'ri-settings-3-line'} />
-          </IconButton>
-        </Tooltip>
-        {onRefresh && (
-          <Tooltip title={t('dashboard.refreshData')}>
-            <IconButton
-              onClick={onRefresh}
-              disabled={refreshLoading}
-              size='small'
-            >
-              <i className={refreshLoading ? 'ri-loader-4-line' : 'ri-refresh-line'} />
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
-
+    <Box ref={dashboardRef} sx={{
+      height: '100%', display: 'flex', flexDirection: 'row',
+      ...(fullscreen && { bgcolor: 'background.default', overflow: 'auto', p: 1 }),
+    }}>
       {/* Grid avec react-grid-layout */}
       <div
         ref={containerRef}
@@ -494,7 +559,7 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
         .react-grid-item > div {
           animation: widgetFadeIn 0.4s ease-out both;
         }
-        ${layout.map((_, i) => `.react-grid-item:nth-child(${i + 1}) > div { animation-delay: ${i * 0.06}s; }`).join('\n')}
+        ${visibleLayout.map((_, i) => `.react-grid-item:nth-child(${i + 1}) > div { animation-delay: ${i * 0.06}s; }`).join('\n')}
       `}</style>
         <ResponsiveGridLayout
             className="layout"
@@ -512,7 +577,7 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
             useCSSTransforms={true}
             compactType="vertical"
           >
-          {layout.map((config) => (
+          {visibleLayout.map((config) => (
             <div key={config.id}>
               <WidgetContainer
                 config={config}
@@ -520,12 +585,77 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
                 loading={loading}
                 editMode={editMode}
                 onRemove={() => handleRemoveWidget(config.id)}
+                onUpdateSettings={(settings) => handleUpdateSettings(config.id, settings)}
                 t={t}
               />
             </div>
           ))}
         </ResponsiveGridLayout>
       </div>
+
+      {/* Toolbar - right side */}
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.25,
+        alignItems: 'center',
+        pt: 0.5,
+        pl: 0.5,
+        flexShrink: 0,
+      }}>
+        {saving && (
+          <CircularProgress size={14} sx={{ mb: 0.5 }} />
+        )}
+        {editMode && (
+          <>
+            <Tooltip title={t('dashboard.addWidget')} placement='left'>
+              <IconButton size='small' onClick={() => setAddDialogOpen(true)}>
+                <i className='ri-add-line' style={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Add Section" placement='left'>
+              <IconButton size='small' onClick={() => handleAddWidget('section-header')}>
+                <i className='ri-separator' style={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={t('dashboard.layouts')} placement='left'>
+              <IconButton size='small' onClick={(e) => setLayoutMenuAnchor(e.currentTarget)}>
+                <i className='ri-layout-grid-line' style={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
+        <Tooltip title={editMode ? t('dashboard.finish') : t('dashboard.customize')} placement='left'>
+          <IconButton
+            onClick={() => setEditMode(!editMode)}
+            size='small'
+            color={editMode ? 'primary' : 'default'}
+            sx={editMode ? {
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              '&:hover': { bgcolor: 'primary.dark' }
+            } : {}}
+          >
+            <i className={editMode ? 'ri-check-line' : 'ri-settings-3-line'} style={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
+        {onRefresh && (
+          <Tooltip title={t('dashboard.refreshData')} placement='left'>
+            <IconButton
+              onClick={onRefresh}
+              disabled={refreshLoading}
+              size='small'
+            >
+              <i className={refreshLoading ? 'ri-loader-4-line' : 'ri-refresh-line'} style={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+        <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'} placement='left'>
+          <IconButton onClick={toggleFullscreen} size='small'>
+            <i className={fullscreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'} style={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
 
       {/* Empty state */}
       {layout.length === 0 && (
@@ -598,7 +728,7 @@ export default function WidgetGrid({ data, loading, onRefresh, refreshLoading })
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert variant='filled' severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
           {snackbar.message}
         </Alert>
       </Snackbar>

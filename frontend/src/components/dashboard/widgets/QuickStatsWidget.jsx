@@ -2,10 +2,12 @@
 
 import React from 'react'
 import { useTranslations } from 'next-intl'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography, useTheme } from '@mui/material'
 
 function QuickStatsWidget({ data, loading }) {
   const t = useTranslations()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const summary = data?.summary || {}
   const pbs = data?.pbs || {}
   const alertsSummary = data?.alertsSummary || {}
@@ -50,24 +52,36 @@ function QuickStatsWidget({ data, loading }) {
   ]
 
   return (
-    <Box sx={{ 
-      height: '100%', 
-      display: 'flex', 
-      alignItems: 'center',
-      justifyContent: 'space-around',
-      p: 1,
-      flexWrap: 'wrap',
-      gap: 1
-    }}>
+    <Box
+      {...(!isDark && { 'data-dark': '' })}
+      sx={{
+        height: '100%',
+        bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+        border: '1px solid',
+        borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+        borderRadius: 2.5,
+        p: 1.5,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        flexWrap: 'wrap',
+        gap: 1,
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        '&:hover': {
+          borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.15)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        },
+      }}
+    >
       {stats.map((stat, idx) => (
         <Box key={idx} sx={{ textAlign: 'center', minWidth: 60 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
             <i className={stat.icon} style={{ fontSize: 14, color: stat.color }} />
-            <Typography variant='body1' sx={{ fontWeight: 800, color: stat.color }}>
+            <Typography variant='body1' sx={{ fontWeight: 800, color: stat.color, fontFamily: '"JetBrains Mono", monospace' }}>
               {stat.value}
             </Typography>
           </Box>
-          <Typography variant='caption' sx={{ opacity: 0.6, fontSize: 9 }}>
+          <Typography variant='caption' sx={{ opacity: 0.65, fontSize: 9 }}>
             {stat.label}
           </Typography>
         </Box>

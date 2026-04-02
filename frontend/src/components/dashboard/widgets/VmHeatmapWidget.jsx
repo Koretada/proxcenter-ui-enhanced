@@ -4,49 +4,29 @@ import React, { useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
-  Box,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip as MuiTooltip,
-  Typography,
-  useTheme,
-  alpha,
+  Box, Checkbox, IconButton, ListItemText, Menu, MenuItem,
+  Tooltip as MuiTooltip, Typography, useTheme,
 } from '@mui/material'
 
-// Color gradient: green (low) → yellow (mid) → red (high)
+// ─── Colors ──────────────────────────────────────────────────────────────────
 function getHeatColor(pct) {
   const p = Math.max(0, Math.min(100, pct))
+  if (p < 30) { const t = p / 30; return `rgb(${Math.round(34 + t * 100)},${Math.round(197 + t * 7)},${Math.round(94 - t * 72)})` }
+  if (p < 60) { const t = (p - 30) / 30; return `rgb(${Math.round(134 + t * 100)},${Math.round(204 - t * 24)},${Math.round(22 - t * 14)})` }
+  if (p < 80) { const t = (p - 60) / 20; return `rgb(${Math.round(234 + t * 5)},${Math.round(180 - t * 112)},${Math.round(8 + t * 60)})` }
+  const t = (p - 80) / 20; return `rgb(${Math.round(239 - t * 30)},${Math.round(68 - t * 40)},${Math.round(68 - t * 30)})`
+}
 
-  if (p < 30) {
-    // Green
-    const t = p / 30
-    const r = Math.round(34 + t * (100))
-    const g = Math.round(197 + t * (7))
-    const b = Math.round(94 - t * (72))
-    return `rgb(${r},${g},${b})`
-  }
-  if (p < 60) {
-    // Yellow-orange
-    const t = (p - 30) / 30
-    const r = Math.round(134 + t * (100))
-    const g = Math.round(204 - t * (24))
-    const b = Math.round(22 - t * (14))
-    return `rgb(${r},${g},${b})`
-  }
-  if (p < 80) {
-    // Orange-red
-    const t = (p - 60) / 20
-    const r = Math.round(234 + t * (5))
-    const g = Math.round(180 - t * (112))
-    const b = Math.round(8 + t * (60))
-    return `rgb(${r},${g},${b})`
-  }
-  // Deep red
-  const t = (p - 80) / 20
-  const r = Math.round(239 - t * (30))
-  const g = Math.round(68 - t * (40))
-  const b = Math.round(68 - t * (30))
-  return `rgb(${r},${g},${b})`
+const STATUS_COLORS = {
+  running: '#4caf50',
+  stopped: '#9e9e9e',
+  paused: '#ff9800',
+  suspended: '#ff9800',
+  unknown: '#616161',
+}
+
+function getStatusColor(status) {
+  return STATUS_COLORS[status] || STATUS_COLORS.unknown
 }
 
 function formatBytes(bytes) {
@@ -56,396 +36,313 @@ function formatBytes(bytes) {
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0)} ${units[i]}`
 }
 
-function TileTooltipContent({ vm, metric }) {
+// ─── Tooltip ─────────────────────────────────────────────────────────────────
+function TileTooltip({ vm, mode }) {
+  const headerColor = mode === 'status' ? getStatusColor(vm.status) : getHeatColor(mode === 'cpu' ? vm.cpuPct : vm.ramPct)
   return (
-    <Box sx={{ minWidth: 180 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-        <i
-          className={vm.type === 'lxc' ? 'ri-instance-line' : 'ri-computer-line'}
-          style={{ fontSize: 13, opacity: 0.7 }}
-        />
-        <Typography variant="caption" sx={{ fontWeight: 700 }}>
-          {vm.name || `VM ${vm.vmid}`}
-        </Typography>
-      </Box>
-      <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontSize: 10, mb: 0.75 }}>
+    <div style={{ background: '#1e1e2d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, overflow: 'hidden', fontSize: 10, minWidth: 140 }}>
+      <div style={{ background: headerColor, color: '#fff', padding: '3px 8px', fontWeight: 700, fontSize: 10, display: 'flex', alignItems: 'center', gap: 4, textShadow: '0 0 2px rgba(0,0,0,0.4)' }}>
+        <i className={vm.type === 'lxc' ? 'ri-instance-line' : 'ri-computer-line'} style={{ fontSize: 11 }} />
+        {vm.name || `VM ${vm.vmid}`}
+      </div>
+      <div style={{ padding: '5px 8px', display: 'flex', gap: 12 }}>
+        <div>
+          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9 }}>Status</div>
+          <div style={{ fontWeight: 600, color: getStatusColor(vm.status), fontFamily: '"JetBrains Mono", monospace' }}>{vm.status}</div>
+        </div>
+        {vm.status === 'running' && (
+          <>
+            <div>
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9 }}>CPU</div>
+              <div style={{ fontWeight: mode === 'cpu' ? 700 : 400, fontFamily: '"JetBrains Mono", monospace', color: '#fff' }}>{vm.cpuPct}%</div>
+            </div>
+            <div>
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9 }}>RAM</div>
+              <div style={{ fontWeight: mode === 'ram' ? 700 : 400, fontFamily: '"JetBrains Mono", monospace', color: '#fff' }}>{vm.ramPct}%</div>
+            </div>
+          </>
+        )}
+        <div>
+          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9 }}>Alloc</div>
+          <div style={{ fontFamily: '"JetBrains Mono", monospace', color: '#fff' }}>{formatBytes(vm.maxmem)}</div>
+        </div>
+      </div>
+      <div style={{ padding: '0 8px 4px', fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>
         #{vm.vmid} · {vm.type === 'lxc' ? 'LXC' : 'VM'} · {vm.node}
-      </Typography>
-      <Box sx={{ display: 'flex', gap: 2.5 }}>
-        <Box>
-          <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>CPU</Typography>
-          <Typography variant="caption" sx={{
-            display: 'block',
-            fontWeight: metric === 'cpu' ? 700 : 400,
-            fontFamily: '"JetBrains Mono", monospace',
-          }}>
-            {vm.cpuPct}%
-          </Typography>
-        </Box>
-        <Box>
-          <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>RAM</Typography>
-          <Typography variant="caption" sx={{
-            display: 'block',
-            fontWeight: metric === 'ram' ? 700 : 400,
-            fontFamily: '"JetBrains Mono", monospace',
-          }}>
-            {vm.ramPct}%
-          </Typography>
-        </Box>
-        <Box>
-          <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>Alloc</Typography>
-          <Typography variant="caption" sx={{ display: 'block', fontFamily: '"JetBrains Mono", monospace' }}>
-            {formatBytes(vm.maxmem)}
-          </Typography>
-        </Box>
-      </Box>
-    </Box>
+      </div>
+    </div>
   )
 }
 
-// Simple squarified-ish treemap layout within a rectangular area
-function computeTreemapLayout(items, width, height) {
-  if (items.length === 0 || width <= 0 || height <= 0) return []
+// ─── Connection Filter ───────────────────────────────────────────────────────
+function ConnectionFilter({ connections, selected, onChange }) {
+  const [anchorEl, setAnchorEl] = useState(null)
+  const allSelected = !selected || selected.length === 0
 
-  const totalValue = items.reduce((s, it) => s + it.value, 0)
-  if (totalValue <= 0) return items.map((it, i) => ({ ...it, x: 0, y: 0, w: 0, h: 0 }))
-
-  const rects = []
-  let remaining = [...items].sort((a, b) => b.value - a.value)
-  let x = 0, y = 0, w = width, h = height
-  let remainingValue = totalValue
-
-  while (remaining.length > 0) {
-    const isHorizontal = w >= h
-
-    // Find best split for the current strip
-    let bestRatio = Infinity
-    let bestCount = 1
-
-    for (let count = 1; count <= remaining.length; count++) {
-      const stripItems = remaining.slice(0, count)
-      const stripValue = stripItems.reduce((s, it) => s + it.value, 0)
-
-      const stripSize = isHorizontal
-        ? (stripValue / remainingValue) * w
-        : (stripValue / remainingValue) * h
-
-      let worstRatio = 0
-      let offset = 0
-
-      for (const item of stripItems) {
-        const frac = item.value / stripValue
-        const itemLen = isHorizontal ? frac * h : frac * w
-
-        if (stripSize > 0 && itemLen > 0) {
-          const ratio = Math.max(stripSize / itemLen, itemLen / stripSize)
-          worstRatio = Math.max(worstRatio, ratio)
-        }
-
-        offset += itemLen
-      }
-
-      if (worstRatio <= bestRatio) {
-        bestRatio = worstRatio
-        bestCount = count
-      } else {
-        break // Ratio getting worse, stop
-      }
-    }
-
-    // Layout the strip
-    const stripItems = remaining.slice(0, bestCount)
-    const stripValue = stripItems.reduce((s, it) => s + it.value, 0)
-
-    const stripSize = isHorizontal
-      ? Math.max(1, (stripValue / remainingValue) * w)
-      : Math.max(1, (stripValue / remainingValue) * h)
-
-    let offset = 0
-
-    for (const item of stripItems) {
-      const frac = stripValue > 0 ? item.value / stripValue : 1 / stripItems.length
-      const itemLen = isHorizontal ? frac * h : frac * w
-
-      rects.push({
-        ...item,
-        x: isHorizontal ? x : x + offset,
-        y: isHorizontal ? y + offset : y,
-        w: isHorizontal ? stripSize : itemLen,
-        h: isHorizontal ? itemLen : stripSize,
-      })
-
-      offset += itemLen
-    }
-
-    // Shrink remaining area
-    if (isHorizontal) {
-      x += stripSize
-      w -= stripSize
-    } else {
-      y += stripSize
-      h -= stripSize
-    }
-
-    remainingValue -= stripValue
-    remaining = remaining.slice(bestCount)
+  const handleToggle = (id) => {
+    if (allSelected) onChange([id])
+    else if (selected.includes(id)) { const next = selected.filter(k => k !== id); onChange(next.length === 0 ? [] : next) }
+    else onChange([...selected, id])
   }
 
-  return rects
+  return (
+    <>
+      <IconButton size='small' onClick={(e) => { e.stopPropagation(); setAnchorEl(e.currentTarget) }} sx={{ p: 0.25 }}>
+        <i className='ri-filter-3-line' style={{ fontSize: 14, opacity: allSelected ? 0.5 : 1, color: '#fff' }} />
+      </IconButton>
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} slotProps={{ paper: { sx: { maxHeight: 300 } } }}>
+        <MenuItem dense onClick={() => { onChange([]); setAnchorEl(null) }}>
+          <Checkbox size='small' checked={allSelected} sx={{ p: 0, mr: 1 }} />
+          <ListItemText primaryTypographyProps={{ fontSize: 12 }}>All</ListItemText>
+        </MenuItem>
+        {connections.map(c => (
+          <MenuItem key={c.id} dense onClick={() => handleToggle(c.id)}>
+            <Checkbox size='small' checked={allSelected || selected.includes(c.id)} sx={{ p: 0, mr: 1 }} />
+            <ListItemText primaryTypographyProps={{ fontSize: 12 }}>{c.name}</ListItemText>
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
+  )
 }
 
-function VmHeatmapWidget({ data, loading: dashboardLoading }) {
+// ─── Main Widget ─────────────────────────────────────────────────────────────
+const TILE_SIZE = 22
+const TILE_GAP = 2
+const MODES = ['status', 'cpu', 'ram']
+
+function VmHeatmapWidget({ data, loading: dashboardLoading, config, onUpdateSettings }) {
   const t = useTranslations()
   const theme = useTheme()
   const router = useRouter()
-  const [metric, setMetric] = useState('ram')
+  const isDark = theme.palette.mode === 'dark'
+  const [mode, setMode] = useState('status')
+  const [minThreshold, setMinThreshold] = useState(0)
 
-  // Combine VMs + LXC, compute metrics
+  const selectedConnections = config?.settings?.selectedConnections || []
+  const handleFilterChange = (newSelected) => { if (onUpdateSettings) onUpdateSettings({ selectedConnections: newSelected }) }
+  const allConnections = useMemo(() => (data?.clusters || []).map(c => ({ id: c.id, name: c.name })), [data?.clusters])
+
+  // Combine VMs + LXC
   const guests = useMemo(() => {
     const vms = data?.vmList || []
     const lxcs = data?.lxcList || []
-    const all = [...vms, ...lxcs].filter(g => g.status === 'running' && !g.template)
+    let all = [...vms, ...lxcs].filter(g => !g.template)
 
-    return all.map((g) => {
+    if (selectedConnections.length > 0) all = all.filter(g => selectedConnections.includes(g.connId))
+
+    const mapped = all.map((g) => {
       const cpuPct = Math.round((Number(g.cpu) || 0) * 100)
       const mem = Number(g.mem) || 0
       const maxmem = Number(g.maxmem) || 0
       const ramPct = maxmem > 0 ? Math.round((mem / maxmem) * 100) : 0
-
       return { ...g, cpuPct, ramPct }
     })
-  }, [data?.vmList, data?.lxcList])
+
+    // In status mode: show all (running + stopped). In cpu/ram mode: only running + threshold
+    let filtered = mode === 'status'
+      ? mapped
+      : mapped.filter(g => g.status === 'running')
+
+    if (mode !== 'status' && minThreshold > 0) {
+      filtered = filtered.filter(g => (mode === 'cpu' ? g.cpuPct : g.ramPct) >= minThreshold)
+    }
+
+    // Sort: status mode by status then name, cpu/ram mode by value desc
+    if (mode === 'status') {
+      filtered.sort((a, b) => {
+        if (a.status !== b.status) return a.status === 'running' ? -1 : 1
+        return (a.name || '').localeCompare(b.name || '')
+      })
+    } else {
+      filtered.sort((a, b) => (mode === 'cpu' ? b.cpuPct - a.cpuPct : b.ramPct - a.ramPct))
+    }
+
+    return filtered
+  }, [data?.vmList, data?.lxcList, selectedConnections, mode, minThreshold])
 
   // Group by node
   const nodeGroups = useMemo(() => {
     const groups = {}
-
     guests.forEach((g) => {
       const key = g.node || 'unknown'
-      if (!groups[key]) groups[key] = { node: key, vms: [], totalMem: 0 }
+      if (!groups[key]) groups[key] = { node: key, connId: g.connId, vms: [] }
       groups[key].vms.push(g)
-      groups[key].totalMem += Number(g.maxmem) || 0
     })
-
-    return Object.values(groups).sort((a, b) => b.totalMem - a.totalMem)
+    return Object.values(groups).sort((a, b) => b.vms.length - a.vms.length)
   }, [guests])
 
   // Stats
   const stats = useMemo(() => {
     if (guests.length === 0) return null
+    const running = guests.filter(g => g.status === 'running').length
+    const stopped = guests.filter(g => g.status !== 'running').length
+    if (mode === 'status') return { total: guests.length, running, stopped }
+    const vals = guests.map(g => mode === 'cpu' ? g.cpuPct : g.ramPct)
+    return { total: guests.length, avg: Math.round(vals.reduce((s, v) => s + v, 0) / vals.length), hot: vals.filter(v => v >= 80).length }
+  }, [guests, mode])
 
-    const vals = guests.map(g => metric === 'cpu' ? g.cpuPct : g.ramPct)
-    const avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length)
-    const max = Math.max(...vals)
-    const hot = vals.filter(v => v >= 80).length
+  const handleClick = useCallback((vm) => { router.push(`/infrastructure/inventory?vmid=${vm.vmid}&connId=${vm.connId}&node=${vm.node}&type=${vm.type}`) }, [router])
+  const cycleThreshold = () => setMinThreshold(prev => prev === 0 ? 20 : prev === 20 ? 50 : 0)
 
-    return { avg, max, hot, total: guests.length }
-  }, [guests, metric])
+  // Tile color based on mode
+  const getTileColor = (vm) => {
+    if (mode === 'status') return getStatusColor(vm.status)
+    return getHeatColor(mode === 'cpu' ? vm.cpuPct : vm.ramPct)
+  }
 
-  const handleClick = useCallback((vm) => {
-    router.push(`/infrastructure/inventory?vmid=${vm.vmid}&connId=${vm.connId}&node=${vm.node}&type=${vm.type}`)
-  }, [router])
+  // Tile label
+  const getTileLabel = (vm) => {
+    if (mode === 'status') return vm.status === 'running' ? '' : ''
+    return mode === 'cpu' ? vm.cpuPct : vm.ramPct
+  }
+
+  const darkCard = {
+    bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+    border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+    borderRadius: 2.5, p: 1.5,
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+    '&:hover': { borderColor: 'rgba(255,255,255,0.15)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' },
+  }
 
   if (!data || dashboardLoading) {
-    return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="caption" color="text.secondary">Loading...</Typography>
-      </Box>
-    )
+    return <Box {...(!isDark && { 'data-dark': '' })} sx={{ height: '100%', ...darkCard, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Typography sx={{ opacity: 0.4, fontSize: 11 }}>Loading...</Typography></Box>
   }
 
   if (guests.length === 0) {
-    return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="caption" color="text.secondary">
-          {t('common.noData')}
-        </Typography>
-      </Box>
-    )
+    return <Box {...(!isDark && { 'data-dark': '' })} sx={{ height: '100%', ...darkCard, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Typography sx={{ opacity: 0.4, fontSize: 11 }}>{t('common.noData')}</Typography></Box>
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box {...(!isDark && { 'data-dark': '' })} sx={{ height: '100%', ...darkCard, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, gap: 1 }}>
-        {stats && (
-          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 10 }}>
-              {stats.total} guests
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 10 }}>
-              Avg <Box component="span" sx={{ fontWeight: 700, color: 'text.primary', fontFamily: '"JetBrains Mono", monospace' }}>{stats.avg}%</Box>
-            </Typography>
-            {stats.hot > 0 && (
-              <Typography variant="caption" sx={{ color: 'error.main', fontSize: 10, fontWeight: 600 }}>
-                {stats.hot} hot
-              </Typography>
-            )}
-          </Box>
-        )}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75, gap: 0.5, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          {stats && (
+            <>
+              <Typography sx={{ fontSize: 10, opacity: 0.6 }}>{stats.total} guests</Typography>
+              {mode === 'status' && (
+                <>
+                  <Typography sx={{ fontSize: 10, color: '#4caf50', fontWeight: 600 }}>{stats.running} <span style={{ fontWeight: 400, opacity: 0.7 }}>running</span></Typography>
+                  {stats.stopped > 0 && <Typography sx={{ fontSize: 10, color: '#9e9e9e', fontWeight: 600 }}>{stats.stopped} <span style={{ fontWeight: 400, opacity: 0.7 }}>stopped</span></Typography>}
+                </>
+              )}
+              {mode !== 'status' && (
+                <>
+                  <Typography sx={{ fontSize: 10, opacity: 0.6 }}>
+                    Avg <span style={{ fontWeight: 700, color: '#fff', fontFamily: '"JetBrains Mono", monospace' }}>{stats.avg}%</span>
+                  </Typography>
+                  {stats.hot > 0 && <Typography sx={{ fontSize: 10, color: '#ef4444', fontWeight: 600 }}>{stats.hot} hot</Typography>}
+                </>
+              )}
+            </>
+          )}
+        </Box>
 
-        <ToggleButtonGroup
-          value={metric}
-          exclusive
-          onChange={(e, val) => val && setMetric(val)}
-          size="small"
-        >
-          {['cpu', 'ram'].map((v) => (
-            <ToggleButton key={v} value={v} sx={{ px: 1.5, py: 0.5, fontSize: '0.75rem', minWidth: 48, fontWeight: metric === v ? 700 : 400, '&.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } } }}>
-              {v.toUpperCase()}
-            </ToggleButton>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          {/* Mode toggle */}
+          {MODES.map((v) => (
+            <Box key={v} onClick={() => setMode(v)} sx={{
+              px: 0.75, py: 0.2, borderRadius: 1, cursor: 'pointer', fontSize: 10, fontWeight: mode === v ? 700 : 400,
+              color: mode === v ? '#fff' : 'rgba(255,255,255,0.5)', bgcolor: mode === v ? 'rgba(255,255,255,0.12)' : 'transparent',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+            }}>{v === 'status' ? 'Status' : v.toUpperCase()}</Box>
           ))}
-        </ToggleButtonGroup>
+
+          {/* Threshold (only in cpu/ram mode) */}
+          {mode !== 'status' && (
+            <Box onClick={cycleThreshold} sx={{
+              px: 0.75, py: 0.2, borderRadius: 1, cursor: 'pointer', fontSize: 10, fontWeight: 600,
+              color: minThreshold > 0 ? '#fff' : 'rgba(255,255,255,0.5)',
+              bgcolor: minThreshold > 0 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' },
+            }}>{minThreshold > 0 ? `>${minThreshold}%` : 'All'}</Box>
+          )}
+
+          {allConnections.length > 1 && <ConnectionFilter connections={allConnections} selected={selectedConnections} onChange={handleFilterChange} />}
+        </Box>
       </Box>
 
-      {/* Treemap area */}
+      {/* Grid by node */}
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         {nodeGroups.map((group) => (
           <Box key={group.node} sx={{ mb: 1 }}>
-            {/* Node header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-              <i className="ri-server-line" style={{ fontSize: 11, color: theme.palette.text.secondary }} />
-              <Typography variant="caption" sx={{ fontWeight: 600, fontSize: 10, color: 'text.secondary' }}>
-                {group.node}
-              </Typography>
-              <Typography variant="caption" sx={{ fontSize: 9, color: 'text.disabled' }}>
-                ({group.vms.length})
-              </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.4 }}>
+              <Box sx={{ position: 'relative', width: 14, height: 14, flexShrink: 0 }}>
+                <img src='/images/proxmox-logo-dark.svg' alt="" width={12} height={12} style={{ opacity: 0.6 }} />
+                <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 5, height: 5, borderRadius: '50%', bgcolor: '#4caf50', border: '1px solid #1e1e2d' }} />
+              </Box>
+              <Typography sx={{ fontWeight: 600, fontSize: 10, opacity: 0.6 }}>{group.node}</Typography>
+              <Typography sx={{ fontSize: 9, opacity: 0.35 }}>({group.vms.length})</Typography>
             </Box>
 
-            {/* Treemap tiles for this node */}
-            <TreemapGroup
-              vms={group.vms}
-              metric={metric}
-              theme={theme}
-              onClick={handleClick}
-            />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${TILE_GAP}px` }}>
+              {group.vms.map((vm) => {
+                const tileColor = getTileColor(vm)
+                const label = getTileLabel(vm)
+                const isRunning = vm.status === 'running'
+                return (
+                  <MuiTooltip key={vm.id} title={<TileTooltip vm={vm} mode={mode} />} arrow placement="top" enterDelay={80} leaveDelay={0}
+                    slotProps={{ tooltip: { sx: { bgcolor: 'transparent', p: 0, maxWidth: 'none' } }, arrow: { sx: { color: '#1e1e2d' } } }}
+                  >
+                    <Box
+                      onClick={() => handleClick(vm)}
+                      sx={{
+                        width: TILE_SIZE, height: TILE_SIZE, borderRadius: 0.5,
+                        bgcolor: tileColor, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        opacity: mode === 'status' && !isRunning ? 0.5 : 1,
+                        transition: 'transform 0.1s, box-shadow 0.1s',
+                        '&:hover': { transform: 'scale(1.3)', zIndex: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.4)', outline: '1px solid rgba(255,255,255,0.5)' },
+                      }}
+                    >
+                      {mode !== 'status' && (
+                        <Typography sx={{
+                          fontSize: 7, fontWeight: 700, lineHeight: 1,
+                          color: (mode === 'cpu' ? vm.cpuPct : vm.ramPct) > 50 ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.6)',
+                          textShadow: (mode === 'cpu' ? vm.cpuPct : vm.ramPct) > 50 ? '0 0 1px rgba(0,0,0,0.3)' : 'none',
+                        }}>
+                          {label}
+                        </Typography>
+                      )}
+                      {mode === 'status' && !isRunning && (
+                        <i className='ri-stop-fill' style={{ fontSize: 8, color: 'rgba(255,255,255,0.7)' }} />
+                      )}
+                    </Box>
+                  </MuiTooltip>
+                )
+              })}
+            </Box>
           </Box>
         ))}
       </Box>
 
-      {/* Color scale legend */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, px: 0.5 }}>
-        <Typography variant="caption" sx={{ fontSize: 9, color: 'text.secondary' }}>0%</Typography>
-        <Box
-          sx={{
-            flex: 1,
-            height: 6,
-            borderRadius: 3,
-            background: `linear-gradient(to right, ${getHeatColor(0)}, ${getHeatColor(30)}, ${getHeatColor(60)}, ${getHeatColor(80)}, ${getHeatColor(100)})`,
-          }}
-        />
-        <Typography variant="caption" sx={{ fontSize: 9, color: 'text.secondary' }}>100%</Typography>
-        <Typography variant="caption" sx={{ fontSize: 9, color: 'text.secondary', ml: 0.5 }}>
-          {metric.toUpperCase()}
-        </Typography>
-      </Box>
-    </Box>
-  )
-}
-
-// Sub-component: renders the treemap tiles for a single node group
-function TreemapGroup({ vms, metric, theme, onClick }) {
-  const containerRef = React.useRef(null)
-  const [dims, setDims] = React.useState({ w: 0, h: 0 })
-
-  React.useEffect(() => {
-    if (!containerRef.current) return
-
-    const obs = new ResizeObserver((entries) => {
-      const { width } = entries[0].contentRect
-      // Height is proportional to number of VMs, min 60, max 160
-      const h = Math.max(60, Math.min(160, 20 + vms.length * 8))
-      setDims({ w: width, h })
-    })
-
-    obs.observe(containerRef.current)
-    return () => obs.disconnect()
-  }, [vms.length])
-
-  const tiles = useMemo(() => {
-    if (dims.w <= 0 || dims.h <= 0) return []
-
-    const items = vms.map((vm) => ({
-      ...vm,
-      value: Math.max(Number(vm.maxmem) || 1, 1), // Size by allocated RAM
-    }))
-
-    return computeTreemapLayout(items, dims.w, dims.h)
-  }, [vms, dims.w, dims.h])
-
-  return (
-    <Box
-      ref={containerRef}
-      sx={{
-        position: 'relative',
-        width: '100%',
-        height: Math.max(60, Math.min(160, 20 + vms.length * 8)),
-        borderRadius: 1,
-        overflow: 'hidden',
-        bgcolor: alpha(theme.palette.divider, 0.15),
-      }}
-    >
-      {tiles.map((tile) => {
-        const val = metric === 'cpu' ? tile.cpuPct : tile.ramPct
-        const bgColor = getHeatColor(val)
-        const showLabel = tile.w > 40 && tile.h > 18
-
-        return (
-          <MuiTooltip
-            key={tile.id}
-            title={<TileTooltipContent vm={tile} metric={metric} />}
-            arrow
-            placement="top"
-            enterDelay={80}
-            leaveDelay={0}
-          >
-            <Box
-              onClick={() => onClick(tile)}
-              sx={{
-                position: 'absolute',
-                left: tile.x,
-                top: tile.y,
-                width: Math.max(tile.w - 1, 1),
-                height: Math.max(tile.h - 1, 1),
-                bgcolor: bgColor,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                transition: 'filter 0.1s, z-index 0s',
-                border: `0.5px solid ${alpha(theme.palette.common.black, 0.15)}`,
-                '&:hover': {
-                  filter: 'brightness(1.2)',
-                  zIndex: 10,
-                  outline: `2px solid ${theme.palette.common.white}`,
-                },
-              }}
-            >
-              {showLabel && (
-                <Typography
-                  sx={{
-                    fontSize: Math.min(10, tile.h * 0.5),
-                    fontWeight: 600,
-                    color: val > 60 ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.75)',
-                    lineHeight: 1,
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    px: 0.25,
-                    textShadow: val > 60
-                      ? '0 0 2px rgba(0,0,0,0.3)'
-                      : '0 0 2px rgba(255,255,255,0.3)',
-                  }}
-                >
-                  {tile.name || tile.vmid}
-                </Typography>
-              )}
+      {/* Legend */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+        {mode === 'status' ? (
+          <>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: 0.5, bgcolor: '#4caf50' }} />
+              <Typography sx={{ fontSize: 9, opacity: 0.6 }}>Running</Typography>
             </Box>
-          </MuiTooltip>
-        )
-      })}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: 0.5, bgcolor: '#9e9e9e', opacity: 0.5 }} />
+              <Typography sx={{ fontSize: 9, opacity: 0.6 }}>Stopped</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: 0.5, bgcolor: '#ff9800' }} />
+              <Typography sx={{ fontSize: 9, opacity: 0.6 }}>Paused</Typography>
+            </Box>
+          </>
+        ) : (
+          <>
+            <Typography sx={{ fontSize: 9, opacity: 0.5 }}>0%</Typography>
+            <Box sx={{ flex: 1, height: 5, borderRadius: 3, background: `linear-gradient(to right, ${getHeatColor(0)}, ${getHeatColor(30)}, ${getHeatColor(60)}, ${getHeatColor(80)}, ${getHeatColor(100)})` }} />
+            <Typography sx={{ fontSize: 9, opacity: 0.5 }}>100%</Typography>
+            <Typography sx={{ fontSize: 9, opacity: 0.5, ml: 0.5 }}>{mode.toUpperCase()}</Typography>
+          </>
+        )}
+      </Box>
     </Box>
   )
 }

@@ -363,8 +363,11 @@ return null
           readBps: Number(pgmap?.read_bytes_sec || 0), writeBps: Number(pgmap?.write_bytes_sec || 0),
         }
 
-        if (!cephGlobal) cephGlobal = cephData
-        cephClusters.push({ connId: data.conn.id, name: data.clusterName, ...cephData })
+        // Only include real Ceph clusters (multi-node with actual OSDs)
+        if (data.isCluster && cephData.osdsTotal > 0 && cephData.health !== 'UNKNOWN') {
+          if (!cephGlobal) cephGlobal = cephData
+          cephClusters.push({ connId: data.conn.id, name: data.clusterName, ...cephData })
+        }
       }
     }
 
@@ -391,6 +394,7 @@ return null
         id: data.conn.id, name: data.conn.name, datastores: data.datastoreCount,
         totalSize: data.totalSize, totalUsed: data.totalUsed, usagePct: data.usagePct,
         backups24h: data.tasks.backup.total, backupsOk: data.tasks.backup.ok, backupsError: data.tasks.backup.error,
+        verifyTotal: data.tasks.verify.total, verifyOk: data.tasks.verify.ok, verifyError: data.tasks.verify.error,
       })
 
       for (const err of data.recentErrors) {

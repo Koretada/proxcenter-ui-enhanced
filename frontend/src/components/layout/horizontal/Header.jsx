@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Box, Button, Typography } from '@mui/material'
-import { useTheme } from '@mui/material/styles'
+import { Box, Button } from '@mui/material'
 
 // Component Imports
 import Navigation from './Navigation'
@@ -11,7 +10,7 @@ import NavbarContent from './NavbarContent'
 import BurgerMenu from './BurgerMenu'
 import Navbar from '@layouts/components/horizontal/Navbar'
 import LayoutHeader from '@layouts/components/horizontal/Header'
-import { LogoIcon } from '@components/layout/shared/Logo'
+import Logo from '@components/layout/shared/Logo'
 
 // Hook Imports
 import useHorizontalNav from '@menu/hooks/useHorizontalNav'
@@ -19,12 +18,9 @@ import useHorizontalNav from '@menu/hooks/useHorizontalNav'
 const Header = () => {
   const { isBreakpointReached } = useHorizontalNav()
   const router = useRouter()
-  const theme = useTheme()
 
   // Burger menu state
   const [burgerAnchor, setBurgerAnchor] = useState(null)
-
-  const accentColor = theme.palette.primary.main
 
   return (
     <>
@@ -36,24 +32,12 @@ const Header = () => {
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1,
                 cursor: 'pointer',
                 color: 'text.primary'
               }}
               onClick={() => router.push('/home')}
             >
-              <LogoIcon size={26} accentColor={accentColor} />
-              <Typography
-                sx={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  letterSpacing: '0.02em',
-                  textTransform: 'uppercase',
-                  display: { xs: 'none', sm: 'block' }
-                }}
-              >
-                ProxCenter
-              </Typography>
+              <Logo />
             </Box>
             <Button
               size='small'

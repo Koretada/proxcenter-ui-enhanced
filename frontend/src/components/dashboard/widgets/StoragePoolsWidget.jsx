@@ -3,19 +3,21 @@
 import React, { useEffect, useState } from 'react'
 
 import { useTranslations } from 'next-intl'
-import { Alert, Box, Chip, CircularProgress, LinearProgress, Typography } from '@mui/material'
+import { Alert, Box, Chip, CircularProgress, LinearProgress, Typography, useTheme } from '@mui/material'
 
 import { formatBytes } from '@/utils/format'
 
 function StoragePoolsWidget({ data, loading, config }) {
   const t = useTranslations()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const [storages, setStorages] = useState([])
   const [loadingStorages, setLoadingStorages] = useState(true)
 
   useEffect(() => {
     const fetchStorages = async () => {
       try {
-        // Récupérer les storages de toutes les connexions
+        // Recuperer les storages de toutes les connexions
         const connRes = await fetch('/api/v1/connections?type=pve')
 
         if (!connRes.ok) return
@@ -23,7 +25,7 @@ function StoragePoolsWidget({ data, loading, config }) {
         const connections = connJson?.data || []
 
         const allStorages = []
-        
+
         await Promise.all(connections.map(async (conn) => {
           try {
             const res = await fetch(`/api/v1/connections/${encodeURIComponent(conn.id)}/storage`)
@@ -47,13 +49,12 @@ function StoragePoolsWidget({ data, loading, config }) {
           }
         }))
 
-        // Trier par utilisation décroissante
+        // Trier par utilisation decroissante
         allStorages.sort((a, b) => {
           const aUsage = a.total ? (a.used / a.total) : 0
           const bUsage = b.total ? (b.used / b.total) : 0
 
-          
-return bUsage - aUsage
+          return bUsage - aUsage
         })
 
         setStorages(allStorages)
@@ -69,7 +70,16 @@ return bUsage - aUsage
 
   if (loadingStorages) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box
+        {...(!isDark && { 'data-dark': '' })}
+        sx={{
+          height: '100%',
+          bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+          border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+          borderRadius: 2.5, p: 1.5,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
         <CircularProgress size={24} />
       </Box>
     )
@@ -77,30 +87,52 @@ return bUsage - aUsage
 
   if (storages.length === 0) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
+      <Box
+        {...(!isDark && { 'data-dark': '' })}
+        sx={{
+          height: '100%',
+          bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+          border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+          borderRadius: 2.5, p: 2,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'border-color 0.2s, box-shadow 0.2s',
+          '&:hover': { borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.15)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' },
+        }}
+      >
         <Alert severity='info' sx={{ width: '100%' }}>{t('common.noData')}</Alert>
       </Box>
     )
   }
 
   return (
-    <Box sx={{ height: '100%', overflow: 'auto', p: 0.5 }}>
+    <Box
+      {...(!isDark && { 'data-dark': '' })}
+      sx={{
+        height: '100%',
+        bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+        border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+        borderRadius: 2.5, p: 1.5,
+        overflow: 'auto',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        '&:hover': { borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.15)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' },
+      }}
+    >
       {storages.slice(0, 8).map((storage, idx) => {
         const usagePct = storage.total ? Math.round((storage.used / storage.total) * 100) : 0
         const color = usagePct > 90 ? '#f44336' : usagePct > 75 ? '#ff9800' : '#4caf50'
 
         return (
-          <Box 
-            key={idx} 
-            sx={{ 
-              py: 0.75, 
+          <Box
+            key={idx}
+            sx={{
+              py: 0.75,
               borderBottom: idx < storages.length - 1 ? '1px solid' : 'none',
-              borderColor: 'divider'
+              borderColor: 'rgba(255,255,255,0.06)'
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                <i className='ri-hard-drive-2-line' style={{ fontSize: 14, opacity: 0.6 }} />
+                <i className='ri-hard-drive-2-line' style={{ fontSize: 14, opacity: 0.65 }} />
                 <Typography variant='caption' sx={{ fontWeight: 700, fontSize: 11 }}>
                   {storage.storage}
                 </Typography>
@@ -116,17 +148,17 @@ return bUsage - aUsage
                 variant='determinate'
                 value={usagePct}
                 sx={{
-                  height: 14, borderRadius: 0, bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)',
+                  height: 14, borderRadius: 0, bgcolor: 'rgba(255,255,255,0.12)',
                   '& .MuiLinearProgress-bar': { borderRadius: 0, background: 'linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%)', backgroundSize: usagePct > 0 ? `${(100 / usagePct) * 100}% 100%` : '100% 100%' }
                 }}
               />
               <Typography variant='caption' sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#fff', lineHeight: 1, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>{usagePct}%</Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.25 }}>
-              <Typography variant='caption' sx={{ opacity: 0.5, fontSize: 9 }}>
+              <Typography variant='caption' sx={{ opacity: 0.65, fontSize: 9 }}>
                 {storage.connectionName}
               </Typography>
-              <Typography variant='caption' sx={{ opacity: 0.5, fontSize: 9 }}>
+              <Typography variant='caption' sx={{ opacity: 0.65, fontSize: 9 }}>
                 {formatBytes(storage.used)} / {formatBytes(storage.total)}
               </Typography>
             </Box>

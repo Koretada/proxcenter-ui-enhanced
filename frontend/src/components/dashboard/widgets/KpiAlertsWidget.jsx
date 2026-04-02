@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
   Box, Button, ButtonBase, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
-  Divider, IconButton, List, ListItemButton, ListItemText, Typography
+  Divider, IconButton, List, ListItemButton, ListItemText, Typography, useTheme
 } from '@mui/material'
 
 function AlertDetailDialog({ alert, open, onClose, onNavigate, router, t }) {
@@ -199,15 +199,17 @@ function AlertsListDialog({ alerts, open, onClose, t, router }) {
 function KpiAlertsWidget({ data, loading }) {
   const t = useTranslations()
   const router = useRouter()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const [dialogOpen, setDialogOpen] = useState(false)
 
   const alertsSummary = data?.alertsSummary || {}
   const alerts = data?.alerts || []
   const hasCrit = alertsSummary.crit > 0
   const hasWarn = alertsSummary.warn > 0
+  const totalAlerts = (alertsSummary.crit || 0) + (alertsSummary.warn || 0)
 
   const color = hasCrit ? '#f44336' : hasWarn ? '#ff9800' : '#4caf50'
-  const value = hasCrit ? `${alertsSummary.crit} crit` : hasWarn ? `${alertsSummary.warn} warn` : 'OK'
 
   return (
     <>
@@ -230,40 +232,41 @@ function KpiAlertsWidget({ data, loading }) {
       <ButtonBase
         onMouseDown={(e) => e.stopPropagation()}
         onClick={() => setDialogOpen(true)}
-        sx={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', p: 1, borderRadius: 1 }}
+        component="div"
+        sx={{ height: '100%', width: '100%', display: 'block', borderRadius: 2.5, textAlign: 'left' }}
       >
-        <Box sx={{
-          width: 44, height: 44, borderRadius: 2,
-          bgcolor: `${color}18`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0, mr: 1.5,
-          ...(hasCrit && {
-            animation: 'kpiAlertPulse 2s ease-in-out infinite',
-          }),
-        }}>
-          <i className='ri-alarm-warning-line' style={{
-            fontSize: 22,
-            color,
-            ...(hasCrit && {
-              animation: 'kpiIconShake 3s ease-in-out infinite',
-            }),
-          }} />
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-          <Typography variant='caption' sx={{ opacity: 0.6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {t('dashboard.widgets.alerts')}
-          </Typography>
-          <Typography variant='h6' sx={{ fontWeight: 800, color, lineHeight: 1.2 }}>
-            {value}
-          </Typography>
-          <Typography variant='caption' sx={{ opacity: 0.5 }}>
-            {hasCrit || hasWarn ? (() => {
-              const parts = [`${alertsSummary.crit || 0} ${t('alerts.critical')}`, `${alertsSummary.warn || 0} ${t('alerts.warning')}`]
-              const snapCount = alerts.filter(a => a.metric === 'snapshot_stale').length
-              if (snapCount > 0) parts.push(`${snapCount} snap`)
-              return parts.join(' • ')
-            })() : t('alerts.noActiveAlerts')}
-          </Typography>
+        <Box
+          {...(!isDark && { 'data-dark': '' })}
+          sx={{
+            bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+            border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+            borderRadius: 2.5, p: 1.5, height: '100%',
+            display: 'flex', alignItems: 'center', gap: 1.5,
+          }}
+        >
+          <Box sx={{
+            width: 56, height: 56, borderRadius: '50%',
+            bgcolor: `${color}18`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+            ...(hasCrit && { animation: 'kpiAlertPulse 2s ease-in-out infinite' }),
+          }}>
+            <i className='ri-alarm-warning-line' style={{
+              fontSize: 24, color,
+              ...(hasCrit && { animation: 'kpiIconShake 3s ease-in-out infinite' }),
+            }} />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: 10, opacity: 0.65, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {t('dashboard.widgets.alerts')}
+            </Typography>
+            <Typography sx={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1.2, fontFamily: '"JetBrains Mono", monospace' }}>
+              {hasCrit ? `${alertsSummary.crit} CRIT` : hasWarn ? `${alertsSummary.warn} WARN` : 'OK'}
+            </Typography>
+            <Typography sx={{ fontSize: 10, opacity: 0.6 }}>
+              {hasCrit || hasWarn ? `${alertsSummary.crit || 0} crit \u2022 ${alertsSummary.warn || 0} warn` : t('alerts.noActiveAlerts')}
+            </Typography>
+          </Box>
         </Box>
       </ButtonBase>
 

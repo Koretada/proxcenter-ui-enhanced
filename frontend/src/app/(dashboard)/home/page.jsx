@@ -55,7 +55,7 @@ export default function HomePage() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, mt: -1.5 }}>
       {/* Widget Grid - avec boutons refresh et personnaliser */}
       <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
         <WidgetGrid data={data} loading={loading && !data} onRefresh={() => mutate()} refreshLoading={isValidating} />

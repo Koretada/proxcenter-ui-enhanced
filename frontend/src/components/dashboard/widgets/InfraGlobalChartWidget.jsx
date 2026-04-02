@@ -1,35 +1,15 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslations } from 'next-intl'
 import {
-  Box,
-  CircularProgress,
-  IconButton,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-  useTheme,
-  alpha,
+  Box, Checkbox, CircularProgress, IconButton, ListItemText, Menu, MenuItem,
+  Tooltip, Typography, useTheme,
 } from '@mui/material'
 import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid,
 } from 'recharts'
 
-const TIMEFRAMES = [
-  { value: 'hour', label: '1h' },
-  { value: 'day', label: '24h' },
-  { value: 'week', label: '7d' },
-]
-
-// Color palette for nodes
 const NODE_COLORS = [
   '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
   '#ec4899', '#f43f5e', '#ef4444', '#f97316',
@@ -37,46 +17,121 @@ const NODE_COLORS = [
   '#06b6d4', '#3b82f6', '#2563eb', '#7c3aed',
 ]
 
-function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
+const TIMEFRAMES = [
+  { value: 'hour', label: '1h' },
+  { value: 'day', label: '24h' },
+  { value: 'week', label: '7d' },
+]
+
+// ─── Custom Tooltip ──────────────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label, metric }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#1e1e2d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, overflow: 'hidden', fontSize: 10, minWidth: 100 }}>
+      <div style={{ background: metric === 'cpu' ? '#f97316' : '#3b82f6', color: '#fff', padding: '2px 8px', fontWeight: 700, fontSize: 9, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <i className={metric === 'cpu' ? 'ri-cpu-line' : 'ri-database-2-line'} style={{ fontSize: 10 }} />
+        {metric.toUpperCase()} - {label}
+      </div>
+      <div style={{ padding: '4px 8px' }}>
+        {payload.filter(e => !e.hide).map((entry) => (
+          <div key={entry.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
+            <span style={{ flex: 1, color: 'rgba(255,255,255,0.7)' }}>{entry.name}</span>
+            <span style={{ fontWeight: 700, fontFamily: '"JetBrains Mono", monospace', color: '#fff' }}>{entry.value}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Connection Filter ───────────────────────────────────────────────────────
+function ConnectionFilter({ connections, selected, onChange, t }) {
+  const [anchorEl, setAnchorEl] = useState(null)
+  const allSelected = !selected || selected.length === 0
+
+  const handleToggle = (id) => {
+    if (allSelected) {
+      onChange([id])
+    } else if (selected.includes(id)) {
+      const next = selected.filter(k => k !== id)
+      onChange(next.length === 0 ? [] : next)
+    } else {
+      onChange([...selected, id])
+    }
+  }
+
+  return (
+    <>
+      <Tooltip title={t('common.filter')}>
+        <IconButton size='small' onClick={(e) => { e.stopPropagation(); setAnchorEl(e.currentTarget) }} sx={{ p: 0.25 }}>
+          <i className='ri-filter-3-line' style={{ fontSize: 14, opacity: allSelected ? 0.65 : 1 }} />
+        </IconButton>
+      </Tooltip>
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} slotProps={{ paper: { sx: { maxHeight: 300 } } }}>
+        <MenuItem dense onClick={() => { onChange([]); setAnchorEl(null) }}>
+          <Checkbox size='small' checked={allSelected} sx={{ p: 0, mr: 1 }} />
+          <ListItemText primaryTypographyProps={{ fontSize: 12 }}>{t('common.all')}</ListItemText>
+        </MenuItem>
+        {connections.map(c => {
+          const checked = allSelected || selected.includes(c.id)
+          return (
+            <MenuItem key={c.id} dense onClick={() => handleToggle(c.id)}>
+              <Checkbox size='small' checked={checked} sx={{ p: 0, mr: 1 }} />
+              <ListItemText primaryTypographyProps={{ fontSize: 12 }}>{c.name}</ListItemText>
+            </MenuItem>
+          )
+        })}
+      </Menu>
+    </>
+  )
+}
+
+// ─── Main Widget ─────────────────────────────────────────────────────────────
+function InfraGlobalChartWidget({ data, loading: dashboardLoading, config, onUpdateSettings }) {
   const t = useTranslations()
   const theme = useTheme()
-  const [timeframe, setTimeframe] = useState('week')
+  const isDark = theme.palette.mode === 'dark'
+  const [timeframe, setTimeframe] = useState('hour')
   const [metric, setMetric] = useState('ram')
   const [trendsData, setTrendsData] = useState(null)
   const [nodeNames, setNodeNames] = useState([])
   const [loading, setLoading] = useState(false)
-  const [hiddenNodes, setHiddenNodes] = useState(new Set())
-  const [expanded, setExpanded] = useState(false)
 
-  const toggleNodeVisibility = (name) => {
-    setHiddenNodes(prev => {
-      const allOthersHidden = nodeNames.every(n => n === name || prev.has(n))
-      if (allOthersHidden) return new Set()
-      return new Set(nodeNames.filter(n => n !== name))
-    })
+  const selectedConnections = config?.settings?.selectedConnections || []
+
+  const handleFilterChange = (newSelected) => {
+    if (onUpdateSettings) onUpdateSettings({ selectedConnections: newSelected })
   }
 
-  // Group nodes by connection
+  // All connections for filter
+  const allConnections = useMemo(() => {
+    return (data?.clusters || []).map(c => ({ id: c.id, name: c.name }))
+  }, [data?.clusters])
+
+  // Stable key for nodes
+  const nodesStableKey = (data?.nodes || []).map(n => `${n.connectionId}:${n.name}`).join(',')
+  const selectedKey = selectedConnections.join(',')
+
+  // Group nodes by connection, filtered
   const nodesByConnection = useMemo(() => {
     const nodes = data?.nodes || []
     const grouped = {}
-
     nodes.forEach((node) => {
       const connId = node.connectionId
       if (!connId) return
+      if (selectedConnections.length > 0 && !selectedConnections.includes(connId)) return
       if (!grouped[connId]) grouped[connId] = []
       grouped[connId].push({ node: node.name })
     })
-
     return grouped
-  }, [data?.nodes])
+  }, [nodesStableKey, selectedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch trends data
+  // Fetch trends
   useEffect(() => {
     const fetchTrends = async () => {
       const connIds = Object.keys(nodesByConnection)
       if (connIds.length === 0) return
-
       setLoading(true)
       try {
         const results = await Promise.all(
@@ -93,7 +148,6 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
           })
         )
 
-        // Collect all node names and build per-timestamp data with per-node values
         const allNodeNames = new Set()
         const timeMap = new Map()
 
@@ -101,14 +155,10 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
           Object.entries(connData).forEach(([nodeKey, nodePoints]) => {
             const nodeName = nodeKey.replace(/^node:/, '')
             allNodeNames.add(nodeName)
-
             if (!Array.isArray(nodePoints)) return
             nodePoints.forEach((point) => {
-              // Use epoch (ts) as map key for correct ordering, fall back to t
               const key = point.ts || point.t
-              if (!timeMap.has(key)) {
-                timeMap.set(key, { ts: point.ts || 0, t: point.t })
-              }
+              if (!timeMap.has(key)) timeMap.set(key, { ts: point.ts || 0, t: point.t })
               const entry = timeMap.get(key)
               entry[`${nodeName}_cpu`] = point.cpu || 0
               entry[`${nodeName}_ram`] = point.ram || 0
@@ -116,33 +166,22 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
           })
         })
 
-        // Sort by epoch timestamp (ts), not by display string
-        const aggregated = Array.from(timeMap.values())
-          .sort((a, b) => a.ts - b.ts)
-
-        // Gap-fill: PVE 8 vs 9 return different point counts, causing gaps.
-        // Forward-fill then backward-fill to cover both trailing and leading gaps.
-        const sortedNames = [...allNodeNames].sort((a, b) => a.localeCompare(b))
+        const aggregated = Array.from(timeMap.values()).sort((a, b) => a.ts - b.ts)
+        const sortedNames = [...allNodeNames].sort()
         const keys = sortedNames.flatMap(name => [`${name}_cpu`, `${name}_ram`])
         const lastKnown = {}
         for (const slot of aggregated) {
           for (const key of keys) {
-            if (slot[key] != null) {
-              lastKnown[key] = slot[key]
-            } else if (lastKnown[key] != null) {
-              slot[key] = lastKnown[key]
-            }
+            if (slot[key] != null) lastKnown[key] = slot[key]
+            else if (lastKnown[key] != null) slot[key] = lastKnown[key]
           }
         }
         const firstKnown = {}
         for (let i = aggregated.length - 1; i >= 0; i--) {
           const slot = aggregated[i]
           for (const key of keys) {
-            if (slot[key] != null) {
-              firstKnown[key] = slot[key]
-            } else if (firstKnown[key] != null) {
-              slot[key] = firstKnown[key]
-            }
+            if (slot[key] != null) firstKnown[key] = slot[key]
+            else if (firstKnown[key] != null) slot[key] = firstKnown[key]
           }
         }
 
@@ -155,46 +194,12 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
         setLoading(false)
       }
     }
-
     fetchTrends()
-  }, [nodesByConnection, timeframe])
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload || payload.length === 0) return null
-
-    return (
-      <Box
-        sx={{
-          bgcolor: 'background.paper',
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 1,
-          p: 1.5,
-          boxShadow: 3,
-          maxWidth: 220,
-        }}
-      >
-        <Typography variant="caption" sx={{ fontWeight: 700, mb: 0.5, display: 'block' }}>
-          {label}
-        </Typography>
-        {payload.map((entry) => (
-          <Box key={entry.dataKey} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
-            <Typography variant="caption" sx={{ color: 'text.secondary', flex: 1 }}>
-              {entry.name}
-            </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}>
-              {entry.value}%
-            </Typography>
-          </Box>
-        ))}
-      </Box>
-    )
-  }
+  }, [nodesStableKey, selectedKey, timeframe]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (dashboardLoading || loading) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
         <CircularProgress size={24} />
       </Box>
     )
@@ -202,10 +207,8 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
 
   if (!trendsData || trendsData.length === 0) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="caption" color="text.secondary">
-          {t('common.noData')}
-        </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4, opacity: 0.65 }}>
+        <Typography variant="caption">{t('common.noData')}</Typography>
       </Box>
     )
   }
@@ -213,45 +216,56 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
   const suffix = metric === 'cpu' ? '_cpu' : '_ram'
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box
+      {...(!isDark && { 'data-dark': '' })}
+      sx={{
+        bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#1e1e2d',
+        border: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)',
+        borderRadius: 2.5, p: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75,
+        transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+        '&:hover': { borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.15)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' },
+        height: '100%',
+      }}
+    >
       {/* Controls */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, gap: 1 }}>
-        <ToggleButtonGroup
-          value={metric}
-          exclusive
-          onChange={(e, val) => val && setMetric(val)}
-          size="small"
-        >
-          {['cpu', 'ram'].map((v) => (
-            <ToggleButton key={v} value={v} sx={{ px: 1.5, py: 0.5, fontSize: '0.75rem', minWidth: 48, fontWeight: metric === v ? 700 : 400, '&.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } } }}>
-              {v.toUpperCase()}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <ToggleButtonGroup
-            value={timeframe}
-            exclusive
-            onChange={(e, val) => val && setTimeframe(val)}
-            size="small"
+      <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
+        {['cpu', 'ram'].map((v) => (
+          <Box
+            key={v}
+            onClick={() => setMetric(v)}
+            sx={{
+              px: 1, py: 0.25, fontSize: 10, fontWeight: metric === v ? 700 : 400, cursor: 'pointer',
+              borderRadius: 1, color: metric === v ? '#fff' : 'rgba(255,255,255,0.5)',
+              bgcolor: metric === v ? 'rgba(255,255,255,0.12)' : 'transparent',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+            }}
           >
-            {TIMEFRAMES.map((tf) => (
-              <ToggleButton key={tf.value} value={tf.value} sx={{ px: 1.5, py: 0.5, fontSize: '0.75rem', minWidth: 42, fontWeight: timeframe === tf.value ? 700 : 400, '&.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } } }}>
-                {tf.label}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-          <IconButton size="small" onClick={() => setExpanded(true)} sx={{ opacity: 0.4, '&:hover': { opacity: 1 } }}>
-            <i className="ri-expand-diagonal-line" style={{ fontSize: 16 }} />
-          </IconButton>
-        </Box>
+            {v.toUpperCase()}
+          </Box>
+        ))}
+        {TIMEFRAMES.map((tf) => (
+          <Box
+            key={tf.value}
+            onClick={() => setTimeframe(tf.value)}
+            sx={{
+              px: 1, py: 0.25, fontSize: 10, fontWeight: timeframe === tf.value ? 700 : 400, cursor: 'pointer',
+              borderRadius: 1, color: timeframe === tf.value ? '#fff' : 'rgba(255,255,255,0.5)',
+              bgcolor: timeframe === tf.value ? 'rgba(255,255,255,0.12)' : 'transparent',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+            }}
+          >
+            {tf.label}
+          </Box>
+        ))}
+        {allConnections.length > 1 && (
+          <ConnectionFilter connections={allConnections} selected={selectedConnections} onChange={handleFilterChange} t={t} />
+        )}
       </Box>
 
       {/* Chart */}
-      <Box sx={{ flex: 1, minHeight: 0 }}>
+      <Box sx={{ height: 220, width: '100%' }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <AreaChart data={trendsData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+          <AreaChart data={trendsData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <defs>
               {nodeNames.map((name, i) => {
                 const color = NODE_COLORS[i % NODE_COLORS.length]
@@ -263,22 +277,10 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
                 )
               })}
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
-            <XAxis
-              dataKey="t"
-              tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
-              tickLine={false}
-              axisLine={false}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              domain={[0, 100]}
-              tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v) => `${v}%`}
-            />
-            <Tooltip content={<CustomTooltip />} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+            <XAxis dataKey="t" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.5)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.5)' }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+            <RTooltip content={<ChartTooltip metric={metric} />} wrapperStyle={{ backgroundColor: 'transparent' }} />
             {nodeNames.map((name, i) => {
               const color = NODE_COLORS[i % NODE_COLORS.length]
               return (
@@ -293,7 +295,7 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
                   dot={false}
                   activeDot={{ r: 3, strokeWidth: 0 }}
                   connectNulls
-                  hide={hiddenNodes.has(name)}
+                  isAnimationActive={false}
                 />
               )
             })}
@@ -301,110 +303,6 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading }) {
         </ResponsiveContainer>
       </Box>
 
-      {/* Legend — compact node list, click to isolate */}
-      {nodeNames.length > 1 && (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 0.5, justifyContent: 'center' }}>
-          {nodeNames.map((name, i) => (
-            <Box
-              key={name}
-              onClick={() => toggleNodeVisibility(name)}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', opacity: hiddenNodes.has(name) ? 0.3 : 1, '&:hover': { opacity: hiddenNodes.has(name) ? 0.5 : 0.8 } }}
-            >
-              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: NODE_COLORS[i % NODE_COLORS.length] }} />
-              <Typography variant="caption" sx={{ fontSize: 9, color: 'text.secondary', textDecoration: hiddenNodes.has(name) ? 'line-through' : 'none' }}>{name}</Typography>
-            </Box>
-          ))}
-        </Box>
-      )}
-
-      {/* Expanded overlay — portal to body to escape widget overflow */}
-      {expanded && typeof document !== 'undefined' && createPortal(
-        <Box
-          onClick={() => setExpanded(false)}
-          sx={{
-            position: 'fixed', inset: 0, zIndex: 1300,
-            bgcolor: 'rgba(0,0,0,0.6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            p: 4,
-          }}
-        >
-          <Box
-            onClick={(e) => e.stopPropagation()}
-            sx={{
-              bgcolor: 'background.paper',
-              borderRadius: 2,
-              border: '1px solid',
-              borderColor: 'divider',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-              width: '95%',
-              maxWidth: 1200,
-              p: 3,
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Typography fontWeight={600}>Infra {metric.toUpperCase()}</Typography>
-              <IconButton size="small" onClick={() => setExpanded(false)}>
-                <i className="ri-close-line" style={{ fontSize: 18 }} />
-              </IconButton>
-            </Box>
-            <Box sx={{ height: 500 }}>
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <AreaChart data={trendsData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                  <defs>
-                    {nodeNames.map((name, i) => {
-                      const color = NODE_COLORS[i % NODE_COLORS.length]
-                      return (
-                        <linearGradient key={name} id={`infra-grad-ex-${i}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={color} stopOpacity={0.25} />
-                          <stop offset="95%" stopColor={color} stopOpacity={0.02} />
-                        </linearGradient>
-                      )
-                    })}
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
-                  <XAxis dataKey="t" tick={{ fontSize: 11, fill: theme.palette.text.secondary }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: theme.palette.text.secondary }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip content={<CustomTooltip />} />
-                  {nodeNames.map((name, i) => {
-                    const color = NODE_COLORS[i % NODE_COLORS.length]
-                    return (
-                      <Area
-                        key={name}
-                        type="monotone"
-                        dataKey={`${name}${suffix}`}
-                        name={name}
-                        stroke={color}
-                        strokeWidth={1.5}
-                        fill={`url(#infra-grad-ex-${i})`}
-                        dot={false}
-                        activeDot={{ r: 3, strokeWidth: 0 }}
-                        connectNulls
-                        hide={hiddenNodes.has(name)}
-                      />
-                    )
-                  })}
-                </AreaChart>
-              </ResponsiveContainer>
-            </Box>
-            {/* Legend in overlay */}
-            {nodeNames.length > 1 && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2, justifyContent: 'center' }}>
-                {nodeNames.map((name, i) => (
-                  <Box
-                    key={name}
-                    onClick={() => toggleNodeVisibility(name)}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', opacity: hiddenNodes.has(name) ? 0.3 : 1, '&:hover': { opacity: hiddenNodes.has(name) ? 0.5 : 0.8 } }}
-                  >
-                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: NODE_COLORS[i % NODE_COLORS.length] }} />
-                    <Typography variant="caption" sx={{ fontSize: 11, textDecoration: hiddenNodes.has(name) ? 'line-through' : 'none' }}>{name}</Typography>
-                  </Box>
-                ))}
-              </Box>
-            )}
-          </Box>
-        </Box>,
-        document.body
-      )}
     </Box>
   )
 }

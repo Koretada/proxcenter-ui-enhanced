@@ -1,5 +1,6 @@
 // MUI Imports
 import { useTheme } from '@mui/material/styles'
+import { useColorScheme } from '@mui/material'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -23,6 +24,7 @@ const Header = props => {
   // Hooks
   const { settings } = useSettings()
   const theme = useTheme()
+  const { mode: muiMode, systemMode: muiSystemMode } = useColorScheme()
 
   // Vars
   const { navbarContentWidth } = settings
@@ -31,6 +33,11 @@ const Header = props => {
   const headerBlur = themeConfig.navbar.blur === true
   const headerContentCompact = navbarContentWidth === 'compact'
   const headerContentWide = navbarContentWidth === 'wide'
+
+  // Semi-dark: apply dark CSS variables on header in light mode (like vertical sidebar)
+  const isSemiDark = settings.semiDark
+  const currentMode = muiMode === 'system' ? muiSystemMode : muiMode
+  const isDark = currentMode === 'dark'
 
   return (
     <StyledHeader
@@ -43,6 +50,7 @@ const Header = props => {
         [horizontalLayoutClasses.headerContentCompact]: headerContentCompact,
         [horizontalLayoutClasses.headerContentWide]: headerContentWide
       })}
+      {...(isSemiDark && !isDark && { 'data-dark': '' })}
     >
       {children}
     </StyledHeader>
