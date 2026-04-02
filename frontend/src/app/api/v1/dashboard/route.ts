@@ -224,27 +224,48 @@ return null
 
           const [datastores, tasks] = await Promise.allSettled([
             pbsFetch<any[]>(connData, "/admin/datastore", pbsTimeout),
-            pbsFetch<any[]>(connData, "/nodes/localhost/tasks?limit=50", pbsTimeout),
+            pbsFetch<any[]>(connData, "/nodes/localhost/tasks?limit=200&typefilter=backup,verify,garbage_collection", pbsTimeout),
           ])
 
           const datastoreList = datastores.status === 'fulfilled' ? datastores.value || [] : []
           const taskList = tasks.status === 'fulfilled' ? tasks.value || [] : []
 
-          // Stats des datastores en parallèle
+          // Stats des datastores + count snapshots last 24h in parallel
+          const now = Date.now() / 1000
+          const cutoff24h = now - 86400
+
+          let backupsOk24h = 0
+          let backupsTotal24h = 0
+
           const dsStats = await Promise.all(datastoreList.map(async (ds: any) => {
             const storeName = ds.store || ds.name
 
             if (!storeName) return null
 
             try {
-              const dsStatus = await pbsFetch<any>(connData, `/admin/datastore/${encodeURIComponent(storeName)}/status`, { signal: AbortSignal.timeout(10000) })
+              const [dsStatus, snapshots] = await Promise.allSettled([
+                pbsFetch<any>(connData, `/admin/datastore/${encodeURIComponent(storeName)}/status`, { signal: AbortSignal.timeout(10000) }),
+                pbsFetch<any[]>(connData, `/admin/datastore/${encodeURIComponent(storeName)}/snapshots`, { signal: AbortSignal.timeout(10000) }),
+              ])
 
-              
-return {
+              const status = dsStatus.status === 'fulfilled' ? dsStatus.value : null
+              const snaps = snapshots.status === 'fulfilled' ? (snapshots.value || []) : []
+
+              // Count snapshots created in the last 24h
+              const recent = snaps.filter((s: any) => {
+                const btime = s['backup-time'] || s.backup_time || s.ctime || 0
+                return btime > cutoff24h
+              })
+
+              backupsTotal24h += recent.length
+              // PBS snapshots that exist are successful (failed backups don't create snapshots)
+              backupsOk24h += recent.length
+
+              return {
                 name: storeName,
-                total: Number(dsStatus?.total || 0),
-                used: Number(dsStatus?.used || 0),
-                avail: Number(dsStatus?.avail || 0),
+                total: Number(status?.total || 0),
+                used: Number(status?.used || 0),
+                avail: Number(status?.avail || 0),
               }
             } catch { return null }
           }))
@@ -256,12 +277,15 @@ return {
             if (ds) { totalSize += ds.total; totalUsed += ds.used }
           }
 
-          // Analyser les tâches récentes (dernières 24h)
-          const now = Date.now() / 1000
-          const last24h = taskList.filter((t: any) => t.starttime && (now - t.starttime) < 86400)
-          const backupTasks = last24h.filter((t: any) => t.worker_type === 'backup')
+          // Count failed backup tasks from task log (tasks with status !== OK)
+          const last24h = taskList.filter((t: any) => t.starttime && t.starttime > cutoff24h)
+          const failedBackupTasks = last24h.filter((t: any) =>
+            (t.worker_type === 'backup') && t.status && t.status !== 'OK'
+          )
           const verifyTasks = last24h.filter((t: any) => t.worker_type === 'verify')
-          const gcTasks = last24h.filter((t: any) => t.worker_type === 'garbage_collection')
+
+          // Add failed tasks to total (they don't create snapshots)
+          backupsTotal24h += failedBackupTasks.length
 
           return {
             conn,
@@ -271,9 +295,8 @@ return {
             usagePct: totalSize > 0 ? round1((totalUsed / totalSize) * 100) : 0,
             datastores: validDsStats,
             tasks: {
-              backup: { total: backupTasks.length, ok: backupTasks.filter((t: any) => t.status === 'OK').length, error: backupTasks.filter((t: any) => t.status && t.status !== 'OK').length },
+              backup: { total: backupsTotal24h, ok: backupsOk24h, error: failedBackupTasks.length },
               verify: { total: verifyTasks.length, ok: verifyTasks.filter((t: any) => t.status === 'OK').length, error: verifyTasks.filter((t: any) => t.status && t.status !== 'OK').length },
-              gc: { total: gcTasks.length, ok: gcTasks.filter((t: any) => t.status === 'OK').length, error: gcTasks.filter((t: any) => t.status && t.status !== 'OK').length },
             },
             recentErrors: last24h.filter((t: any) => t.status && t.status !== 'OK').slice(0, 5).map((t: any) => ({
               type: t.worker_type,
@@ -298,6 +321,7 @@ return null
     let totalClusters = 0
     const allVms: any[] = [], allLxcs: any[] = [], allNodes: any[] = [], clusterInfos: any[] = []
     let cephGlobal: any = null
+    const cephClusters: any[] = []
     let globalStorageUsed = 0, globalStorageMax = 0
 
     for (const data of validPve) {
@@ -327,17 +351,20 @@ return null
         cephHealth: data.cephStatus?.health?.status || null,
       })
 
-      if (!cephGlobal && data.cephStatus) {
+      if (data.cephStatus) {
         const pgmap = data.cephStatus?.pgmap || {}
         const osdmap = data.cephStatus?.osdmap?.osdmap || data.cephStatus?.osdmap || {}
 
-        cephGlobal = {
+        const cephData = {
           available: true, health: data.cephStatus?.health?.status || 'UNKNOWN',
           osdsTotal: Number(osdmap?.num_osds || 0), osdsUp: Number(osdmap?.num_up_osds || 0), osdsIn: Number(osdmap?.num_in_osds || 0),
           pgsTotal: Number(pgmap?.num_pgs || 0), bytesTotal: Number(pgmap?.bytes_total || 0), bytesUsed: Number(pgmap?.bytes_used || 0),
           usedPct: pgmap?.bytes_total > 0 ? round1((Number(pgmap?.bytes_used || 0) / Number(pgmap?.bytes_total)) * 100) : 0,
           readBps: Number(pgmap?.read_bytes_sec || 0), writeBps: Number(pgmap?.write_bytes_sec || 0),
         }
+
+        if (!cephGlobal) cephGlobal = cephData
+        cephClusters.push({ connId: data.conn.id, name: data.clusterName, ...cephData })
       }
     }
 
@@ -601,43 +628,43 @@ return null
     const fTopRam = fRunningVms.map((v: any) => { const used = Number(v.mem || 0), max = Number(v.maxmem || 0); return { name: v.name || `VM ${v.vmid}`, vmid: v.vmid, node: v.node, connId: v.connectionId || v.connId, type: v.type || 'qemu', value: max > 0 ? round1((used / max) * 100) : 0 } }).sort((a: any, b: any) => b.value - a.value).slice(0, 10)
 
     // Merge with orchestrator alerts (snapshots, event rules, etc.)
-    try {
-      const orchResponse = await alertsApi.getAlerts({ status: 'active', limit: 100 })
-      const orchData = orchResponse.data as any
-      const orchAlerts: any[] = orchData?.data || (Array.isArray(orchData) ? orchData : [])
+    // Only attempt if orchestrator is explicitly configured (Enterprise edition)
+    if (process.env.ORCHESTRATOR_URL) {
+      try {
+        const orchResponse = await alertsApi.getAlerts({ status: 'active', limit: 100 })
+        const orchData = orchResponse.data as any
+        const orchAlerts: any[] = orchData?.data || (Array.isArray(orchData) ? orchData : [])
 
-      // Build a set of existing alert signatures to deduplicate
-      const existingKeys = new Set(alerts.map((a: any) => `${a.entityType}:${a.entityId}:${a.metric}:${a.severity}`))
+        // Build a set of existing alert signatures to deduplicate
+        const existingKeys = new Set(alerts.map((a: any) => `${a.entityType}:${a.entityId}:${a.metric}:${a.severity}`))
 
-      const connNameMap = new Map(allConnections.map(c => [c.id, c.name]))
+        const connNameMap = new Map(allConnections.map(c => [c.id, c.name]))
 
-      for (const oa of (Array.isArray(orchAlerts) ? orchAlerts : [])) {
-        const key = `${oa.resource_type}:${oa.resource_id || oa.resource}:${oa.type}:${oa.severity}`
-        if (existingKeys.has(key)) continue
-        existingKeys.add(key)
+        for (const oa of (Array.isArray(orchAlerts) ? orchAlerts : [])) {
+          const key = `${oa.resource_type}:${oa.resource_id || oa.resource}:${oa.type}:${oa.severity}`
+          if (existingKeys.has(key)) continue
+          existingKeys.add(key)
 
-        alerts.push({
-          severity: oa.severity === 'critical' ? 'crit' : oa.severity === 'warning' ? 'warn' : oa.severity,
-          message: oa.message,
-          source: connNameMap.get(oa.connection_id) || oa.resource || 'Orchestrator',
-          sourceType: 'pve',
-          entityType: oa.resource_type,
-          entityId: oa.resource,
-          entityName: oa.resource,
-          connId: oa.connection_id,
-          metric: oa.type,
-          currentValue: oa.current_value,
-          threshold: oa.threshold,
-          time: oa.last_seen_at || oa.created_at,
-        })
-      }
+          alerts.push({
+            severity: oa.severity === 'critical' ? 'crit' : oa.severity === 'warning' ? 'warn' : oa.severity,
+            message: oa.message,
+            source: connNameMap.get(oa.connection_id) || oa.resource || 'Orchestrator',
+            sourceType: 'pve',
+            entityType: oa.resource_type,
+            entityId: oa.resource,
+            entityName: oa.resource,
+            connId: oa.connection_id,
+            metric: oa.type,
+            currentValue: oa.current_value,
+            threshold: oa.threshold,
+            time: oa.last_seen_at || oa.created_at,
+          })
+        }
 
-      // Re-sort after merge
-      alerts.sort((a: any, b: any) => (severityOrder[a.severity] || 2) - (severityOrder[b.severity] || 2))
-    } catch (e: any) {
-      // Silently ignore if orchestrator is unavailable
-      if (!e?.message?.includes('ECONNREFUSED') && !e?.message?.includes('timeout')) {
-        console.error('[dashboard] Orchestrator alerts merge error:', e)
+        // Re-sort after merge
+        alerts.sort((a: any, b: any) => (severityOrder[a.severity] || 2) - (severityOrder[b.severity] || 2))
+      } catch {
+        // Silently ignore orchestrator errors — not critical for dashboard
       }
     }
 
@@ -697,6 +724,7 @@ return null
           provCpu, provCpuPct, provMem, provMemPct, provMemFormatted: formatBytes(provMem), provDisk, provStoragePct, provDiskFormatted: formatBytes(provDisk),
         },
         ceph: cephGlobal,
+        cephClusters,
         pbs: {
           servers: pbsConnections.length,
           datastores: pbsTotalDatastores,
