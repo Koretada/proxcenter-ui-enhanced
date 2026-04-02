@@ -26,6 +26,7 @@ import {
 
 import { formatBytes } from '@/utils/format'
 import { useProxCenterTasks } from '@/contexts/ProxCenterTasksContext'
+import TemplateDownloadDialog from '@/components/storage/TemplateDownloadDialog'
 
 // ---------- Types ----------
 
@@ -69,7 +70,7 @@ const CONTENT_MAP: Record<string, { label: string; icon: string; uploadable: boo
 
 // ---------- Single content group ----------
 
-function ContentGroupCard({ group, connId, node, storage, readOnly, onDeleted, onUploadClick }: {
+function ContentGroupCard({ group, connId, node, storage, readOnly, onDeleted, onUploadClick, onDownloadTemplate }: {
   group: ContentGroup
   connId: string
   node: string
@@ -77,6 +78,7 @@ function ContentGroupCard({ group, connId, node, storage, readOnly, onDeleted, o
   readOnly?: boolean
   onDeleted?: () => void
   onUploadClick?: () => void
+  onDownloadTemplate?: () => void
 }) {
   const [search, setSearch] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null)
@@ -176,6 +178,16 @@ function ContentGroupCard({ group, connId, node, storage, readOnly, onDeleted, o
                 <i className="ri-close-line" style={{ fontSize: 13, opacity: 0.4, cursor: 'pointer' }} onClick={() => setSearch('')} />
               )}
             </Box>
+            {onDownloadTemplate && (
+              <IconButton
+                size="small"
+                onClick={onDownloadTemplate}
+                sx={{ p: 0.5, opacity: 0.6, '&:hover': { opacity: 1 } }}
+                title="Download template from repository"
+              >
+                <i className="ri-download-cloud-2-line" style={{ fontSize: 16 }} />
+              </IconButton>
+            )}
             {onUploadClick && (
               <IconButton
                 size="small"
@@ -721,8 +733,10 @@ export default function StorageContentBrowser({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
 
   const hasUploadableContent = !readOnly && contentTypes.some(ct => CONTENT_MAP[ct]?.uploadable)
+  const hasVztmpl = !readOnly && contentTypes.includes('vztmpl')
 
   const loadContent = useCallback(async () => {
     setLoading(true)
@@ -805,6 +819,7 @@ export default function StorageContentBrowser({
             readOnly={readOnly}
             onDeleted={handleDeleted}
             onUploadClick={hasUploadableContent && CONTENT_MAP[ct]?.uploadable ? () => setUploadOpen(true) : undefined}
+            onDownloadTemplate={ct === 'vztmpl' && hasVztmpl ? () => setTemplateDialogOpen(true) : undefined}
           />
         ))
       ) : (
@@ -829,6 +844,18 @@ export default function StorageContentBrowser({
           storage={storage}
           contentTypes={contentTypes}
           onUploaded={handleUploaded}
+        />
+      )}
+
+      {/* Template download dialog */}
+      {hasVztmpl && (
+        <TemplateDownloadDialog
+          open={templateDialogOpen}
+          onClose={() => setTemplateDialogOpen(false)}
+          connId={connId}
+          node={node}
+          storage={storage}
+          onDownloaded={handleUploaded}
         />
       )}
     </Stack>
