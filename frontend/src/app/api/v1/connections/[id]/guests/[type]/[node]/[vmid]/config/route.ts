@@ -26,7 +26,7 @@ const ALLOWED_QEMU_FIELDS = new Set([
   'agent',
 
   // Hardware
-  'scsihw',
+  'scsihw', 'vga',
 
   // Options
   'ostype', 'hotplug', 'tablet', 'localtime', 'freeze', 'kvm', 'acpi',

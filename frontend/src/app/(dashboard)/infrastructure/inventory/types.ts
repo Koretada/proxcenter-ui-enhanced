@@ -98,6 +98,13 @@ export type DetailsPayload = {
     rate?: number
   }>
 
+  systemInfo?: {
+    bios: string
+    machine: string
+    vga: string
+    scsihw: string
+  }
+
   otherHardwareInfo?: Array<{
     id: string
     type: 'efidisk' | 'tpmstate' | 'usb' | 'pci' | 'serial' | 'audio' | 'rng'

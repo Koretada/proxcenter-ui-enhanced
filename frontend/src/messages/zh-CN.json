@@ -547,6 +547,10 @@
       "aes": "激活 AES 指令集以实现硬件加速。"
     },
     "noDiskInserted": "未插入磁盘",
+    "systemHardware": "系统",
+    "machineType": "机器类型",
+    "display": "显示",
+    "scsiController": "SCSI控制器",
     "otherHardware": "其他硬件",
     "addHardware": "添加硬件",
     "noOtherHardware": "未配置其他硬件（EFI、TPM、USB、PCI、串口...）",

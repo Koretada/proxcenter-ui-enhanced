@@ -563,6 +563,10 @@
       "aes": "Activate AES instruction set for HW acceleration."
     },
     "noDiskInserted": "No disk inserted",
+    "systemHardware": "System",
+    "machineType": "Machine Type",
+    "display": "Display",
+    "scsiController": "SCSI Controller",
     "otherHardware": "Other Hardware",
     "addHardware": "Add Hardware",
     "noOtherHardware": "No additional hardware configured (EFI, TPM, USB, PCI, Serial...)",

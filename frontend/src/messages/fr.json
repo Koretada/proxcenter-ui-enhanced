@@ -563,6 +563,10 @@
       "aes": "Active le jeu d'instructions AES pour l'accélération matérielle."
     },
     "noDiskInserted": "Aucun disque inséré",
+    "systemHardware": "Système",
+    "machineType": "Type de machine",
+    "display": "Affichage",
+    "scsiController": "Contrôleur SCSI",
     "otherHardware": "Autre matériel",
     "addHardware": "Ajouter du matériel",
     "noOtherHardware": "Aucun matériel supplémentaire configuré (EFI, TPM, USB, PCI, Série...)",

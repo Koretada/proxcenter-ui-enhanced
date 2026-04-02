@@ -80,7 +80,7 @@ export default function VmDetailTabs(props: any) {
   const theme = useTheme()
   const chartTooltipStyle = { backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, color: theme.palette.text.primary }
   const [cpuFlagsOpen, setCpuFlagsOpen] = useState(false)
-  const [hwSections, setHwSections] = useState<Set<string>>(new Set(['cpu', 'memory', 'disks', 'network', 'other']))
+  const [hwSections, setHwSections] = useState<Set<string>>(new Set(['cpu', 'memory', 'system', 'disks', 'network', 'other']))
   const toggleHwSection = (section: string) => setHwSections(prev => {
     const next = new Set(prev)
     if (next.has(section)) next.delete(section)
@@ -1488,6 +1488,123 @@ export default function VmDetailTabs(props: any) {
                         </CardContent>
                           </Collapse>
                       </Card>
+
+                      {/* System Hardware (BIOS, Machine, Display, SCSI Controller) */}
+                      {data.vmType === 'qemu' && data.systemInfo && (
+                        <Card variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                          <Box
+                            onClick={() => toggleHwSection('system')}
+                            sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              px: 2, py: 1.5, cursor: 'pointer',
+                              bgcolor: 'action.hover',
+                              '&:hover': { bgcolor: 'action.selected' },
+                              borderBottom: hwSections.has('system') ? '1px solid' : 'none',
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <Typography variant="subtitle1" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <i className="ri-computer-line" style={{ fontSize: 20 }} />
+                              {t('inventory.systemHardware')}
+                            </Typography>
+                            <i className={hwSections.has('system') ? 'ri-subtract-line' : 'ri-add-line'} style={{ fontSize: 22, opacity: 0.5 }} />
+                          </Box>
+                          <Collapse in={hwSections.has('system')}>
+                            <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <tbody>
+                                  {[
+                                    {
+                                      key: 'bios',
+                                      icon: 'ri-shield-keyhole-line',
+                                      label: 'BIOS',
+                                      value: (data.systemInfo.bios || 'seabios').toUpperCase() === 'OVMF' ? 'OVMF (UEFI)' : 'SeaBIOS',
+                                      editValue: data.systemInfo.bios || 'seabios',
+                                      options: [{ value: 'seabios', label: 'SeaBIOS' }, { value: 'ovmf', label: 'OVMF (UEFI)' }],
+                                    },
+                                    {
+                                      key: 'machine',
+                                      icon: 'ri-instance-line',
+                                      label: t('inventory.machineType'),
+                                      value: data.systemInfo.machine || 'i440fx',
+                                      editValue: data.systemInfo.machine || 'i440fx',
+                                      options: [{ value: 'i440fx', label: 'i440fx (Default)' }, { value: 'q35', label: 'q35' }],
+                                    },
+                                    {
+                                      key: 'vga',
+                                      icon: 'ri-monitor-line',
+                                      label: t('inventory.display'),
+                                      value: (() => {
+                                        const vga = data.systemInfo.vga || 'std'
+                                        const vgaLabels: Record<string, string> = {
+                                          std: 'Default (std)', cirrus: 'Cirrus Logic', vmware: 'VMware compatible',
+                                          qxl: 'SPICE (qxl)', serial0: 'Serial terminal 0', serial1: 'Serial terminal 1',
+                                          serial2: 'Serial terminal 2', serial3: 'Serial terminal 3',
+                                          virtio: 'VirtIO-GPU', 'virtio-gl': 'VirtIO-GPU (virgl)', none: 'None',
+                                        }
+                                        return vgaLabels[vga.split(',')[0]] || vga
+                                      })(),
+                                      editValue: (data.systemInfo.vga || 'std').split(',')[0],
+                                      options: [
+                                        { value: 'std', label: 'Default (std)' }, { value: 'cirrus', label: 'Cirrus Logic' },
+                                        { value: 'vmware', label: 'VMware compatible' }, { value: 'qxl', label: 'SPICE (qxl)' },
+                                        { value: 'virtio', label: 'VirtIO-GPU' }, { value: 'virtio-gl', label: 'VirtIO-GPU (virgl)' },
+                                        { value: 'serial0', label: 'Serial terminal 0' }, { value: 'serial1', label: 'Serial terminal 1' },
+                                        { value: 'serial2', label: 'Serial terminal 2' }, { value: 'serial3', label: 'Serial terminal 3' },
+                                        { value: 'none', label: 'None' },
+                                      ],
+                                    },
+                                    {
+                                      key: 'scsihw',
+                                      icon: 'ri-hard-drive-3-line',
+                                      label: t('inventory.scsiController'),
+                                      value: (() => {
+                                        const hw = data.systemInfo.scsihw || 'virtio-scsi-single'
+                                        const labels: Record<string, string> = {
+                                          'lsi': 'LSI 53C895A', 'lsi53c810': 'LSI 53C810',
+                                          'megasas': 'MegaRAID SAS 8708EM2', 'pvscsi': 'VMware PVSCSI',
+                                          'virtio-scsi-pci': 'VirtIO SCSI', 'virtio-scsi-single': 'VirtIO SCSI single',
+                                        }
+                                        return labels[hw] || hw
+                                      })(),
+                                      editValue: data.systemInfo.scsihw || 'virtio-scsi-single',
+                                      options: [
+                                        { value: 'virtio-scsi-single', label: 'VirtIO SCSI single' },
+                                        { value: 'virtio-scsi-pci', label: 'VirtIO SCSI' },
+                                        { value: 'lsi', label: 'LSI 53C895A' },
+                                        { value: 'lsi53c810', label: 'LSI 53C810' },
+                                        { value: 'megasas', label: 'MegaRAID SAS 8708EM2' },
+                                        { value: 'pvscsi', label: 'VMware PVSCSI' },
+                                      ],
+                                    },
+                                  ].map((row) => (
+                                    <tr key={row.key}>
+                                      <td style={{ padding: '6px 16px', borderBottom: '1px solid var(--mui-palette-divider)', fontWeight: 500 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <i className={row.icon} style={{ fontSize: 16, opacity: 0.6 }} />
+                                          {row.label}
+                                        </Box>
+                                      </td>
+                                      <td style={{ padding: '6px 16px', borderBottom: '1px solid var(--mui-palette-divider)' }}>
+                                        <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
+                                          {row.value}
+                                        </Typography>
+                                      </td>
+                                      <td style={{ padding: '6px 16px', borderBottom: '1px solid var(--mui-palette-divider)', textAlign: 'center', width: 48 }}>
+                                        <MuiTooltip title={t('common.edit')}>
+                                          <IconButton size="small" onClick={() => setEditOptionDialog({ key: row.key, label: row.label, value: row.editValue, type: 'select', options: row.options })}>
+                                            <i className="ri-pencil-line" style={{ fontSize: 16 }} />
+                                          </IconButton>
+                                        </MuiTooltip>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </CardContent>
+                          </Collapse>
+                        </Card>
+                      )}
                     </Stack>
                   )}
                 </Box>

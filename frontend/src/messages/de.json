@@ -543,6 +543,10 @@
       "aes": "AES-Befehlssatz für HW-Beschleunigung aktivieren."
     },
     "noDiskInserted": "Keine Festplatte eingelegt",
+    "systemHardware": "System",
+    "machineType": "Maschinentyp",
+    "display": "Anzeige",
+    "scsiController": "SCSI-Controller",
     "otherHardware": "Andere Hardware",
     "addHardware": "hinzufügen Hardware",
     "noOtherHardware": "Keine zusätzliche Hardware konfiguriert (EFI, TPM, USB, PCI, Seriell...)",

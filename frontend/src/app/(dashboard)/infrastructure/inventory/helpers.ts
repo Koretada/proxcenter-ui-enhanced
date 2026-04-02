@@ -832,6 +832,7 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
 
     let cpuInfoVal: any = {}
     let memoryInfo: any = {}
+    let systemInfo: any = {}
     let disksInfo: any[] = []
     let networkInfo: any[] = []
     let otherHardwareInfo: any[] = []
@@ -888,6 +889,13 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
             memory: pending.memory,
             balloon: pending.balloon,
           } : undefined,
+        }
+
+        systemInfo = {
+          bios: config.bios || 'seabios',
+          machine: config.machine || 'i440fx',
+          vga: config.vga || 'std',
+          scsihw: config.scsihw || 'virtio-scsi-single',
         }
 
         Object.keys(config).forEach(key => {
@@ -1123,6 +1131,7 @@ return Number.isFinite(num) ? num.toFixed(2) : String(v)
       description,
       cpuInfo: cpuInfoVal,
       memoryInfo,
+      systemInfo,
       disksInfo,
       networkInfo,
       otherHardwareInfo,
