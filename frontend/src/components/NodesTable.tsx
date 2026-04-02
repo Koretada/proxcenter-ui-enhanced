@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useMemo, useState, useCallback } from 'react'
+import React, { useMemo, useState, useCallback, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslations } from 'next-intl'
 
 import {
@@ -13,11 +14,13 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  Skeleton,
   Stack,
   Typography,
   useTheme
 } from '@mui/material'
 import { DataGrid, GridColDef } from '@mui/x-data-grid'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip } from 'recharts'
 // RemixIcon replacements for @mui/icons-material
 const PlayArrowIcon = (props: any) => <i className="ri-play-fill" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 const StopIcon = (props: any) => <i className="ri-stop-fill" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
@@ -101,6 +104,7 @@ export type NodeRow = {
   version?: string
   ip?: string
   subscription?: string
+  trend?: { t: number; cpu?: number; ram?: number; netin?: number; netout?: number; diskread?: number; diskwrite?: number }[]
 }
 
 export type BulkAction = 'start-all' | 'stop-all' | 'shutdown-all' | 'migrate-all'
@@ -119,6 +123,89 @@ type NodesTableProps = {
   compact?: boolean
   maxHeight?: number | string
   showMigrateOption?: boolean // Only show migrate in cluster with multiple nodes
+  showTrends?: boolean
+}
+
+/* -----------------------------
+  Trend Tooltips
+------------------------------ */
+
+function formatRate(bytes: number) {
+  if (bytes <= 0) return '0 B/s'
+  if (bytes < 1024) return `${bytes.toFixed(0)} B/s`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB/s`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MiB/s`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GiB/s`
+}
+
+function formatTrendTime(label: any) {
+  const ts = Number(label)
+  if (!ts || isNaN(ts)) return String(label || '')
+  // Timestamps from RRD are in seconds if < 1e12, milliseconds otherwise
+  const ms = ts < 1e12 ? ts * 1000 : ts
+  return new Date(ms).toLocaleTimeString()
+}
+
+function NodeTrendTooltip({ active, payload, label }: any) {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  useEffect(() => {
+    const h = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY })
+    window.addEventListener('mousemove', h)
+    return () => window.removeEventListener('mousemove', h)
+  }, [])
+  if (!active || !payload?.length || typeof window === 'undefined') return null
+  const cpu = payload.find((p: any) => p.dataKey === 'cpu')?.value
+  const ram = payload.find((p: any) => p.dataKey === 'ram')?.value
+  return createPortal(
+    <div style={{ position: 'fixed', left: mousePos.x + 15, top: mousePos.y - 70, background: '#1a1a2e', border: '1px solid #444', color: 'white', padding: '8px 12px', borderRadius: 6, fontSize: 11, lineHeight: 1.5, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', zIndex: 99999, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+      <div style={{ opacity: 0.7, marginBottom: 4, fontWeight: 600, borderBottom: '1px solid #444', paddingBottom: 4 }}>{formatTrendTime(label)}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+        <span style={{ width: 10, height: 3, borderRadius: 2, backgroundColor: '#e57000', display: 'inline-block' }} />
+        <span>CPU: <b>{typeof cpu === 'number' ? cpu.toFixed(1) : '—'}%</b></span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ width: 10, height: 3, borderRadius: 2, backgroundColor: '#b35500', display: 'inline-block' }} />
+        <span>RAM: <b>{typeof ram === 'number' ? ram.toFixed(0) : '—'}%</b></span>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+function NodeIoNetTooltip({ active, payload, label }: any) {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  useEffect(() => {
+    const h = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY })
+    window.addEventListener('mousemove', h)
+    return () => window.removeEventListener('mousemove', h)
+  }, [])
+  if (!active || !payload?.length || typeof window === 'undefined') return null
+  const diskread = payload.find((p: any) => p.dataKey === 'diskread')?.value
+  const diskwrite = payload.find((p: any) => p.dataKey === 'diskwrite')?.value
+  const netin = payload.find((p: any) => p.dataKey === 'netin')?.value
+  const netout = payload.find((p: any) => p.dataKey === 'netout')?.value
+  return createPortal(
+    <div style={{ position: 'fixed', left: mousePos.x + 15, top: mousePos.y - 90, background: '#1a1a2e', border: '1px solid #444', color: 'white', padding: '8px 12px', borderRadius: 6, fontSize: 11, lineHeight: 1.5, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', zIndex: 99999, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+      <div style={{ opacity: 0.7, marginBottom: 4, fontWeight: 600, borderBottom: '1px solid #444', paddingBottom: 4 }}>{formatTrendTime(label)}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+        <span style={{ width: 10, height: 3, borderRadius: 2, backgroundColor: '#2196f3', display: 'inline-block' }} />
+        <span>Disk R: <b>{typeof diskread === 'number' ? formatRate(diskread) : '—'}</b></span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+        <span style={{ width: 10, height: 3, borderRadius: 2, backgroundColor: '#1565c0', display: 'inline-block' }} />
+        <span>Disk W: <b>{typeof diskwrite === 'number' ? formatRate(diskwrite) : '—'}</b></span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+        <span style={{ width: 10, height: 3, borderRadius: 2, backgroundColor: '#4caf50', display: 'inline-block' }} />
+        <span>Net In: <b>{typeof netin === 'number' ? formatRate(netin) : '—'}</b></span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ width: 10, height: 3, borderRadius: 2, backgroundColor: '#2e7d32', display: 'inline-block' }} />
+        <span>Net Out: <b>{typeof netout === 'number' ? formatRate(netout) : '—'}</b></span>
+      </div>
+    </div>,
+    document.body
+  )
 }
 
 /* -----------------------------
@@ -132,7 +219,8 @@ function NodesTable({
   onBulkAction,
   compact = false,
   maxHeight = 400,
-  showMigrateOption = true
+  showMigrateOption = true,
+  showTrends = false,
 }: NodesTableProps) {
   const theme = useTheme()
   const t = useTranslations()
@@ -169,11 +257,9 @@ function NodesTable({
         minWidth: 140,
         renderCell: (params) => (
           <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
-            <Box sx={{ position: 'relative', display: 'inline-flex', width: 24, height: 24, flexShrink: 0 }}>
-              <Avatar sx={{ width: 24, height: 24, bgcolor: 'action.hover' }}>
-                <ProxmoxIcon size={14} isDark={theme.palette.mode === 'dark'} />
-              </Avatar>
-              <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 9, height: 9, borderRadius: '50%', bgcolor: params.row.status === 'online' ? '#4caf50' : '#f44336', border: '1.5px solid', borderColor: 'background.paper' }} />
+            <Box sx={{ position: 'relative', display: 'inline-flex', width: 18, height: 18, flexShrink: 0 }}>
+              <ProxmoxIcon size={18} isDark={theme.palette.mode === 'dark'} />
+              <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', bgcolor: params.row.status === 'online' ? '#4caf50' : '#f44336', border: '1.5px solid', borderColor: 'background.paper' }} />
             </Box>
             <Typography variant='body2' sx={{ fontWeight: 600, fontSize: compact ? '0.8rem' : '0.875rem' }}>
               {params.row.name}
@@ -254,8 +340,92 @@ function NodesTable({
       },
     ]
 
+    if (showTrends) {
+      // Trend CPU/RAM
+      cols.push({
+        field: 'trend',
+        headerName: 'Trend (CPU/RAM)',
+        flex: 0.8,
+        minWidth: 120,
+        sortable: false,
+        renderCell: (params) => {
+          const node = params.row as NodeRow
+          const data = node.trend || []
+          if (node.status !== 'online' || data.length === 0) {
+            return <Typography variant='caption' sx={{ opacity: 0.4 }}>—</Typography>
+          }
+          const cpuColor = '#e57000'
+          const ramColor = '#b35500'
+          const allValues = data.flatMap(d => [d.cpu || 0, d.ram || 0])
+          const yMax = Math.min(100, Math.max(...allValues, 10) + 10)
+          return (
+            <Box sx={{ height: 32, width: '100%' }}>
+              <ResponsiveContainer width='100%' height='100%' minWidth={0}>
+                <AreaChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                  <defs>
+                    <linearGradient id={`ncpu-${node.id}`} x1='0' y1='0' x2='0' y2='1'>
+                      <stop offset='0%' stopColor={cpuColor} stopOpacity={0.25} />
+                      <stop offset='100%' stopColor={cpuColor} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey='t' hide />
+                  <YAxis hide domain={[0, yMax]} />
+                  <RTooltip content={<NodeTrendTooltip />} cursor={{ stroke: cpuColor, strokeWidth: 1, strokeDasharray: '3 3' }} />
+                  <Area type='monotone' dataKey='cpu' stroke={cpuColor} strokeWidth={1.5} fill={`url(#ncpu-${node.id})`} dot={false} isAnimationActive={false} />
+                  <Area type='monotone' dataKey='ram' stroke={ramColor} strokeWidth={1.5} fill='transparent' dot={false} isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+          )
+        }
+      })
+
+      // Trend IO/Net
+      cols.push({
+        field: 'trendIoNet',
+        headerName: 'Trend (IO/Net)',
+        flex: 0.8,
+        minWidth: 120,
+        sortable: false,
+        renderCell: (params) => {
+          const node = params.row as NodeRow
+          const data = node.trend || []
+          if (node.status !== 'online' || data.length === 0) {
+            return <Typography variant='caption' sx={{ opacity: 0.4 }}>—</Typography>
+          }
+          const hasData = data.some(d => (d.diskread || 0) > 0 || (d.diskwrite || 0) > 0 || (d.netin || 0) > 0 || (d.netout || 0) > 0)
+          if (!hasData) {
+            return <Typography variant='caption' sx={{ opacity: 0.4 }}>—</Typography>
+          }
+          const diskColor = '#2196f3'
+          const netColor = '#4caf50'
+          return (
+            <Box sx={{ height: 32, width: '100%' }}>
+              <ResponsiveContainer width='100%' height='100%' minWidth={0}>
+                <AreaChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                  <defs>
+                    <linearGradient id={`ndisk-${node.id}`} x1='0' y1='0' x2='0' y2='1'>
+                      <stop offset='0%' stopColor={diskColor} stopOpacity={0.2} />
+                      <stop offset='100%' stopColor={diskColor} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey='t' hide />
+                  <YAxis hide />
+                  <RTooltip content={<NodeIoNetTooltip />} cursor={{ stroke: diskColor, strokeWidth: 1, strokeDasharray: '3 3' }} />
+                  <Area type='monotone' dataKey='diskread' stroke={diskColor} strokeWidth={1.5} fill={`url(#ndisk-${node.id})`} dot={false} isAnimationActive={false} />
+                  <Area type='monotone' dataKey='diskwrite' stroke='#1565c0' strokeWidth={1.5} fill='transparent' dot={false} isAnimationActive={false} />
+                  <Area type='monotone' dataKey='netin' stroke={netColor} strokeWidth={1.5} fill='transparent' dot={false} isAnimationActive={false} />
+                  <Area type='monotone' dataKey='netout' stroke='#2e7d32' strokeWidth={1.5} fill='transparent' dot={false} isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+          )
+        }
+      })
+    }
+
     return cols
-  }, [compact, theme.palette.mode])
+  }, [compact, theme.palette.mode, showTrends])
 
   const isAutoHeight = maxHeight === 'auto'
 

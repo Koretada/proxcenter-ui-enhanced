@@ -25,6 +25,7 @@ import {
   Switch,
   TextField,
   Typography,
+  useTheme,
 } from '@mui/material'
 
 import AppDialogTitle from '@/components/ui/AppDialogTitle'
@@ -34,16 +35,18 @@ const SaveIcon = (props: any) => <i className="ri-save-line" style={{ fontSize: 
 type HaRuleDialogProps = {
   open: boolean
   onClose: () => void
-  rule: any | null // null = création, sinon = édition
+  rule: any | null // null = creation, sinon = edition
   ruleType: 'node-affinity' | 'resource-affinity'
   connId: string
-  availableNodes: string[]
+  availableNodes: any[] // node objects with { node, status, ... }
   availableResources: any[] // HA resources
+  allVms?: any[] // all VMs for name resolution
   onSaved: () => void
 }
 
-function HaRuleDialog({ open, onClose, rule, ruleType, connId, availableNodes, availableResources, onSaved }: HaRuleDialogProps) {
+function HaRuleDialog({ open, onClose, rule, ruleType, connId, availableNodes, availableResources, allVms, onSaved }: HaRuleDialogProps) {
   const t = useTranslations()
+  const theme = useTheme()
   const [name, setName] = useState('')
   const [enabled, setEnabled] = useState(true)
   const [strict, setStrict] = useState(false)
@@ -53,6 +56,7 @@ function HaRuleDialog({ open, onClose, rule, ruleType, connId, availableNodes, a
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resourceSearch, setResourceSearch] = useState('')
 
   // Initialiser les valeurs quand le dialog s'ouvre
   useEffect(() => {
@@ -88,6 +92,7 @@ function HaRuleDialog({ open, onClose, rule, ruleType, connId, availableNodes, a
       }
 
       setError(null)
+      setResourceSearch('')
     }
   }, [open, rule])
 
@@ -163,12 +168,20 @@ return
     }
   }
 
-  const toggleNode = (node: string) => {
-    setSelectedNodes(prev => 
-      prev.includes(node) 
-        ? prev.filter(n => n !== node)
-        : [...prev, node]
+  const toggleNode = (nodeName: string) => {
+    setSelectedNodes(prev =>
+      prev.includes(nodeName)
+        ? prev.filter(n => n !== nodeName)
+        : [...prev, nodeName]
     )
+  }
+
+  const getVmInfo = (sid: string) => {
+    const parts = sid.split(':')
+    const vmType = parts[0] === 'ct' ? 'lxc' : 'qemu'
+    const vmid = parts[1]
+    const vm = (allVms || []).find((v: any) => String(v.vmid) === vmid)
+    return { vmType, vmid, name: vm?.name, status: vm?.status || 'unknown', template: vm?.template }
   }
 
   const toggleResource = (resource: string) => {
@@ -189,29 +202,37 @@ return
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
         )}
 
-        <TextField
-          fullWidth
-          label={t('inventoryPage.ruleName')}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={!!rule || saving}
-          sx={{ mt: 1, mb: 2 }}
-          placeholder="Ex: ha-rule-web-servers"
-          helperText={rule ? t('inventoryPage.nameCannotBeModified') : t('inventoryPage.uniqueRuleId')}
-        />
+        <Alert severity="info" icon={<i className={ruleType === 'node-affinity' ? 'ri-route-line' : 'ri-links-line'} style={{ fontSize: 18 }} />} sx={{ mb: 2, '& .MuiAlert-message': { fontSize: 12 } }}>
+          {ruleType === 'node-affinity'
+            ? t('cluster.nodeAffinityInfo')
+            : t('cluster.resourceAffinityInfo')
+          }
+        </Alert>
 
-        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mt: 1, mb: 2 }}>
+          <TextField
+            label={t('inventoryPage.ruleName')}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={!!rule || saving}
+            sx={{ flex: 1 }}
+            placeholder="Ex: ha-rule-web-servers"
+            helperText={rule ? t('inventoryPage.nameCannotBeModified') : t('inventoryPage.uniqueRuleId')}
+          />
           <FormControlLabel
             control={
-              <Switch 
-                checked={enabled} 
+              <Switch
+                checked={enabled}
                 onChange={(e) => setEnabled(e.target.checked)}
                 disabled={saving}
               />
             }
             label={t('common.enabled')}
+            sx={{ mt: 0.5 }}
           />
-          
+        </Box>
+
+        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
           {ruleType === 'node-affinity' && (
             <FormControlLabel
               control={
@@ -233,7 +254,7 @@ return
           )}
           
           {ruleType === 'resource-affinity' && (
-            <FormControl size="small" sx={{ minWidth: 150 }}>
+            <FormControl size="small" fullWidth>
               <InputLabel>Affinity</InputLabel>
               <Select
                 value={affinity}
@@ -252,12 +273,24 @@ return
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
           HA Resources ({selectedResources.length})
         </Typography>
-        
-        <Box sx={{ 
-          border: '1px solid', 
-          borderColor: 'divider', 
-          borderRadius: 1, 
-          maxHeight: 150, 
+
+        <Box sx={{ px: 1.5, py: 1, border: '1px solid', borderColor: 'divider', borderRadius: '4px 4px 0 0', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <i className="ri-search-line" style={{ fontSize: 14, opacity: 0.4 }} />
+          <input
+            type="text"
+            value={resourceSearch}
+            onChange={e => setResourceSearch(e.target.value)}
+            placeholder={t('common.search') + '...'}
+            style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, width: '100%', color: 'inherit', fontFamily: 'Inter, sans-serif' }}
+          />
+          {resourceSearch && <i className="ri-close-line" style={{ fontSize: 14, opacity: 0.4, cursor: 'pointer' }} onClick={() => setResourceSearch('')} />}
+        </Box>
+
+        <Box sx={{
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: '0 0 4px 4px',
+          maxHeight: 150,
           overflow: 'auto',
           mb: 2
         }}>
@@ -268,26 +301,48 @@ return
             </Box>
           ) : (
             <List dense disablePadding>
-              {availableResources.map((res: any) => (
-                <ListItemButton 
-                  key={res.sid} 
-                  onClick={() => toggleResource(res.sid)}
-                  sx={{ py: 0.5 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 36 }}>
-                    <Switch 
-                      size="small" 
-                      checked={selectedResources.includes(res.sid)} 
-                      onChange={() => toggleResource(res.sid)}
-                      onClick={(e) => e.stopPropagation()}
+              {availableResources
+                .map((res: any) => ({ ...res, _info: getVmInfo(res.sid) }))
+                .sort((a: any, b: any) => (a._info.name || a.sid).localeCompare(b._info.name || b.sid))
+                .filter((res: any) => {
+                  if (!resourceSearch.trim()) return true
+                  const q = resourceSearch.toLowerCase()
+                  return (res._info.name || '').toLowerCase().includes(q) || res.sid.toLowerCase().includes(q)
+                })
+                .map((res: any) => {
+                const info = res._info
+                const iconClass = info.template ? 'ri-file-copy-fill' : info.vmType === 'lxc' ? 'ri-instance-fill' : 'ri-computer-fill'
+                const dotColor = info.template ? 'transparent' : info.status === 'running' ? '#4caf50' : info.status === 'paused' ? '#ed6c02' : '#f44336'
+
+                return (
+                  <ListItemButton
+                    key={res.sid}
+                    onClick={() => toggleResource(res.sid)}
+                    sx={{ py: 0.5 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 36 }}>
+                      <Switch
+                        size="small"
+                        checked={selectedResources.includes(res.sid)}
+                        onChange={() => toggleResource(res.sid)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </ListItemIcon>
+                    <Box sx={{ position: 'relative', display: 'inline-flex', mr: 1, flexShrink: 0 }}>
+                      <i className={iconClass} style={{ fontSize: 16, opacity: 0.7 }} />
+                      {!info.template && (
+                        <Box sx={{ position: 'absolute', bottom: -1, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: dotColor, border: '1.5px solid', borderColor: 'background.paper', boxShadow: info.status === 'running' ? `0 0 4px ${dotColor}` : 'none' }} />
+                      )}
+                    </Box>
+                    <ListItemText
+                      primary={info.name || res.sid}
+                      secondary={res.sid}
+                      primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
+                      secondaryTypographyProps={{ variant: 'caption', sx: { opacity: 0.5, fontFamily: 'monospace', fontSize: 10 } }}
                     />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={res.sid} 
-                    primaryTypographyProps={{ variant: 'body2', fontFamily: 'monospace' }}
-                  />
-                </ListItemButton>
-              ))}
+                  </ListItemButton>
+                )
+              })}
             </List>
           )}
         </Box>
@@ -308,26 +363,37 @@ return
               mb: 2
             }}>
               <List dense disablePadding>
-                {availableNodes.map(node => (
-                  <ListItemButton 
-                    key={node} 
-                    onClick={() => toggleNode(node)}
-                    sx={{ py: 0.5 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <Switch 
-                        size="small" 
-                        checked={selectedNodes.includes(node)} 
-                        onChange={() => toggleNode(node)}
-                        onClick={(e) => e.stopPropagation()}
+                {availableNodes.map((nodeObj: any) => {
+                  const nodeName = typeof nodeObj === 'string' ? nodeObj : nodeObj.node
+                  const nodeStatus = typeof nodeObj === 'string' ? 'unknown' : (nodeObj.status || 'unknown')
+                  const dotColor = nodeStatus === 'online' ? '#4caf50' : '#f44336'
+                  const logoSrc = theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'
+
+                  return (
+                    <ListItemButton
+                      key={nodeName}
+                      onClick={() => toggleNode(nodeName)}
+                      sx={{ py: 0.5 }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Switch
+                          size="small"
+                          checked={selectedNodes.includes(nodeName)}
+                          onChange={() => toggleNode(nodeName)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </ListItemIcon>
+                      <Box sx={{ position: 'relative', display: 'inline-flex', mr: 1, flexShrink: 0 }}>
+                        <img src={logoSrc} alt="" width={16} height={16} style={{ opacity: nodeStatus === 'online' ? 0.8 : 0.4 }} />
+                        <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: dotColor, border: '1.5px solid', borderColor: 'background.paper' }} />
+                      </Box>
+                      <ListItemText
+                        primary={nodeName}
+                        primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
                       />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={node} 
-                      primaryTypographyProps={{ variant: 'body2' }}
-                    />
-                  </ListItemButton>
-                ))}
+                    </ListItemButton>
+                  )
+                })}
               </List>
             </Box>
           </>

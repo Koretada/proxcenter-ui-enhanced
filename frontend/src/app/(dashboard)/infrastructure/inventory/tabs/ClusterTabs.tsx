@@ -72,6 +72,55 @@ import { useRollingUpdates } from '@/contexts/RollingUpdateContext'
 import { useDRSStatus, useDRSMetrics, useDRSSettings, useDRSRecommendations } from '@/hooks/useDRS'
 import { computeDrsHealthScore } from '@/lib/utils/drs-health'
 
+function HaResourceChips({ resources, allVms }: { resources: string; allVms: any[] }) {
+  if (!resources) return <Typography variant="body2" sx={{ opacity: 0.4 }}>-</Typography>
+  const sids = resources.split(',').map(s => s.trim()).filter(Boolean)
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+      {sids.map(sid => {
+        const parts = sid.split(':')
+        const vmType = parts[0] === 'ct' ? 'lxc' : 'qemu'
+        const vmid = parts[1]
+        const vm = allVms.find((v: any) => String(v.vmid) === vmid)
+        const iconClass = vm?.template ? 'ri-file-copy-fill' : vmType === 'lxc' ? 'ri-instance-fill' : 'ri-computer-fill'
+        const dotColor = vm?.template ? 'transparent' : (vm?.status === 'running' ? '#4caf50' : vm?.status === 'paused' ? '#ed6c02' : '#f44336')
+        return (
+          <Box key={sid} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+              <i className={iconClass} style={{ fontSize: 13, opacity: 0.7 }} />
+              {!vm?.template && <Box sx={{ position: 'absolute', bottom: -1, right: -2, width: 6, height: 6, borderRadius: '50%', bgcolor: dotColor, border: '1px solid', borderColor: 'background.paper' }} />}
+            </Box>
+            <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 500 }}>{vm?.name || sid}</Typography>
+          </Box>
+        )
+      })}
+    </Box>
+  )
+}
+
+function HaNodeChips({ nodes, nodesData, theme }: { nodes: string; nodesData: any[]; theme: any }) {
+  if (!nodes) return <Typography variant="body2" sx={{ opacity: 0.4 }}>-</Typography>
+  const nodeNames = nodes.split(',').map(s => s.split(':')[0].trim()).filter(Boolean)
+  const logoSrc = theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+      {nodeNames.map(name => {
+        const node = nodesData.find((n: any) => n.node === name)
+        const dotColor = node?.status === 'online' ? '#4caf50' : '#f44336'
+        return (
+          <Box key={name} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+              <img src={logoSrc} alt="" width={13} height={13} style={{ opacity: node?.status === 'online' ? 0.8 : 0.4 }} />
+              <Box sx={{ position: 'absolute', bottom: -1, right: -2, width: 6, height: 6, borderRadius: '50%', bgcolor: dotColor, border: '1px solid', borderColor: 'background.paper' }} />
+            </Box>
+            <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 500 }}>{name}</Typography>
+          </Box>
+        )
+      })}
+    </Box>
+  )
+}
+
 const HA_STATES = ['started', 'stopped', 'enabled', 'disabled', 'ignored'] as const
 const HA_STATE_META: Record<string, { color: string; icon: string; chipColor: string }> = {
   started:  { color: '#22c55e', icon: 'ri-play-circle-line', chipColor: 'success' },
@@ -194,6 +243,7 @@ export default function ClusterTabs(props: any) {
     clusterHaLoading,
     clusterHaResources,
     clusterHaRules,
+    clusterHaStatus,
     loadClusterHa,
     clusterNotesContent,
     clusterNotesEditMode,
@@ -465,7 +515,7 @@ export default function ClusterTabs(props: any) {
   const [clusterNodeRrdTf, setClusterNodeRrdTf] = useState<'hour' | 'day' | 'week' | 'month' | 'year'>('hour')
 
   useEffect(() => {
-    if (clusterTab !== 0 || !connId || !data.nodesData?.length) return
+    if ((clusterTab !== 0 && clusterTab !== 1) || !connId || !data.nodesData?.length) return
     const onlineNodes = (data.nodesData as any[]).filter((n: any) => n.status === 'online')
     if (onlineNodes.length === 0) return
 
@@ -1531,7 +1581,18 @@ export default function ClusterTabs(props: any) {
                 {/* Onglet Nodes - Index 1 */}
                 {clusterTab === 1 && data.nodesData.length > 0 && (
                   <NodesTable
-                    nodes={enrichedNodesData as NodeRow[]}
+                    nodes={(enrichedNodesData as NodeRow[]).map(n => ({
+                      ...n,
+                      trend: (clusterNodeRrd[n.name] || []).map((p: any) => ({
+                        t: p.t,
+                        cpu: p.cpuPct,
+                        ram: p.ramPct,
+                        netin: p.netInBps,
+                        netout: p.netOutBps,
+                        diskread: p.diskReadBps,
+                        diskwrite: p.diskWriteBps,
+                      })),
+                    }))}
                     compact
                     maxHeight="auto"
                     onNodeClick={(node) => {
@@ -1539,6 +1600,7 @@ export default function ClusterTabs(props: any) {
                     }}
                     onBulkAction={handleNodeBulkAction}
                     showMigrateOption={data.nodesData.length > 1}
+                    showTrends
                   />
                 )}
 
@@ -1779,6 +1841,55 @@ export default function ClusterTabs(props: any) {
                           </Card>
                         )}
 
+                        {/* HA Status (quorum, master, lrm) */}
+                        {clusterHaStatus && clusterHaStatus.filter((s: any) => s.type === 'quorum' || s.type === 'master' || s.type === 'lrm').length > 0 && (
+                          <Box>
+                            <Typography variant="subtitle1" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                              <i className="ri-pulse-line" style={{ fontSize: 18, opacity: 0.7 }} />
+                              {t('common.status')}
+                            </Typography>
+                            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+                              <Box sx={{
+                                display: 'grid', gridTemplateColumns: '120px 1fr',
+                                px: 1.5, py: 1, bgcolor: 'action.hover',
+                                borderBottom: '1px solid', borderColor: 'divider',
+                                '& > *': { fontWeight: 600, fontSize: 12, opacity: 0.8 }
+                              }}>
+                                <Typography variant="caption">{t('common.type')}</Typography>
+                                <Typography variant="caption">{t('common.status')}</Typography>
+                              </Box>
+                              {clusterHaStatus.filter((s: any) => s.type === 'quorum' || s.type === 'master' || s.type === 'lrm').map((s: any, idx: number) => {
+                                const statusText = s.status || s.state || '-'
+                                // Extract node name from status string like "PVE-3AZ-5-C (active, Thu Apr 2 13:16:56 2026)"
+                                const nodeMatch = statusText.match(/^([^\s(]+)/)
+                                const nodeName = (s.type === 'master' || s.type === 'lrm') ? nodeMatch?.[1] : null
+                                const logoSrc = theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'
+
+                                return (
+                                  <Box key={idx} sx={{
+                                    display: 'grid', gridTemplateColumns: '120px 1fr', alignItems: 'center',
+                                    px: 1.5, py: 0.75, borderBottom: '1px solid', borderColor: 'divider',
+                                    '&:last-child': { borderBottom: 'none' }, '&:hover': { bgcolor: 'action.hover' },
+                                  }}>
+                                    <Typography variant="body2" fontWeight={600} sx={{ textTransform: 'capitalize' }}>
+                                      {s.type || s.id || '-'}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                      {s.type === 'quorum' && (
+                                        <i className={statusText === 'OK' ? 'ri-checkbox-circle-fill' : 'ri-close-circle-fill'} style={{ fontSize: 16, color: statusText === 'OK' ? '#22c55e' : '#ef4444' }} />
+                                      )}
+                                      {nodeName && <img src={logoSrc} alt="" width={14} height={14} style={{ opacity: 0.8 }} />}
+                                      <Typography variant="body2" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+                                        {statusText}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                )
+                              })}
+                            </Box>
+                          </Box>
+                        )}
+
                         {/* Section Ressources HA */}
                         <Box>
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
@@ -1786,14 +1897,9 @@ export default function ClusterTabs(props: any) {
                               <i className="ri-stack-line" style={{ fontSize: 18, opacity: 0.7 }} />
                               {t('cluster.haResources')} ({clusterHaResources.length})
                             </Typography>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              startIcon={<AddIcon />}
-                              onClick={() => setAddHaDialogOpen(true)}
-                            >
-                              {t('common.add')}
-                            </Button>
+                            <IconButton size="small" color="primary" onClick={() => setAddHaDialogOpen(true)}>
+                              <AddIcon sx={{ fontSize: 20 }} />
+                            </IconButton>
                           </Box>
                           
                           {clusterHaResources.length === 0 ? (
@@ -1914,17 +2020,9 @@ export default function ClusterTabs(props: any) {
                                 <i className="ri-group-line" style={{ fontSize: 18, opacity: 0.7 }} />
                                 {t('cluster.groups')} ({clusterHaGroups.length})
                               </Typography>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                startIcon={<AddIcon />}
-                                onClick={() => {
-                                  setEditingHaGroup(null)
-                                  setHaGroupDialogOpen(true)
-                                }}
-                              >
-                                {t('common.create')}
-                              </Button>
+                              <IconButton size="small" color="primary" onClick={() => { setEditingHaGroup(null); setHaGroupDialogOpen(true) }}>
+                                <AddIcon sx={{ fontSize: 20 }} />
+                              </IconButton>
                             </Box>
                             
                             {clusterHaGroups.length === 0 ? (
@@ -2027,24 +2125,16 @@ export default function ClusterTabs(props: any) {
                                   <i className="ri-node-tree" style={{ fontSize: 18, opacity: 0.7 }} />
                                   {t('cluster.nodeAffinityRules')} ({clusterHaRules.filter((r: any) => r.type === 'node-affinity').length})
                                 </Typography>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  startIcon={<AddIcon />}
-                                  onClick={() => {
-                                    setHaRuleType('node-affinity')
-                                    setEditingHaRule(null)
-                                    setHaRuleDialogOpen(true)
-                                  }}
-                                >
-                                  {t('common.add')}
-                                </Button>
+                                <IconButton size="small" color="primary" onClick={() => { setHaRuleType('node-affinity'); setEditingHaRule(null); setHaRuleDialogOpen(true) }}>
+                                  <AddIcon sx={{ fontSize: 20 }} />
+                                </IconButton>
                               </Box>
                               
                               {clusterHaRules.filter((r: any) => r.type === 'node-affinity').length === 0 ? (
-                                <Alert severity="info" sx={{ py: 1 }}>
-                                  {t('common.noData')}
-                                </Alert>
+                                <Box sx={{ py: 3, textAlign: 'center', opacity: 0.4 }}>
+                                  <i className="ri-route-line" style={{ fontSize: 28, display: 'block', marginBottom: 4 }} />
+                                  <Typography variant="body2">{t('cluster.noNodeAffinityRules')}</Typography>
+                                </Box>
                               ) : (
                                 <Box sx={{ 
                                   border: '1px solid', 
@@ -2055,7 +2145,7 @@ export default function ClusterTabs(props: any) {
                                   {/* Header */}
                                   <Box sx={{ 
                                     display: 'grid', 
-                                    gridTemplateColumns: '60px 80px 80px 1fr 1fr 80px',
+                                    gridTemplateColumns: '60px 60px 50px 1fr 1fr 80px', alignItems: 'center', columnGap: 2,
                                     gap: 1,
                                     px: 1.5,
                                     py: 1,
@@ -2064,9 +2154,9 @@ export default function ClusterTabs(props: any) {
                                     borderColor: 'divider',
                                     '& > *': { fontWeight: 600, fontSize: 12, opacity: 0.8 }
                                   }}>
-                                    <Typography variant="caption">{t('common.enabled')}</Typography>
-                                    <Typography variant="caption">{t('cluster.state')}</Typography>
-                                    <Typography variant="caption">{t('cluster.strict')}</Typography>
+                                    <Typography variant="caption" sx={{ textAlign: 'center' }}>{t('common.enabled')}</Typography>
+                                    <Typography variant="caption" sx={{ textAlign: 'center' }}>{t('cluster.state')}</Typography>
+                                    <Typography variant="caption" sx={{ textAlign: 'center' }}>{t('cluster.strict')}</Typography>
                                     <Typography variant="caption">{t('cluster.haResourcesCol')}</Typography>
                                     <Typography variant="caption">{t('inventory.nodesLabel')}</Typography>
                                     <Typography variant="caption" sx={{ textAlign: 'center' }}>{t('common.actions')}</Typography>
@@ -2077,7 +2167,7 @@ export default function ClusterTabs(props: any) {
                                       key={rule.rule}
                                       sx={{ 
                                         display: 'grid', 
-                                        gridTemplateColumns: '60px 80px 80px 1fr 1fr 80px',
+                                        gridTemplateColumns: '60px 60px 50px 1fr 1fr 80px', alignItems: 'center', columnGap: 2,
                                         gap: 1,
                                         px: 1.5,
                                         py: 0.75,
@@ -2087,26 +2177,23 @@ export default function ClusterTabs(props: any) {
                                         '&:hover': { bgcolor: 'action.hover' }
                                       }}
                                     >
-                                      <Box>
-                                        <Chip 
-                                          size="small" 
-                                          label={rule.disable ? t('common.no') : t('common.yes')}
-                                          color={rule.disable ? 'default' : 'success'}
-                                          sx={{ height: 20, fontSize: 11 }}
-                                        />
-                                      </Box>
-                                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                                        {rule.disable ? t('common.disabled') : t('common.enabled')}
-                                      </Typography>
-                                      <Typography variant="body2">
-                                        {rule.strict ? t('common.yes') : t('common.no')}
-                                      </Typography>
-                                      <Typography variant="body2" sx={{ opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {rule.resources || '-'}
-                                      </Typography>
-                                      <Typography variant="body2" sx={{ opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {rule.nodes || '-'}
-                                      </Typography>
+                                      <MuiTooltip title={rule.disable ? t('common.disabled') : t('common.enabled')}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                          <i className={rule.disable ? 'ri-close-circle-line' : 'ri-checkbox-circle-fill'} style={{ fontSize: 18, color: rule.disable ? '#9ca3af' : '#22c55e' }} />
+                                        </Box>
+                                      </MuiTooltip>
+                                      <MuiTooltip title={rule.disable ? t('common.disabled') : t('common.enabled')}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                          <i className={rule.disable ? 'ri-stop-circle-line' : 'ri-play-circle-fill'} style={{ fontSize: 18, color: rule.disable ? '#9ca3af' : '#3b82f6' }} />
+                                        </Box>
+                                      </MuiTooltip>
+                                      <MuiTooltip title={rule.strict ? 'Strict' : 'Not strict'}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                          <i className={rule.strict ? 'ri-lock-line' : 'ri-lock-unlock-line'} style={{ fontSize: 16, color: rule.strict ? '#f59e0b' : '#9ca3af' }} />
+                                        </Box>
+                                      </MuiTooltip>
+                                      <HaResourceChips resources={rule.resources} allVms={allVms || []} />
+                                      <HaNodeChips nodes={rule.nodes} nodesData={data?.nodesData || []} theme={theme} />
                                       <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
                                         <MuiTooltip title={t('common.edit')}>
                                           <IconButton
@@ -2143,24 +2230,16 @@ export default function ClusterTabs(props: any) {
                                   <i className="ri-links-line" style={{ fontSize: 18, opacity: 0.7 }} />
                                   {t('cluster.resourceAffinityRules')} ({clusterHaRules.filter((r: any) => r.type === 'resource-affinity').length})
                                 </Typography>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  startIcon={<AddIcon />}
-                                  onClick={() => {
-                                    setHaRuleType('resource-affinity')
-                                    setEditingHaRule(null)
-                                    setHaRuleDialogOpen(true)
-                                  }}
-                                >
-                                  {t('common.add')}
-                                </Button>
+                                <IconButton size="small" color="primary" onClick={() => { setHaRuleType('resource-affinity'); setEditingHaRule(null); setHaRuleDialogOpen(true) }}>
+                                  <AddIcon sx={{ fontSize: 20 }} />
+                                </IconButton>
                               </Box>
                               
                               {clusterHaRules.filter((r: any) => r.type === 'resource-affinity').length === 0 ? (
-                                <Alert severity="info" sx={{ py: 1 }}>
-                                  {t('common.noData')}
-                                </Alert>
+                                <Box sx={{ py: 3, textAlign: 'center', opacity: 0.4 }}>
+                                  <i className="ri-links-line" style={{ fontSize: 28, display: 'block', marginBottom: 4 }} />
+                                  <Typography variant="body2">{t('cluster.noResourceAffinityRules')}</Typography>
+                                </Box>
                               ) : (
                                 <Box sx={{ 
                                   border: '1px solid', 
@@ -2171,7 +2250,7 @@ export default function ClusterTabs(props: any) {
                                   {/* Header */}
                                   <Box sx={{ 
                                     display: 'grid', 
-                                    gridTemplateColumns: '60px 80px 120px 1fr 80px',
+                                    gridTemplateColumns: '60px 60px 60px 1fr 80px', alignItems: 'center', columnGap: 2,
                                     gap: 1,
                                     px: 1.5,
                                     py: 1,
@@ -2180,9 +2259,9 @@ export default function ClusterTabs(props: any) {
                                     borderColor: 'divider',
                                     '& > *': { fontWeight: 600, fontSize: 12, opacity: 0.8 }
                                   }}>
-                                    <Typography variant="caption">{t('common.enabled')}</Typography>
-                                    <Typography variant="caption">{t('cluster.state')}</Typography>
-                                    <Typography variant="caption">{t('cluster.affinity')}</Typography>
+                                    <Typography variant="caption" sx={{ textAlign: 'center' }}>{t('common.enabled')}</Typography>
+                                    <Typography variant="caption" sx={{ textAlign: 'center' }}>{t('cluster.state')}</Typography>
+                                    <Typography variant="caption" sx={{ textAlign: 'center' }}>{t('cluster.affinity')}</Typography>
                                     <Typography variant="caption">{t('cluster.haResourcesCol')}</Typography>
                                     <Typography variant="caption" sx={{ textAlign: 'center' }}>{t('common.actions')}</Typography>
                                   </Box>
@@ -2192,7 +2271,7 @@ export default function ClusterTabs(props: any) {
                                       key={rule.rule}
                                       sx={{ 
                                         display: 'grid', 
-                                        gridTemplateColumns: '60px 80px 120px 1fr 80px',
+                                        gridTemplateColumns: '60px 60px 60px 1fr 80px', alignItems: 'center', columnGap: 2,
                                         gap: 1,
                                         px: 1.5,
                                         py: 0.75,
@@ -2202,30 +2281,26 @@ export default function ClusterTabs(props: any) {
                                         '&:hover': { bgcolor: 'action.hover' }
                                       }}
                                     >
-                                      <Box>
-                                        <Chip 
-                                          size="small" 
-                                          label={rule.disable ? t('common.no') : t('common.yes')}
-                                          color={rule.disable ? 'default' : 'success'}
-                                          sx={{ height: 20, fontSize: 11 }}
-                                        />
-                                      </Box>
-                                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                                        {rule.disable ? t('common.disabled') : t('common.enabled')}
-                                      </Typography>
-                                      <Chip
-                                        size="small"
-                                        label={rule.affinity === 'positive' ? t('cluster.keepTogether') : t('cluster.keepSeparate')}
-                                        color={rule.affinity === 'positive' ? 'info' : 'warning'}
-                                        sx={{ height: 20, fontSize: 10 }} 
-                                      />
-                                      <Typography variant="body2" sx={{ opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {rule.resources || '-'}
-                                      </Typography>
+                                      <MuiTooltip title={rule.disable ? t('common.disabled') : t('common.enabled')}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                          <i className={rule.disable ? 'ri-close-circle-line' : 'ri-checkbox-circle-fill'} style={{ fontSize: 18, color: rule.disable ? '#9ca3af' : '#22c55e' }} />
+                                        </Box>
+                                      </MuiTooltip>
+                                      <MuiTooltip title={rule.disable ? t('common.disabled') : t('common.enabled')}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                          <i className={rule.disable ? 'ri-stop-circle-line' : 'ri-play-circle-fill'} style={{ fontSize: 18, color: rule.disable ? '#9ca3af' : '#3b82f6' }} />
+                                        </Box>
+                                      </MuiTooltip>
+                                      <MuiTooltip title={rule.affinity === 'positive' ? t('cluster.keepTogether') : t('cluster.keepSeparate')}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                          <i className={rule.affinity === 'positive' ? 'ri-link' : 'ri-link-unlink'} style={{ fontSize: 16, color: rule.affinity === 'positive' ? '#3b82f6' : '#f59e0b' }} />
+                                        </Box>
+                                      </MuiTooltip>
+                                      <HaResourceChips resources={rule.resources} allVms={allVms || []} />
                                       <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
                                         <MuiTooltip title={t('common.edit')}>
-                                          <IconButton 
-                                            size="small" 
+                                          <IconButton
+                                            size="small"
                                             onClick={() => {
                                               setHaRuleType('resource-affinity')
                                               setEditingHaRule(rule)
@@ -2422,27 +2497,96 @@ export default function ClusterTabs(props: any) {
                             <CardContent>
                               <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2 }}>{t('common.status')}</Typography>
                               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                                <Box>
-                                  <Typography variant="caption" sx={{ opacity: 0.7 }}>OSDs</Typography>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Chip size="small" label={`${clusterCephData._normalized?.osd?.num_up_osds || clusterCephData.osdmap?.osdmap?.num_up_osds || 0} Up`} color="success" sx={{ height: 20 }} />
-                                    <Chip size="small" label={`${clusterCephData._normalized?.osd?.num_in_osds || clusterCephData.osdmap?.osdmap?.num_in_osds || 0} In`} sx={{ height: 20 }} />
-                                  </Box>
-                                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.6 }}>
-                                    Total: {clusterCephData._normalized?.osd?.num_osds || clusterCephData.osdmap?.osdmap?.num_osds || 0}
-                                  </Typography>
-                                </Box>
-                                <Box>
-                                  <Typography variant="caption" sx={{ opacity: 0.7 }}>PGs</Typography>
-                                  <Typography variant="body2" fontWeight={600}>
-                                    {clusterCephData.pgmap?.num_pgs || 0}
-                                  </Typography>
-                                  {clusterCephData.pgmap?.pgs_by_state && (
-                                    <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                                      {clusterCephData.pgmap.pgs_by_state.map((s: any) => s.state_name).join(', ')}
-                                    </Typography>
-                                  )}
-                                </Box>
+                                {(() => {
+                                  const numUp = clusterCephData._normalized?.osd?.num_up_osds || clusterCephData.osdmap?.osdmap?.num_up_osds || 0
+                                  const numIn = clusterCephData._normalized?.osd?.num_in_osds || clusterCephData.osdmap?.osdmap?.num_in_osds || 0
+                                  const numTotal = clusterCephData._normalized?.osd?.num_osds || clusterCephData.osdmap?.osdmap?.num_osds || 0
+                                  const numDown = numTotal - numUp
+                                  const numOut = numTotal - numIn
+                                  return (
+                                    <Box>
+                                      <Typography variant="caption" sx={{ opacity: 0.7 }}>OSDs</Typography>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                        <Chip size="small" label={`${numUp} Up`} color="success" sx={{ height: 20 }} />
+                                        <Chip size="small" label={`${numIn} In`} sx={{ height: 20 }} />
+                                        <Typography variant="caption" sx={{ opacity: 0.5 }}>/ {numTotal}</Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                                        {Array.from({ length: numTotal }, (_, i) => {
+                                          const isUp = i < numUp
+                                          const isDown = i >= numUp
+                                          const color = isDown ? '#ef4444' : '#4caf50'
+                                          return (
+                                            <MuiTooltip key={i} title={`OSD ${i} - ${isUp ? 'Up/In' : 'Down'}`}>
+                                              <i className="ri-hard-drive-3-fill" style={{ fontSize: 14, color, opacity: isDown ? 1 : 0.7 }} />
+                                            </MuiTooltip>
+                                          )
+                                        })}
+                                      </Box>
+                                    </Box>
+                                  )
+                                })()}
+                                {(() => {
+                                  const totalPgs = clusterCephData.pgmap?.num_pgs || 0
+                                  const byState = clusterCephData.pgmap?.pgs_by_state || []
+
+                                  const getPgColor = (state: string) => {
+                                    if (state.includes('active+clean') && !state.includes('scrub') && !state.includes('recovering')) return '#4caf50'
+                                    if (state.includes('active') && (state.includes('scrub') || state.includes('deep'))) return '#66bb6a'
+                                    if (state.includes('active')) return '#ff9800'
+                                    if (state.includes('peering') || state.includes('recovering') || state.includes('remapped') || state.includes('backfill')) return '#ff9800'
+                                    if (state.includes('stale') || state.includes('down') || state.includes('incomplete')) return '#ef4444'
+                                    return '#9ca3af'
+                                  }
+
+                                  return (
+                                    <Box>
+                                      <Typography variant="caption" sx={{ opacity: 0.7 }}>PGs</Typography>
+                                      <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
+                                        {totalPgs}
+                                      </Typography>
+                                      {totalPgs > 0 && byState.length > 0 && (
+                                        <>
+                                          <MuiTooltip
+                                            title={
+                                              <Box sx={{ p: 0.5 }}>
+                                                {byState.map((s: any) => (
+                                                  <Box key={s.state_name} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.25 }}>
+                                                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getPgColor(s.state_name), flexShrink: 0 }} />
+                                                    <Typography variant="caption" sx={{ flex: 1 }}>{s.state_name}</Typography>
+                                                    <Typography variant="caption" fontWeight={700}>{s.count}</Typography>
+                                                  </Box>
+                                                ))}
+                                              </Box>
+                                            }
+                                            arrow
+                                          >
+                                            <Box sx={{ display: 'flex', height: 8, borderRadius: 1, overflow: 'hidden', cursor: 'pointer' }}>
+                                              {byState.map((s: any, i: number) => (
+                                                <Box
+                                                  key={i}
+                                                  sx={{
+                                                    width: `${(s.count / totalPgs) * 100}%`,
+                                                    bgcolor: getPgColor(s.state_name),
+                                                    minWidth: s.count > 0 ? 2 : 0,
+                                                  }}
+                                                />
+                                              ))}
+                                            </Box>
+                                          </MuiTooltip>
+                                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75 }}>
+                                            {byState.map((s: any) => (
+                                              <Typography key={s.state_name} variant="caption" sx={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: getPgColor(s.state_name), flexShrink: 0 }} />
+                                                {s.count} {s.state_name}
+                                              </Typography>
+                                            ))}
+                                          </Box>
+                                        </>
+                                      )}
+                                    </Box>
+                                  )
+                                })()}
                               </Box>
                             </CardContent>
                           </Card>
@@ -2469,7 +2613,7 @@ export default function ClusterTabs(props: any) {
                                       }
                                       arrow
                                     >
-                                      <Chip size="small" label={mon.name} icon={<i className="ri-checkbox-circle-fill" style={{ color: '#4caf50' }} />} sx={{ height: 24, cursor: 'pointer' }} />
+                                      <Chip size="small" label={mon.name} icon={<Box sx={{ position: 'relative', display: 'inline-flex', width: 16, height: 16 }}><img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} style={{ opacity: 0.8 }} /><Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: '#4caf50', border: '1.5px solid', borderColor: 'background.paper' }} /></Box>} sx={{ height: 24, cursor: 'pointer' }} />
                                     </MuiTooltip>
                                   )) || <Typography variant="body2">—</Typography>}
                                 </Box>
@@ -2488,7 +2632,7 @@ export default function ClusterTabs(props: any) {
                                       }
                                       arrow
                                     >
-                                      <Chip size="small" label={clusterCephData.mgrmap.active_name} icon={<i className="ri-checkbox-circle-fill" style={{ color: '#4caf50' }} />} sx={{ height: 24, cursor: 'pointer' }} />
+                                      <Chip size="small" label={clusterCephData.mgrmap.active_name} icon={<Box sx={{ position: 'relative', display: 'inline-flex', width: 16, height: 16 }}><img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} style={{ opacity: 0.8 }} /><Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: '#4caf50', border: '1.5px solid', borderColor: 'background.paper' }} /></Box>} sx={{ height: 24, cursor: 'pointer' }} />
                                     </MuiTooltip>
                                   )}
                                   {clusterCephData.mgrmap?.standbys?.map((mgr: any) => (
@@ -2503,7 +2647,7 @@ export default function ClusterTabs(props: any) {
                                       }
                                       arrow
                                     >
-                                      <Chip size="small" label={mgr.name} icon={<i className="ri-checkbox-circle-fill" style={{ color: '#4caf50' }} />} sx={{ height: 24, cursor: 'pointer' }} />
+                                      <Chip size="small" label={mgr.name} icon={<Box sx={{ position: 'relative', display: 'inline-flex', width: 16, height: 16 }}><img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} style={{ opacity: 0.8 }} /><Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: '#ff9800', border: '1.5px solid', borderColor: 'background.paper' }} /></Box>} sx={{ height: 24, cursor: 'pointer' }} />
                                     </MuiTooltip>
                                   ))}
                                 </Box>
@@ -2530,7 +2674,7 @@ export default function ClusterTabs(props: any) {
                                       }
                                       arrow
                                     >
-                                      <Chip size="small" label={mds.name} icon={<i className="ri-checkbox-circle-fill" style={{ color: '#4caf50' }} />} sx={{ height: 24, cursor: 'pointer' }} />
+                                      <Chip size="small" label={mds.name} icon={<Box sx={{ position: 'relative', display: 'inline-flex', width: 16, height: 16 }}><img src={theme.palette.mode === 'dark' ? '/images/proxmox-logo-dark.svg' : '/images/proxmox-logo.svg'} alt="" width={16} height={16} style={{ opacity: 0.8 }} /><Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 7, height: 7, borderRadius: '50%', bgcolor: mds.state === 'standby' ? '#ff9800' : '#4caf50', border: '1.5px solid', borderColor: 'background.paper' }} /></Box>} sx={{ height: 24, cursor: 'pointer' }} />
                                     </MuiTooltip>
                                   )) || <Typography variant="body2">—</Typography>}
                                 </Box>
@@ -2679,7 +2823,7 @@ export default function ClusterTabs(props: any) {
                               {/* Reads Graph */}
                               <ExpandableChart
                                 title={t('cluster.reads')}
-                                height={100}
+                                height={185}
                                 header={
                                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1 }}>
                                     <Typography variant="caption" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -2724,9 +2868,9 @@ export default function ClusterTabs(props: any) {
                                     <Area
                                       type="monotone"
                                       dataKey="read_bytes_sec"
-                                      stroke={primaryColor}
-                                      fill={primaryColor}
-                                      fillOpacity={0.4}
+                                      stroke="#3b82f6"
+                                      fill="#3b82f6"
+                                      fillOpacity={0.3}
                                       strokeWidth={1.5}
                                       isAnimationActive={false}
                                     />
@@ -2737,7 +2881,7 @@ export default function ClusterTabs(props: any) {
                               {/* Writes Graph */}
                               <ExpandableChart
                                 title={t('cluster.writes')}
-                                height={100}
+                                height={185}
                                 header={
                                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1 }}>
                                     <Typography variant="caption" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -2761,9 +2905,9 @@ export default function ClusterTabs(props: any) {
                                         const ts = payload[0]?.payload?.time ? new Date(payload[0].payload.time).toLocaleTimeString() : ''
                                         return (
                                           <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11, minWidth: 160 }}>
-                                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: alpha('#10b981', 0.1), borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                              <i className="ri-speed-line" style={{ fontSize: 13, color: '#10b981' }} />
-                                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#10b981' }}>Writes</Typography>
+                                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: alpha('#8b5cf6', 0.1), borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                              <i className="ri-speed-line" style={{ fontSize: 13, color: '#8b5cf6' }} />
+                                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#8b5cf6' }}>Writes</Typography>
                                               <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.6 }}>{ts}</Typography>
                                             </Box>
                                             <Box sx={{ px: 1.5, py: 0.75 }}>
@@ -2782,9 +2926,9 @@ export default function ClusterTabs(props: any) {
                                     <Area
                                       type="monotone"
                                       dataKey="write_bytes_sec"
-                                      stroke={primaryColor}
-                                      fill={primaryColor}
-                                      fillOpacity={0.4}
+                                      stroke="#8b5cf6"
+                                      fill="#8b5cf6"
+                                      fillOpacity={0.3}
                                       strokeWidth={1.5}
                                       isAnimationActive={false}
                                     />
@@ -2795,7 +2939,7 @@ export default function ClusterTabs(props: any) {
                               {/* IOPS Reads Graph */}
                               <ExpandableChart
                                 title={t('cluster.iopsReads')}
-                                height={100}
+                                height={185}
                                 header={
                                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1 }}>
                                     <Typography variant="caption" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -2819,9 +2963,9 @@ export default function ClusterTabs(props: any) {
                                         const ts = payload[0]?.payload?.time ? new Date(payload[0].payload.time).toLocaleTimeString() : ''
                                         return (
                                           <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11, minWidth: 160 }}>
-                                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: alpha('#f59e0b', 0.1), borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                              <i className="ri-dashboard-3-line" style={{ fontSize: 13, color: '#f59e0b' }} />
-                                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#f59e0b' }}>IOPS Reads</Typography>
+                                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: alpha('#10b981', 0.1), borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                              <i className="ri-dashboard-3-line" style={{ fontSize: 13, color: '#10b981' }} />
+                                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#10b981' }}>IOPS Reads</Typography>
                                               <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.6 }}>{ts}</Typography>
                                             </Box>
                                             <Box sx={{ px: 1.5, py: 0.75 }}>
@@ -2840,9 +2984,9 @@ export default function ClusterTabs(props: any) {
                                     <Area
                                       type="monotone"
                                       dataKey="read_op_per_sec"
-                                      stroke={primaryColor}
-                                      fill={primaryColor}
-                                      fillOpacity={0.4}
+                                      stroke="#10b981"
+                                      fill="#10b981"
+                                      fillOpacity={0.3}
                                       strokeWidth={1.5}
                                       isAnimationActive={false}
                                     />
@@ -2853,7 +2997,7 @@ export default function ClusterTabs(props: any) {
                               {/* IOPS Writes Graph */}
                               <ExpandableChart
                                 title={t('cluster.iopsWrites')}
-                                height={100}
+                                height={185}
                                 header={
                                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1 }}>
                                     <Typography variant="caption" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -2877,9 +3021,9 @@ export default function ClusterTabs(props: any) {
                                         const ts = payload[0]?.payload?.time ? new Date(payload[0].payload.time).toLocaleTimeString() : ''
                                         return (
                                           <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', boxShadow: '0 4px 14px rgba(0,0,0,0.15)', fontSize: 11, minWidth: 160 }}>
-                                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: alpha('#ef4444', 0.1), borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                              <i className="ri-dashboard-3-line" style={{ fontSize: 13, color: '#ef4444' }} />
-                                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#ef4444' }}>IOPS Writes</Typography>
+                                            <Box sx={{ px: 1.5, py: 0.75, bgcolor: alpha('#f59e0b', 0.1), borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                              <i className="ri-dashboard-3-line" style={{ fontSize: 13, color: '#f59e0b' }} />
+                                              <Typography variant="caption" sx={{ fontWeight: 700, color: '#f59e0b' }}>IOPS Writes</Typography>
                                               <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.6 }}>{ts}</Typography>
                                             </Box>
                                             <Box sx={{ px: 1.5, py: 0.75 }}>
@@ -2898,9 +3042,9 @@ export default function ClusterTabs(props: any) {
                                     <Area
                                       type="monotone"
                                       dataKey="write_op_per_sec"
-                                      stroke={primaryColor}
-                                      fill={primaryColor}
-                                      fillOpacity={0.4}
+                                      stroke="#f59e0b"
+                                      fill="#f59e0b"
+                                      fillOpacity={0.3}
                                       strokeWidth={1.5}
                                       isAnimationActive={false}
                                     />
@@ -2913,13 +3057,13 @@ export default function ClusterTabs(props: any) {
                       </Stack>
                     ) : (
                       <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <Box sx={{ 
-                          width: 80, 
-                          height: 80, 
-                          borderRadius: '50%', 
-                          bgcolor: 'action.hover', 
-                          display: 'flex', 
-                          alignItems: 'center', 
+                        <Box sx={{
+                          width: 80,
+                          height: 80,
+                          borderRadius: '50%',
+                          bgcolor: 'action.hover',
+                          display: 'flex',
+                          alignItems: 'center',
                           justifyContent: 'center',
                           mx: 'auto',
                           mb: 2

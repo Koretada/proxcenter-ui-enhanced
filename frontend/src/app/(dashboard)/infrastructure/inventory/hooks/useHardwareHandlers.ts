@@ -417,6 +417,7 @@ export function useHardwareHandlers({
   const [clusterHaResources, setClusterHaResources] = useState<any[]>([])
   const [clusterHaGroups, setClusterHaGroups] = useState<any[]>([])
   const [clusterHaRules, setClusterHaRules] = useState<any[]>([]) // PVE 9+
+  const [clusterHaStatus, setClusterHaStatus] = useState<any[]>([])
   const [clusterPveMajorVersion, setClusterPveMajorVersion] = useState<number>(8)
   const [clusterPveVersion, setClusterPveVersion] = useState<string>('') // Version exacte
   const [clusterHaLoading, setClusterHaLoading] = useState(false)
@@ -579,6 +580,7 @@ export function useHardwareHandlers({
         setClusterHaResources(json.data?.resources || [])
         setClusterHaGroups(json.data?.groups || [])
         setClusterHaRules(json.data?.rules || [])
+        setClusterHaStatus(json.data?.status || [])
         setClusterPveMajorVersion(json.data?.majorVersion || 8)
         setClusterPveVersion(json.data?.pveVersion || '')
       }
@@ -1414,6 +1416,7 @@ return explorerFiles.filter((file: any) =>
     clusterHaResources, setClusterHaResources,
     clusterHaGroups, setClusterHaGroups,
     clusterHaRules, setClusterHaRules,
+    clusterHaStatus,
     clusterPveMajorVersion, setClusterPveMajorVersion,
     clusterPveVersion, setClusterPveVersion,
     clusterHaLoading, setClusterHaLoading,

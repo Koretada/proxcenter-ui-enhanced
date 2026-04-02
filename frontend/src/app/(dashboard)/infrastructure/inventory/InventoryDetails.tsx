@@ -973,6 +973,7 @@ export default function InventoryDetails({
     clusterHaResources, setClusterHaResources,
     clusterHaGroups, setClusterHaGroups,
     clusterHaRules, setClusterHaRules,
+    clusterHaStatus,
     clusterPveMajorVersion, setClusterPveMajorVersion,
     clusterPveVersion, setClusterPveVersion,
     clusterHaLoading, setClusterHaLoading,
@@ -3143,7 +3144,7 @@ return vm?.isCluster ?? false
             <ClusterTabs
               {...{allVms, cephTrends, clusterActionError, clusterActionLoading, clusterCephData,
                 clusterCephLoading, clusterCephPerf, clusterCephPerfFiltered, clusterCephTimeframe, clusterConfig,
-                clusterConfigLoaded, clusterConfigLoading, clusterHaGroups, clusterHaLoaded, clusterHaLoading, clusterHaResources, clusterHaRules, loadClusterHa,
+                clusterConfigLoaded, clusterConfigLoading, clusterHaGroups, clusterHaLoaded, clusterHaLoading, clusterHaResources, clusterHaRules, clusterHaStatus, loadClusterHa,
                 clusterNotesContent, clusterNotesEditMode, clusterNotesLoading, clusterNotesSaving, clusterPveMajorVersion,
                 clusterStorageData, clusterStorageLoading, clusterTab, createClusterDialogOpen, data,
                 error, expandedClusterNodes, favorites, handleCreateCluster, handleJoinCluster, handleNodeBulkAction, loadVmTrendsBatch,
@@ -5363,8 +5364,9 @@ return
           rule={editingHaRule}
           ruleType={haRuleType}
           connId={selection.id}
-          availableNodes={data?.nodesData?.map((n: any) => n.node) || []}
+          availableNodes={data?.nodesData || []}
           availableResources={clusterHaResources}
+          allVms={allVms}
           onSaved={() => {
             setHaRuleDialogOpen(false)
             setEditingHaRule(null)

@@ -23,11 +23,12 @@ export async function GET(
     const conn = await getConnectionById(id)
 
     // Récupérer les ressources HA, les groupes et les règles en parallèle
-    const [resourcesResult, groupsResult, rulesResult, versionResult] = await Promise.allSettled([
+    const [resourcesResult, groupsResult, rulesResult, versionResult, statusResult] = await Promise.allSettled([
       pveFetch<any[]>(conn, '/cluster/ha/resources'),
       pveFetch<any[]>(conn, '/cluster/ha/groups'),
       pveFetch<any[]>(conn, '/cluster/ha/rules'), // PVE 9+ uniquement
       pveFetch<any>(conn, '/version'),
+      pveFetch<any[]>(conn, '/cluster/ha/status/current'),
     ])
 
     const resources = resourcesResult.status === 'fulfilled' ? resourcesResult.value || [] : []
@@ -47,11 +48,14 @@ export async function GET(
     // Déterminer la version majeure (8 ou 9)
     const majorVersion = Number.parseInt(pveVersion.split('.')[0], 10) || 8
 
+    const status = statusResult.status === 'fulfilled' ? statusResult.value || [] : []
+
     return NextResponse.json({
       data: {
         resources,
         groups,
         rules,
+        status,
         pveVersion,
         majorVersion,
         rulesSupported, // true si PVE 9+
