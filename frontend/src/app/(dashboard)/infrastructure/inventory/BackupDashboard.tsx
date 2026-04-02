@@ -133,9 +133,9 @@ function MetricGraph({
   height?: number
 }) {
   return (
-    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-        <Typography variant="caption" fontWeight={600}>{title}</Typography>
+    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.75, pr: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
+        <Typography variant="caption" fontWeight={600} sx={{ pl: 0.5 }}>{title}</Typography>
         {onExpand && (
           <IconButton size="small" onClick={onExpand} sx={{ opacity: 0.4, p: 0.25, '&:hover': { opacity: 1 } }}>
             <i className="ri-expand-diagonal-line" style={{ fontSize: 14 }} />
@@ -144,7 +144,7 @@ function MetricGraph({
       </Box>
       <Box sx={{ height }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <AreaChart data={series}>
+          <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 0 }}>
             <defs>
               {serverNames.map(name => (
                 <linearGradient key={`g_${dataKeyPrefix}_${name}`} id={`pbsGrad_${dataKeyPrefix}_${name}`} x1="0" y1="0" x2="0" y2="1">
@@ -200,20 +200,6 @@ function MetricGraph({
           </AreaChart>
         </ResponsiveContainer>
       </Box>
-      {serverNames.length > 1 && (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-          {serverNames.map(name => (
-            <Box
-              key={name}
-              onClick={() => onToggle(name)}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', opacity: hiddenServers.has(name) ? 0.3 : 1, '&:hover': { opacity: hiddenServers.has(name) ? 0.5 : 0.8 } }}
-            >
-              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: serverColors[name] }} />
-              <Typography variant="caption" sx={{ fontSize: 9, textDecoration: hiddenServers.has(name) ? 'line-through' : 'none' }}>{name}</Typography>
-            </Box>
-          ))}
-        </Box>
-      )}
     </Box>
   )
 }
@@ -237,9 +223,9 @@ function NetworkGraph({
   height?: number
 }) {
   return (
-    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-        <Typography variant="caption" fontWeight={600}>Network Traffic</Typography>
+    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.75, pr: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
+        <Typography variant="caption" fontWeight={600} sx={{ pl: 0.5 }}>Network Traffic</Typography>
         {onExpand && (
           <IconButton size="small" onClick={onExpand} sx={{ opacity: 0.4, p: 0.25, '&:hover': { opacity: 1 } }}>
             <i className="ri-expand-diagonal-line" style={{ fontSize: 14 }} />
@@ -248,7 +234,7 @@ function NetworkGraph({
       </Box>
       <Box sx={{ height }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <AreaChart data={series}>
+          <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 0 }}>
             <defs>
               {serverNames.map(name => (
                 <linearGradient key={`gNetIn_${name}`} id={`pbsGradNetIn_${name}`} x1="0" y1="0" x2="0" y2="1">
@@ -299,20 +285,6 @@ function NetworkGraph({
           </AreaChart>
         </ResponsiveContainer>
       </Box>
-      {serverNames.length > 1 && (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-          {serverNames.map(name => (
-            <Box
-              key={name}
-              onClick={() => onToggle(name)}
-              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', opacity: hiddenServers.has(name) ? 0.3 : 1, '&:hover': { opacity: hiddenServers.has(name) ? 0.5 : 0.8 } }}
-            >
-              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: serverColors[name] }} />
-              <Typography variant="caption" sx={{ fontSize: 9, textDecoration: hiddenServers.has(name) ? 'line-through' : 'none' }}>{name}</Typography>
-            </Box>
-          ))}
-        </Box>
-      )}
     </Box>
   )
 }

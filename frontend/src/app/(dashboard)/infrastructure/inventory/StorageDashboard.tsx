@@ -208,23 +208,6 @@ export default function StorageDashboard({ clusterStorages, onStorageClick }: St
                 />
               </PieChart>
             </ResponsiveContainer>
-            <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-              <Stack direction="row" alignItems="center" spacing={0.75}>
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: theme.palette.primary.main, flexShrink: 0 }} />
-                <Typography variant="caption" sx={{ flex: 1, opacity: 0.8 }}>Total</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.7 }}>{formatBytes(totalBytes)}</Typography>
-              </Stack>
-              <Stack direction="row" alignItems="center" spacing={0.75}>
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: usedPct > 85 ? theme.palette.error.main : usedPct > 70 ? theme.palette.warning.main : theme.palette.primary.main, flexShrink: 0 }} />
-                <Typography variant="caption" sx={{ flex: 1, opacity: 0.8 }}>Used ({usedPct}%)</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.7 }}>{formatBytes(usedBytes)}</Typography>
-              </Stack>
-              <Stack direction="row" alignItems="center" spacing={0.75}>
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: alpha(theme.palette.success.main, 0.5), flexShrink: 0 }} />
-                <Typography variant="caption" sx={{ flex: 1, opacity: 0.8 }}>Free</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.7 }}>{formatBytes(freeBytes)}</Typography>
-              </Stack>
-            </Stack>
           </CardContent>
         </Card>
 
@@ -287,15 +270,6 @@ export default function StorageDashboard({ clusterStorages, onStorageClick }: St
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-                {chartData.map((entry) => (
-                  <Stack key={entry.name} direction="row" alignItems="center" spacing={0.75}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
-                    <Typography variant="caption" sx={{ flex: 1, opacity: 0.8 }}>{entry.name}</Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.7 }}>{formatBytes(entry.value)}</Typography>
-                  </Stack>
-                ))}
-              </Stack>
             </CardContent>
           </Card>
         )}

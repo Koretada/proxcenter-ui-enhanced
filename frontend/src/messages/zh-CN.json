@@ -20,6 +20,7 @@
     "ok": "确定",
     "retry": "重试",
     "refresh": "刷新",
+    "rowsPerPage": "每页行数",
     "loadDetails": "加载详情",
     "nodes": "节点",
     "back": "返回",
@@ -1129,6 +1130,7 @@
   "inventoryPage": {
     "newTag": "新标签...",
     "existingTagsProxmox": "Proxmox 中的现有标签：",
+    "existingTags": "现有标签：",
     "shutdownClean": "关机（正常停止）",
     "clickToCopy": "点击复制",
     "toImplement": "待实现",

@@ -63,6 +63,7 @@ import { AreaPctChart, AreaBpsChart2 } from '../components/RrdCharts'
 import InventorySummary from '../components/InventorySummary'
 import HaGroupDialog from '../HaGroupDialog'
 import HaRuleDialog from '../HaRuleDialog'
+import EntityTagManager from '../components/EntityTagManager'
 import { AddIcon } from '../components/IconWrappers'
 import { useLicense, Features } from '@/contexts/LicenseContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -99,6 +100,8 @@ export default function ClusterTabs(props: any) {
   const [addHaGroup, setAddHaGroup] = useState('')
   const [addHaComment, setAddHaComment] = useState('')
   const [addHaSaving, setAddHaSaving] = useState(false)
+  const [clusterTags, setClusterTags] = useState<string[]>([])
+  const [clusterTagsLoaded, setClusterTagsLoaded] = useState<string | null>(null)
   const theme = useTheme()
   const chartTooltipStyle = { backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, color: theme.palette.text.primary }
   const toast = useToast()
@@ -421,6 +424,20 @@ export default function ClusterTabs(props: any) {
 
   // Reset subscription loaded flag on selection change
   useEffect(() => { setSubscriptionsLoaded(false); setNodeSubscriptions({}) }, [selection?.id])
+
+  // Load cluster tags from connection
+  useEffect(() => {
+    const connId = selection?.type === 'cluster' ? selection.id : ''
+    if (!connId || clusterTagsLoaded === connId) return
+    setClusterTagsLoaded(connId)
+    fetch(`/api/v1/connections/${encodeURIComponent(connId)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        const tags = json?.data?.tags
+        setClusterTags(tags ? String(tags).split(';').filter(Boolean) : [])
+      })
+      .catch(() => {})
+  }, [selection?.id, selection?.type, clusterTagsLoaded])
 
   // Enrich nodesData with subscription info for NodesTable
   const enrichedNodesData = useMemo(() => {
@@ -955,9 +972,9 @@ export default function ClusterTabs(props: any) {
                     {drsHealth !== null && (
                       <Card variant="outlined" sx={{ mb: 2 }}>
                         <CardContent sx={{ py: 1.5, px: 2 }}>
-                          {/* Header row: score ring + title + actions */}
+                          {/* Header row: score ring + title + breakdown + actions */}
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                            <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                            <Box sx={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
                               <CircularProgress
                                 variant="determinate"
                                 value={drsHealth.score}
@@ -969,7 +986,7 @@ export default function ClusterTabs(props: any) {
                                 <Typography variant="caption" fontWeight={700} sx={{ fontSize: 11 }}>{drsHealth.score}</Typography>
                               </Box>
                             </Box>
-                            <Box sx={{ flex: 1, minWidth: 120 }}>
+                            <Box sx={{ minWidth: 100 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Typography variant="subtitle2" fontWeight={700}>{t('inventory.drsStatusTitle')}</Typography>
                                 {(() => {
@@ -980,11 +997,52 @@ export default function ClusterTabs(props: any) {
                                   return <Chip size="small" label={modeLabel} color={modeColor as any} variant="outlined" />
                                 })()}
                               </Box>
-                              <Typography variant="body2" color="text.secondary">
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: 11 }}>
                                 {drsHealth.score} / 100 — {drsHealth.score >= 85 ? t('drsPage.balanced') : drsHealth.score >= 60 ? t('drsPage.toOptimize') : t('drsPage.unbalanced')}
                               </Typography>
                             </Box>
-                            <Stack direction="row" spacing={0.5}>
+
+                            {/* Score breakdown - inline */}
+                            <Box sx={{ display: 'flex', gap: 1, flex: 1, minWidth: 0 }}>
+                              {[
+                                { label: t('inventory.drsAvgMemory'), value: drsHealth.avgMem, penalty: drsHealth.memPenalty },
+                                { label: t('inventory.drsAvgCpu'), value: drsHealth.avgCpu, penalty: drsHealth.cpuPenalty },
+                                { label: t('inventory.drsImbalance'), value: drsHealth.imbalance, penalty: drsHealth.imbalancePenalty },
+                              ].map((item) => (
+                                <Box
+                                  key={item.label}
+                                  sx={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    px: 1,
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    bgcolor: (t) => alpha(t.palette.divider, 0.3),
+                                    textAlign: 'center',
+                                  }}
+                                >
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, fontSize: 10 }}>
+                                    {item.label}
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 0.5 }}>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: 12 }}>
+                                      {item.value.toFixed(1)}%
+                                    </Typography>
+                                    {item.penalty !== 0 ? (
+                                      <Typography variant="caption" color="error.main" fontWeight={600} sx={{ fontSize: 10 }}>
+                                        {item.penalty}
+                                      </Typography>
+                                    ) : (
+                                      <Typography variant="caption" color="success.main" fontWeight={600} sx={{ fontSize: 10 }}>
+                                        OK
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                              ))}
+                            </Box>
+
+                            <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
                               <MuiTooltip title={t('inventory.drsEvaluate')}>
                                 <span>
                                   <IconButton size="small" onClick={handleEvaluate} disabled={evaluating} sx={{ width: 32, height: 32 }}>
@@ -998,46 +1056,6 @@ export default function ClusterTabs(props: any) {
                                 </IconButton>
                               </MuiTooltip>
                             </Stack>
-                          </Box>
-
-                          {/* Score breakdown */}
-                          <Box sx={{ display: 'flex', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
-                            {[
-                              { label: t('inventory.drsAvgMemory'), value: drsHealth.avgMem, penalty: drsHealth.memPenalty, color: 'info.main' },
-                              { label: t('inventory.drsAvgCpu'), value: drsHealth.avgCpu, penalty: drsHealth.cpuPenalty, color: 'warning.main' },
-                              { label: t('inventory.drsImbalance'), value: drsHealth.imbalance, penalty: drsHealth.imbalancePenalty, color: 'secondary.main' },
-                            ].map((item) => (
-                              <Box
-                                key={item.label}
-                                sx={{
-                                  flex: 1,
-                                  minWidth: 130,
-                                  px: 1.5,
-                                  py: 1,
-                                  borderRadius: 1,
-                                  bgcolor: (t) => alpha(t.palette.divider, 0.3),
-                                }}
-                              >
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mb: 0.25 }}>
-                                  {item.label}
-                                </Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
-                                  <Typography variant="body2" fontWeight={600}>
-                                    {item.value.toFixed(1)}%
-                                  </Typography>
-                                  {item.penalty !== 0 && (
-                                    <Typography variant="caption" color="error.main" fontWeight={600}>
-                                      {item.penalty}
-                                    </Typography>
-                                  )}
-                                  {item.penalty === 0 && (
-                                    <Typography variant="caption" color="success.main" fontWeight={600}>
-                                      OK
-                                    </Typography>
-                                  )}
-                                </Box>
-                              </Box>
-                            ))}
                           </Box>
 
                           {/* Recommendations for this cluster */}

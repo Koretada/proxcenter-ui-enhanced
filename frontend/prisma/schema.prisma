@@ -26,6 +26,9 @@ model Connection {
   locationLabel String?
   apiTokenEnc String
 
+  // Custom ProxCenter tags (semicolon-separated)
+  tags          String?
+
   // SSH fields
   sshEnabled    Boolean @default(false)
   sshPort       Int     @default(22)

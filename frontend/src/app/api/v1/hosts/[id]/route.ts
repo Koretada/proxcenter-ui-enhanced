@@ -45,6 +45,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (body.enabled !== undefined) data.enabled = !!body.enabled
     if (body.notes !== undefined) data.notes = body.notes ? String(body.notes) : null
     if (body.sshAddress !== undefined) data.sshAddress = body.sshAddress ? String(body.sshAddress).trim() : null
+    if (body.tags !== undefined) data.tags = body.tags ? String(body.tags) : null
 
     const updated = await prisma.managedHost.update({
       where: { id },
@@ -62,6 +63,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         sshAddress: updated.sshAddress ?? null,
         enabled: updated.enabled,
         notes: updated.notes ?? null,
+        tags: updated.tags ?? null,
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt,
       },

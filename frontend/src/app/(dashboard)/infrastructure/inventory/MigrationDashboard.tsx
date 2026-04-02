@@ -210,28 +210,6 @@ export default function MigrationDashboard({ externalHypervisors, onHostClick }:
                 </ResponsiveContainer>
               </Box>
 
-              {/* Legend */}
-              <Stack spacing={1} sx={{ flex: 1 }}>
-                {donutData.map(entry => (
-                  <Stack key={entry.name} direction="row" alignItems="center" spacing={1}>
-                    <Box
-                      sx={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: '50%',
-                        bgcolor: entry.color,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <Typography variant="body2" sx={{ flex: 1 }}>
-                      {entry.name}
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {entry.value}
-                    </Typography>
-                  </Stack>
-                ))}
-              </Stack>
             </Stack>
           </CardContent>
         </Card>

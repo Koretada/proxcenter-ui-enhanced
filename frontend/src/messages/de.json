@@ -34,6 +34,7 @@
     "remove": "Entfernen",
     "update": "Aktualisieren",
     "refresh": "Aktualisieren",
+    "rowsPerPage": "Zeilen pro Seite",
     "download": "Herunterladen",
     "upload": "Hochladen",
     "copy": "Kopieren",
@@ -1126,6 +1127,7 @@
   "inventoryPage": {
     "newTag": "Neuer Tag...",
     "existingTagsProxmox": "Vorhandene Tags in Proxmox:",
+    "existingTags": "Vorhandene Tags:",
     "shutdownClean": "Herunterfahren (sauberer Stopp)",
     "clickToCopy": "Klicken zum Kopieren",
     "toImplement": "Zu implementieren",

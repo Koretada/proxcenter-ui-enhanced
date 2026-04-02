@@ -94,6 +94,7 @@ export const updateConnectionSchema = z.object({
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
   locationLabel: z.string().nullable().optional(),
+  tags: z.string().nullable().optional(),
   apiToken: z.string().transform(s => s.trim()).optional(),
 
   // VMware ESXi fields

@@ -3,12 +3,22 @@
 import { useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Box, Popover, Typography } from '@mui/material'
+import { Box, Popover, Typography, Chip } from '@mui/material'
 import { useTheme, alpha } from '@mui/material/styles'
 
 import { menuData } from '@/@menu/menuData'
 import { useRBAC } from '@/contexts/RBACContext'
 import { useLicense } from '@/contexts/LicenseContext'
+
+// Section accent colors for visual distinction
+const sectionColors = {
+  0: '#2196f3', // Dashboard - blue
+  1: '#7c3aed', // Infrastructure - purple
+  2: '#f59e0b', // Orchestration - amber
+  3: '#10b981', // Operations - emerald
+  4: '#ef4444', // Security - red
+  5: '#6b7280', // Settings - gray
+}
 
 const BurgerMenu = ({ anchorEl, open, onClose }) => {
   const router = useRouter()
@@ -17,14 +27,6 @@ const BurgerMenu = ({ anchorEl, open, onClose }) => {
   const theme = useTheme()
   const { hasPermission } = useRBAC()
   const { hasFeature } = useLicense()
-
-  const primaryColor = theme.palette.primary.main
-  const menuBg = theme.palette.background.paper
-  const menuBorder = theme.palette.divider
-  const menuHover = theme.palette.action.hover
-  const accentLight = theme.palette.primary.main
-  const textPrimary = theme.palette.text.primary
-  const textSecondary = theme.palette.text.secondary
 
   const sections = useMemo(() => {
     const data = menuData(t)
@@ -60,6 +62,7 @@ const BurgerMenu = ({ anchorEl, open, onClose }) => {
         result.push({
           isSection: true,
           label: item.label,
+          icon: item.icon,
           children
         })
       }
@@ -84,108 +87,195 @@ const BurgerMenu = ({ anchorEl, open, onClose }) => {
       slotProps={{
         paper: {
           sx: {
-            backgroundColor: menuBg,
-            border: `1px solid ${menuBorder}`,
-            borderRadius: 2,
-            mt: 0.5,
-            width: { xs: '95vw', sm: 520, md: 680 },
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 3,
+            mt: 1,
+            width: { xs: '95vw', sm: 560, md: 720 },
             maxHeight: '80vh',
             overflow: 'auto',
-            boxShadow: theme.shadows[8]
+            boxShadow: '0 20px 60px -12px rgba(0,0,0,0.25)',
           }
         }
       }}
     >
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ p: 2.5 }}>
+        {/* Grid of sections */}
         <Box
           sx={{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' },
-            gap: 2.5
+            gap: 1,
           }}
         >
           {sections.map((section, idx) => {
+            const accent = sectionColors[idx] || theme.palette.primary.main
+
             if (section.standalone) {
+              const isActive = pathname === section.href
               return (
-                <Box key={idx}>
+                <Box
+                  key={idx}
+                  onClick={() => handleNavigate(section.href, section.locked)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    px: 1.5,
+                    py: 1.25,
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    bgcolor: isActive ? alpha(accent, 0.1) : 'transparent',
+                    border: '1px solid',
+                    borderColor: isActive ? alpha(accent, 0.2) : 'transparent',
+                    transition: 'all 0.15s ease',
+                    '&:hover': {
+                      bgcolor: alpha(accent, 0.08),
+                      borderColor: alpha(accent, 0.15),
+                      transform: 'translateY(-1px)',
+                    },
+                  }}
+                >
                   <Box
-                    onClick={() => handleNavigate(section.href, section.locked)}
                     sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 1.5,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 1,
-                      px: 1,
-                      py: 0.75,
-                      borderRadius: 1,
-                      cursor: 'pointer',
-                      backgroundColor: pathname === section.href ? alpha(primaryColor, 0.12) : 'transparent',
-                      '&:hover': { backgroundColor: menuHover },
-                      transition: 'background-color 150ms'
+                      justifyContent: 'center',
+                      bgcolor: alpha(accent, 0.1),
+                      flexShrink: 0,
                     }}
                   >
-                    <i className={section.icon} style={{ color: accentLight, fontSize: 18 }} />
-                    <Typography sx={{ color: textPrimary, fontSize: 13, fontWeight: 500 }}>
-                      {section.label}
-                    </Typography>
+                    <i className={section.icon} style={{ fontSize: 17, color: accent }} />
                   </Box>
+                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: isActive ? accent : 'text.primary' }}>
+                    {section.label}
+                  </Typography>
                 </Box>
               )
             }
 
             return (
-              <Box key={idx}>
-                <Typography
+              <Box
+                key={idx}
+                sx={{
+                  borderRadius: 2.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  overflow: 'hidden',
+                  transition: 'border-color 0.2s',
+                  '&:hover': { borderColor: alpha(accent, 0.3) },
+                }}
+              >
+                {/* Section header */}
+                <Box
                   sx={{
-                    color: textSecondary,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    mb: 0.75,
-                    px: 1
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    px: 1.5,
+                    py: 1,
+                    bgcolor: alpha(accent, 0.04),
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
                   }}
                 >
-                  {section.label}
-                </Typography>
-                {section.children.map((child, cidx) => {
-                  const isActive = pathname?.startsWith(child.href)
-                  return (
-                    <Box
-                      key={cidx}
-                      onClick={() => handleNavigate(child.href, child.locked)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        cursor: child.locked ? 'not-allowed' : 'pointer',
-                        opacity: child.locked ? 0.4 : 1,
-                        backgroundColor: isActive ? alpha(primaryColor, 0.12) : 'transparent',
-                        '&:hover': {
-                          backgroundColor: child.locked ? 'transparent' : menuHover
-                        },
-                        transition: 'background-color 150ms'
-                      }}
-                    >
-                      <i
-                        className={child.locked ? 'ri-lock-line' : child.icon}
-                        style={{ color: accentLight, fontSize: 16, opacity: child.locked ? 0.5 : 0.8 }}
-                      />
-                      <Typography
+                  <Box
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: alpha(accent, 0.12),
+                      flexShrink: 0,
+                    }}
+                  >
+                    <i className={section.icon} style={{ fontSize: 14, color: accent }} />
+                  </Box>
+                  <Typography
+                    sx={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      color: accent,
+                      flex: 1,
+                    }}
+                  >
+                    {section.label}
+                  </Typography>
+                  <Typography variant='caption' sx={{ fontSize: 10, opacity: 0.4 }}>
+                    {section.children.length}
+                  </Typography>
+                </Box>
+
+                {/* Section items */}
+                <Box sx={{ py: 0.5 }}>
+                  {section.children.map((child, cidx) => {
+                    const isActive = pathname?.startsWith(child.href)
+                    return (
+                      <Box
+                        key={cidx}
+                        onClick={() => handleNavigate(child.href, child.locked)}
                         sx={{
-                          color: isActive ? accentLight : textPrimary,
-                          fontSize: 12.5,
-                          fontWeight: isActive ? 600 : 400,
-                          lineHeight: 1.4
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.25,
+                          px: 1.5,
+                          py: 0.75,
+                          mx: 0.5,
+                          borderRadius: 1.5,
+                          cursor: child.locked ? 'not-allowed' : 'pointer',
+                          opacity: child.locked ? 0.4 : 1,
+                          bgcolor: isActive ? alpha(accent, 0.08) : 'transparent',
+                          transition: 'all 0.12s ease',
+                          '&:hover': {
+                            bgcolor: child.locked ? 'transparent' : alpha(accent, 0.06),
+                          },
                         }}
                       >
-                        {child.label}
-                      </Typography>
-                    </Box>
-                  )
-                })}
+                        <i
+                          className={child.locked ? 'ri-lock-line' : child.icon}
+                          style={{
+                            fontSize: 15,
+                            color: isActive ? accent : 'inherit',
+                            opacity: child.locked ? 0.5 : isActive ? 1 : 0.55,
+                          }}
+                        />
+                        <Typography
+                          sx={{
+                            fontSize: 12.5,
+                            fontWeight: isActive ? 600 : 400,
+                            color: isActive ? accent : 'text.primary',
+                            lineHeight: 1.3,
+                            flex: 1,
+                          }}
+                        >
+                          {child.label}
+                        </Typography>
+                        {child.locked && (
+                          <Chip
+                            label='Pro'
+                            size='small'
+                            sx={{
+                              height: 16,
+                              fontSize: 9,
+                              fontWeight: 700,
+                              bgcolor: alpha(theme.palette.warning.main, 0.12),
+                              color: theme.palette.warning.main,
+                              '& .MuiChip-label': { px: 0.75 },
+                            }}
+                          />
+                        )}
+                      </Box>
+                    )
+                  })}
+                </Box>
               </Box>
             )
           })}

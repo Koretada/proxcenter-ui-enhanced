@@ -20,6 +20,7 @@
     "ok": "OK",
     "retry": "Retry",
     "refresh": "Refresh",
+    "rowsPerPage": "Rows per page",
     "loadDetails": "Load details",
     "nodes": "Nodes",
     "back": "Back",
@@ -501,6 +502,7 @@
     "pbsNoBackups": "No backups found in this PBS storage",
     "pbsSearchBackups": "Search backups...",
     "addTag": "Add tag",
+    "manageTags": "Manage Tags",
     "deleteVm": "Delete VM",
     "deleteVmDisks": "Also delete associated disks",
     "vmRunningWarning": "Stop the VM before deleting it",
@@ -1145,6 +1147,7 @@
   "inventoryPage": {
     "newTag": "New tag...",
     "existingTagsProxmox": "Existing tags in Proxmox:",
+    "existingTags": "Existing tags:",
     "shutdownClean": "Shutdown (clean stop)",
     "clickToCopy": "Click to copy",
     "toImplement": "To implement",

@@ -158,7 +158,7 @@ const getAlertIcon = (alert) => {
   }
 }
 
-const NavbarContent = () => {
+const NavbarContent = ({ targetLayout } = {}) => {
   const { settings, updateSettings } = useSettings()
   const router = useRouter()
   const { data: session } = useSession()
@@ -665,10 +665,10 @@ return () => window.removeEventListener('keydown', onKeyDown)
             </IconButton>
           </Tooltip>
 
-          {/* Toggle to Horizontal Layout */}
-          <Tooltip title={t('navbar.horizontalLayout')}>
-            <IconButton size='small' onClick={() => updateSettings({ layout: 'horizontal' })}>
-              <i className='ri-layout-top-line' />
+          {/* Toggle Layout */}
+          <Tooltip title={t(targetLayout === 'vertical' ? 'navbar.verticalLayout' : 'navbar.horizontalLayout')}>
+            <IconButton size='small' onClick={() => updateSettings({ layout: targetLayout || 'horizontal' })}>
+              <i className={targetLayout === 'vertical' ? 'ri-layout-left-line' : 'ri-layout-top-line'} />
             </IconButton>
           </Tooltip>
 

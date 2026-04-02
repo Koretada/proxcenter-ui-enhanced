@@ -52,6 +52,7 @@ const MoveUpIcon = (props: any) => <i className="ri-upload-2-line" style={{ font
 const ContentCopyIcon = (props: any) => <i className="ri-file-copy-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 const DescriptionIcon = (props: any) => <i className="ri-file-text-line" style={{ fontSize: props?.fontSize === 'small' ? 18 : 20, color: props?.sx?.color, ...props?.style }} />
 
+import EntityTagManager from './components/EntityTagManager'
 import { useTaskTracker } from '@/hooks/useTaskTracker'
 import { MigrateVmDialog, CrossClusterMigrateParams } from '@/components/MigrateVmDialog'
 import { CloneVmDialog } from '@/components/hardware/CloneVmDialog'
@@ -802,6 +803,34 @@ export default function InventoryTree({ selected, onSelect, onRefreshRef, onOpti
   const [externalHypervisors, setExternalHypervisors] = useState<{ id: string; name: string; type: string; vms?: { vmid: string; name: string; status: string; cpu?: number; memory_size_MiB?: number; guest_OS?: string }[] }[]>([])
   const [clusterStorages, setClusterStorages] = useState<TreeClusterStorage[]>([])
   const [reloadTick, setReloadTick] = useState(0)
+
+  // ProxCenter entity tags (clusters + nodes) loaded from DB
+  const [entityTagsMap, setEntityTagsMap] = useState<Map<string, { tags: string[]; type: 'cluster' | 'node'; connId: string; name: string; node?: string }>>(new Map())
+
+  useEffect(() => {
+    // Load entity tags from /api/v1/tags/entities (raw SQL, no Prisma select issues)
+    const loadEntityTags = async () => {
+      const map = new Map<string, { tags: string[]; type: 'cluster' | 'node'; connId: string; name: string; node?: string }>()
+      try {
+        const res = await fetch('/api/v1/tags/entities', { cache: 'no-store' })
+        if (res.ok) {
+          const json = await res.json()
+          for (const e of json?.data || []) {
+            const tags = e.tags ? String(e.tags).split(';').filter(Boolean) : []
+            if (tags.length > 0) {
+              if (e.entityType === 'cluster') {
+                map.set(`cluster:${e.id}`, { tags, type: 'cluster', connId: e.id, name: e.name })
+              } else {
+                map.set(`node:${e.connectionId}:${e.node}`, { tags, type: 'node', connId: e.connectionId, name: e.node, node: e.node })
+              }
+            }
+          }
+        }
+      } catch {}
+      setEntityTagsMap(map)
+    }
+    loadEntityTags()
+  }, [reloadTick])
   
   // Helper pour vérifier si une VM est en migration
   const isVmMigrating = useCallback((connId: string, vmid: string) => {
@@ -1096,12 +1125,44 @@ return migratingVmIds.has(`${connId}:${vmid}`)
 
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false)
   const [migrateTarget, setMigrateTarget] = useState<VmContextMenu>(null)
+  // Menu contextuel Cluster
+  const [clusterContextMenu, setClusterContextMenu] = useState<{ mouseX: number; mouseY: number; connId: string; name: string; nodes: { status?: string }[] } | null>(null)
+
   // Menu contextuel Node (maintenance + bulk actions + shell)
   const [nodeContextMenu, setNodeContextMenu] = useState<NodeContextMenu>(null)
   const [maintenanceBusy, setMaintenanceBusy] = useState(false)
   const [maintenanceTarget, setMaintenanceTarget] = useState<{ connId: string; node: string; maintenance?: string } | null>(null)
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null)
   const [maintenanceLocalVms, setMaintenanceLocalVms] = useState<Set<string>>(new Set())
+
+  // Tag management dialog for clusters/nodes
+  const [tagDialog, setTagDialog] = useState<{ type: 'connection' | 'host'; entityId: string; connId?: string; node?: string; name: string; nodeStatus?: string; nodeMaintenance?: string; clusterNodes?: { status?: string }[] } | null>(null)
+  const [tagDialogTags, setTagDialogTags] = useState<string[]>([])
+
+  const openTagDialog = useCallback((type: 'connection' | 'host', entityId: string, name: string, connId?: string, node?: string, extra?: { nodeStatus?: string; nodeMaintenance?: string; clusterNodes?: { status?: string }[] }) => {
+    setTagDialog({ type, entityId, connId, node, name, ...extra })
+    setTagDialogTags([])
+    // Load current tags
+    if (type === 'connection') {
+      fetch(`/api/v1/connections/${encodeURIComponent(entityId)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(json => {
+          const tags = json?.data?.tags
+          setTagDialogTags(tags ? String(tags).split(';').filter(Boolean) : [])
+        })
+        .catch(() => {})
+    } else {
+      fetch(`/api/v1/hosts?connId=${encodeURIComponent(connId || '')}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(json => {
+          const hosts = json?.data?.hosts || []
+          const host = hosts.find((h: any) => h.node === node)
+          const tags = host?.managedHost?.tags || host?.tags
+          setTagDialogTags(tags ? String(tags).split(';').filter(Boolean) : [])
+        })
+        .catch(() => {})
+    }
+  }, [])
   const [maintenanceStorageLoading, setMaintenanceStorageLoading] = useState(false)
   const [maintenanceMigrateTarget, setMaintenanceMigrateTarget] = useState('')
   const [maintenanceShutdownLocal, setMaintenanceShutdownLocal] = useState(false)
@@ -2417,44 +2478,39 @@ return a.pool.localeCompare(b.pool)
       })
   }, [displayVms])
 
-  // Liste des tags uniques avec leurs VMs (filtrées, sans templates)
+  // Liste des tags uniques avec leurs VMs + entities (clusters/nodes)
   const tagsList = useMemo(() => {
-    const tagsMap = new Map<string, typeof displayVms>()
+    const tagsMap = new Map<string, { vms: typeof displayVms; entities: { type: 'cluster' | 'node'; connId: string; name: string; node?: string }[] }>()
+
+    const getOrCreate = (tag: string) => {
+      if (!tagsMap.has(tag)) tagsMap.set(tag, { vms: [], entities: [] })
+      return tagsMap.get(tag)!
+    }
 
     displayVms.forEach(vm => {
       if (vm.tags) {
-        // Tags peuvent être séparés par ; ou ,
         const vmTags = vm.tags.split(/[;,]/).map(t => t.trim()).filter(Boolean)
-
-        vmTags.forEach(tag => {
-          if (!tagsMap.has(tag)) {
-            tagsMap.set(tag, [])
-          }
-
-          tagsMap.get(tag)!.push(vm)
-        })
+        vmTags.forEach(tag => getOrCreate(tag).vms.push(vm))
       } else {
-        // VM sans tag
-        const noTag = `(${t('common.none')})`
-
-        if (!tagsMap.has(noTag)) {
-          tagsMap.set(noTag, [])
-        }
-
-        tagsMap.get(noTag)!.push(vm)
+        getOrCreate(`(${t('common.none')})`).vms.push(vm)
       }
     })
 
+    // Merge ProxCenter entity tags (clusters/nodes)
+    for (const [, entity] of entityTagsMap) {
+      for (const tag of entity.tags) {
+        getOrCreate(tag).entities.push({ type: entity.type, connId: entity.connId, name: entity.name, node: entity.node })
+      }
+    }
+
     return Array.from(tagsMap.entries())
-      .map(([tag, vms]) => ({ tag, vms }))
+      .map(([tag, data]) => ({ tag, vms: data.vms, entities: data.entities }))
       .sort((a, b) => {
-        // "(None)" at the end
         if (a.tag === `(${t('common.none')})`) return 1
         if (b.tag === `(${t('common.none')})`) return -1
-
-return a.tag.localeCompare(b.tag)
+        return a.tag.localeCompare(b.tag)
       })
-  }, [displayVms])
+  }, [displayVms, entityTagsMap])
 
   // Compter les templates
   const templatesCount = useMemo(() => {
@@ -3133,8 +3189,9 @@ return (
               <Typography variant='body2' sx={{ opacity: 0.6 }}>{t('common.noResults')}</Typography>
             </Box>
           ) : (
-            tagsList.map(({ tag, vms }) => {
+            tagsList.map(({ tag, vms, entities }) => {
               const isCollapsed = collapsedSections.has(`tag:${tag}`)
+              const totalCount = vms.length + entities.length
 
 
 return (
@@ -3144,7 +3201,6 @@ return (
                   onClick={() => {
                     const willCollapse = !isCollapsed
                     toggleSection(`tag:${tag}`)
-                    // Deselect VM if it belongs to this tag and we're collapsing
                     if (willCollapse && selected?.type === 'vm') {
                       const isInTag = vms.some(vm => `${vm.connId}:${vm.node}:${vm.type}:${vm.vmid}` === selected.id)
                       if (isInTag) onSelect(null)
@@ -3165,8 +3221,45 @@ return (
                   <i className={isCollapsed ? "ri-add-line" : "ri-subtract-line"} style={{ fontSize: 14, opacity: 0.7 }} />
                   <i className="ri-price-tag-3-fill" style={{ fontSize: 14, opacity: 0.7 }} />
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{tag}</Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.5 }}>({vms.length})</Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.5 }}>({totalCount})</Typography>
                 </Box>
+                {/* Entities (clusters/nodes) avec ce tag */}
+                {!isCollapsed && entities.map(entity => {
+                  const entityKey = entity.type === 'cluster' ? `cluster:${entity.connId}` : `node:${entity.connId}:${entity.node}`
+                  const isSelected = selected?.id === (entity.type === 'cluster' ? entity.connId : `${entity.connId}:${entity.node}`)
+                  const clu = clusters.find(c => c.connId === entity.connId)
+                  const nodeData = entity.type === 'node' ? clu?.nodes.find(n => n.node === entity.node) : null
+                  return (
+                    <Box
+                      key={`${entityKey}-${tag}`}
+                      onClick={() => onSelect({ type: entity.type === 'cluster' ? 'cluster' : 'node', id: entity.type === 'cluster' ? entity.connId : `${entity.connId}:${entity.node}` })}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 2.5,
+                        py: 0.5,
+                        cursor: 'pointer',
+                        bgcolor: isSelected ? 'action.selected' : 'transparent',
+                        '&:hover': { bgcolor: isSelected ? 'action.selected' : 'action.hover' },
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      {entity.type === 'cluster' ? (
+                        <ClusterIcon nodes={clu?.nodes || []} size={14} />
+                      ) : (
+                        <NodeIcon status={nodeData?.status} maintenance={nodeData?.maintenance} size={14} />
+                      )}
+                      <Typography variant="body2" sx={{ fontSize: 12.5, fontWeight: isSelected ? 600 : 400 }}>
+                        {entity.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.4, fontSize: 10, ml: 'auto' }}>
+                        {entity.type === 'cluster' ? 'cluster' : 'node'}
+                      </Typography>
+                    </Box>
+                  )
+                })}
                 {/* VMs avec ce tag */}
                 {!isCollapsed && vms.map(vm => {
                   const vmKey = `${vm.connId}:${vm.node}:${vm.type}:${vm.vmid}`
@@ -3428,6 +3521,11 @@ return (
             <TreeItem
               key={clu.connId}
               itemId={`cluster:${clu.connId}`}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setClusterContextMenu({ mouseX: e.clientX, mouseY: e.clientY, connId: clu.connId, name: clu.name, nodes: clu.nodes })
+              }}
               label={
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <ClusterIcon nodes={clu.nodes} />
@@ -4250,6 +4348,37 @@ return (
         ]}
       </Menu>
 
+      {/* Menu contextuel Cluster */}
+      <Menu
+        open={clusterContextMenu !== null}
+        onClose={() => setClusterContextMenu(null)}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          clusterContextMenu !== null
+            ? { top: clusterContextMenu.mouseY, left: clusterContextMenu.mouseX }
+            : undefined
+        }
+        slotProps={{ paper: { sx: { minWidth: 200, '& .MuiListItemIcon-root': { minWidth: 32 } } } }}
+      >
+        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            <ClusterIcon nodes={clusterContextMenu?.nodes || []} size={14} />
+            <Typography variant="body2" sx={{ opacity: 0.7 }}>
+              {clusterContextMenu?.name}
+            </Typography>
+          </Box>
+        </Box>
+        <MenuItem onClick={() => {
+          if (clusterContextMenu) openTagDialog('connection', clusterContextMenu.connId, clusterContextMenu.name, undefined, undefined, { clusterNodes: clusterContextMenu.nodes })
+          setClusterContextMenu(null)
+        }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <i className="ri-price-tag-3-line" style={{ fontSize: 18 }} />
+          </ListItemIcon>
+          <ListItemText>{t('inventory.manageTags', { defaultMessage: 'Manage Tags' })}</ListItemText>
+        </MenuItem>
+      </Menu>
+
       {/* Menu contextuel Node (maintenance) */}
       <Menu
         open={nodeContextMenu !== null}
@@ -4367,6 +4496,20 @@ return (
             {t('inventory.maintenanceRequiresSsh')}
           </Typography>
         )}
+        <Divider />
+        <MenuItem onClick={() => {
+          if (nodeContextMenu) {
+            const clu = clusters.find(c => c.connId === nodeContextMenu.connId)
+            const n = clu?.nodes.find(n => n.node === nodeContextMenu.node)
+            openTagDialog('host', '', nodeContextMenu.node, nodeContextMenu.connId, nodeContextMenu.node, { nodeStatus: n?.status, nodeMaintenance: nodeContextMenu.maintenance })
+          }
+          handleCloseNodeContextMenu()
+        }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <i className="ri-price-tag-3-line" style={{ fontSize: 18 }} />
+          </ListItemIcon>
+          <ListItemText>{t('inventory.manageTags', { defaultMessage: 'Manage Tags' })}</ListItemText>
+        </MenuItem>
       </Menu>
 
       {/* Dialog confirmation maintenance */}
@@ -5018,6 +5161,44 @@ return (
             </Box>
           ) : null}
         </DialogContent>
+      </Dialog>
+
+      {/* Tag management dialog */}
+      <Dialog open={tagDialog !== null} onClose={() => setTagDialog(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {tagDialog?.type === 'connection' ? (
+              <ClusterIcon nodes={tagDialog?.clusterNodes || []} size={18} />
+            ) : (
+              <NodeIcon status={tagDialog?.nodeStatus} maintenance={tagDialog?.nodeMaintenance} size={18} />
+            )}
+            <Typography variant="subtitle1" fontWeight={700}>{tagDialog?.name}</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.4, ml: 'auto' }}>
+              {tagDialog?.type === 'connection' ? 'Cluster' : 'Node'}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <Divider />
+        <DialogContent>
+          {tagDialog && (
+            <Box sx={{ pt: 1.5 }}>
+              <Typography variant="caption" sx={{ opacity: 0.6, fontWeight: 600, textTransform: 'uppercase', fontSize: 10, display: 'block', mb: 1 }}>
+                Tags
+              </Typography>
+              <EntityTagManager
+                tags={tagDialogTags}
+                entityType={tagDialog.type}
+                entityId={tagDialog.entityId}
+                connectionId={tagDialog.connId}
+                nodeName={tagDialog.node}
+                onTagsChange={setTagDialogTags}
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTagDialog(null)}>{t('common.close')}</Button>
+        </DialogActions>
       </Dialog>
     </Box>
   )

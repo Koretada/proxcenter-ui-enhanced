@@ -32,7 +32,7 @@ const LayoutContent = ({ children }) => {
       })}
       style={{
         paddingInline: themeConfig.layoutPadding,
-        paddingBlockStart: themeConfig.layoutPadding
+        paddingBlockStart: themeConfig.layoutPadding + 6
       }}
     >
       {children}

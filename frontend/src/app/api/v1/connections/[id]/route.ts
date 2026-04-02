@@ -27,29 +27,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
     const connection = await prisma.connection.findUnique({
       where: { id },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        baseUrl: true,
-        behindProxy: true,
-        insecureTLS: true,
-        hasCeph: true,
-        latitude: true,
-        longitude: true,
-        locationLabel: true,
-        // SSH fields (sans les secrets)
-        sshEnabled: true,
-        sshPort: true,
-        sshUser: true,
-        sshAuthMethod: true,
-        sshUseSudo: true,
-        // Pour vérifier si configuré
-        sshKeyEnc: true,
-        sshPassEnc: true,
-        createdAt: true,
-        updatedAt: true,
-      },
     })
 
     if (!connection) {
@@ -57,11 +34,19 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     // Retourner sans les secrets mais avec un indicateur
-    const { sshKeyEnc, sshPassEnc, ...rest } = connection
+    // Read tags via raw SQL (in case Prisma client doesn't know the column yet)
+    let tags: string | null = null
+    try {
+      const rows = await prisma.$queryRawUnsafe<any[]>('SELECT tags FROM "Connection" WHERE id = ?', id)
+      tags = rows?.[0]?.tags ?? null
+    } catch {}
 
-    return NextResponse.json({ 
+    const { sshKeyEnc, sshPassEnc, apiTokenEnc, ...rest } = connection as any
+
+    return NextResponse.json({
       data: {
         ...rest,
+        tags,
         sshKeyConfigured: !!sshKeyEnc,
         sshPassConfigured: !!sshPassEnc,
         sshConfigured: !!(sshKeyEnc || sshPassEnc)
@@ -110,6 +95,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (body.latitude !== undefined) data.latitude = body.latitude
     if (body.longitude !== undefined) data.longitude = body.longitude
     if (body.locationLabel !== undefined) data.locationLabel = body.locationLabel || null
+    // Tags are handled separately via raw SQL to avoid Prisma client cache issues
+    const tagsUpdate = body.tags !== undefined ? body.tags || null : undefined
 
     if (body.apiToken !== undefined && body.apiToken) {
       data.apiTokenEnc = encryptSecret(body.apiToken)
@@ -221,28 +208,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     const updated = await prisma.connection.update({
       where: { id },
       data,
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        baseUrl: true,
-        behindProxy: true,
-        insecureTLS: true,
-        hasCeph: true,
-        latitude: true,
-        longitude: true,
-        locationLabel: true,
-        sshEnabled: true,
-        sshPort: true,
-        sshUser: true,
-        sshAuthMethod: true,
-        sshUseSudo: true,
-        sshKeyEnc: true,
-        sshPassEnc: true,
-        createdAt: true,
-        updatedAt: true,
-      },
     })
+
+    // Update tags via raw SQL (avoids Prisma client cache issues with new columns)
+    if (tagsUpdate !== undefined) {
+      await prisma.$executeRawUnsafe('UPDATE "Connection" SET tags = ? WHERE id = ?', tagsUpdate, id)
+    }
 
     // Invalidate caches after update
     invalidateConnectionCache(id)
@@ -281,12 +252,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     // Notify orchestrator to reload connections immediately
     orchestratorFetch('/connections/reload', { method: 'POST' }).catch(() => {})
 
+    // Read tags from raw SQL (in case Prisma client doesn't know the column yet)
+    let tags: string | null = null
+    try {
+      const rows = await prisma.$queryRawUnsafe<any[]>('SELECT tags FROM "Connection" WHERE id = ?', id)
+      tags = rows?.[0]?.tags ?? null
+    } catch {}
+
     // Retourner sans les secrets
-    const { sshKeyEnc, sshPassEnc, ...rest } = updated
+    const { sshKeyEnc, sshPassEnc, apiTokenEnc, ...rest } = updated as any
 
     return NextResponse.json({
       data: {
         ...rest,
+        tags,
         sshKeyConfigured: !!sshKeyEnc,
         sshPassConfigured: !!sshPassEnc,
         sshConfigured: !!(sshKeyEnc || sshPassEnc)

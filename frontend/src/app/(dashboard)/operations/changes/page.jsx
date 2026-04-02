@@ -23,6 +23,7 @@ import {
   Select,
   Slider,
   Stack,
+  TablePagination,
   TextField,
   Tooltip,
   Typography
@@ -366,8 +367,10 @@ export default function ChangesPage() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [retentionDays, setRetentionDays] = useState(30)
   const [collapsedDays, setCollapsedDays] = useState({})
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(25)
 
-  const { data: response, isLoading, error, mutate } = useChanges({ limit: 300, resourceType: resourceType || undefined, action: action || undefined })
+  const { data: response, isLoading, error, mutate } = useChanges({ limit: 5000, resourceType: resourceType || undefined, action: action || undefined })
   const { data: settingsData, mutate: mutateSettings } = useSWRFetch('/api/v1/changes/settings')
 
   const changes = response?.data || []
@@ -386,27 +389,33 @@ export default function ChangesPage() {
     return { total: changes.length, byType, byAction }
   }, [changes])
 
-  // Group by day
+  // Filter then paginate
+  const filteredChanges = useMemo(() => {
+    if (!search) return changes
+    const q = search.toLowerCase()
+    return changes.filter(c =>
+      c.resourceId?.toLowerCase().includes(q) ||
+      c.resourceName?.toLowerCase().includes(q) ||
+      c.node?.toLowerCase().includes(q) ||
+      c.user?.toLowerCase().includes(q) ||
+      c.connectionName?.toLowerCase().includes(q)
+    )
+  }, [changes, search])
+
+  const filteredTotal = filteredChanges.length
+
+  const paginatedChanges = useMemo(() => {
+    const start = page * rowsPerPage
+    return filteredChanges.slice(start, start + rowsPerPage)
+  }, [filteredChanges, page, rowsPerPage])
+
+  // Group paginated results by day
   const groupedChanges = useMemo(() => {
-    let filtered = changes
-
-    if (search) {
-      const q = search.toLowerCase()
-
-      filtered = filtered.filter(c =>
-        c.resourceId?.toLowerCase().includes(q) ||
-        c.resourceName?.toLowerCase().includes(q) ||
-        c.node?.toLowerCase().includes(q) ||
-        c.user?.toLowerCase().includes(q) ||
-        c.connectionName?.toLowerCase().includes(q)
-      )
-    }
-
     const groups = []
     let currentDayKey = null
     let currentGroup = null
 
-    for (const change of filtered) {
+    for (const change of paginatedChanges) {
       const dayKey = getDayKey(change.timestamp)
 
       if (dayKey !== currentDayKey) {
@@ -419,7 +428,7 @@ export default function ChangesPage() {
     }
 
     return groups
-  }, [changes, search, t])
+  }, [paginatedChanges, t])
 
   const handlePurge = useCallback(async () => {
     setPurging(true)
@@ -522,7 +531,7 @@ export default function ChangesPage() {
               size='small'
               placeholder={t('changes.search')}
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(0) }}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -537,7 +546,7 @@ export default function ChangesPage() {
             <FormControl size='small' sx={{ minWidth: 140 }}>
               <Select
                 value={resourceType}
-                onChange={e => setResourceType(e.target.value)}
+                onChange={e => { setResourceType(e.target.value); setPage(0) }}
                 displayEmpty
               >
                 <MenuItem value=''>{t('changes.allTypes')}</MenuItem>
@@ -550,7 +559,7 @@ export default function ChangesPage() {
             <FormControl size='small' sx={{ minWidth: 160 }}>
               <Select
                 value={action}
-                onChange={e => setAction(e.target.value)}
+                onChange={e => { setAction(e.target.value); setPage(0) }}
                 displayEmpty
               >
                 <MenuItem value=''>{t('changes.allActions')}</MenuItem>
@@ -626,6 +635,17 @@ export default function ChangesPage() {
               )
             })}
           </CardContent>
+          <TablePagination
+            component='div'
+            count={filteredTotal}
+            page={page}
+            onPageChange={(_, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0) }}
+            rowsPerPageOptions={[25, 50, 100]}
+            labelRowsPerPage={t('common.rowsPerPage')}
+            sx={{ borderTop: '1px solid', borderColor: 'divider' }}
+          />
         </Card>
       )}
 

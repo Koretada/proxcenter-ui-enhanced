@@ -412,9 +412,10 @@ export async function fetchDetails(sel: InventorySelection): Promise<DetailsPayl
     let cephHealth: string | undefined
 
     try {
-      const connData = await connR.json()
-
-      connName = connData?.name || connData?.data?.name || sel.id
+      if (connR.ok) {
+        const connData = await connR.json()
+        connName = connData?.data?.name || connData?.name || sel.id
+      }
     } catch {}
 
     if (cephR?.ok) {

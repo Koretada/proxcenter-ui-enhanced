@@ -3,6 +3,7 @@ import { useRefreshInterval } from './useRefreshInterval'
 
 export function useChanges(params?: {
   limit?: number
+  offset?: number
   resourceType?: string
   connectionId?: string
   action?: string
@@ -15,6 +16,7 @@ export function useChanges(params?: {
   const searchParams = new URLSearchParams()
 
   if (params?.limit) searchParams.set('limit', String(params.limit))
+  if (params?.offset) searchParams.set('offset', String(params.offset))
   if (params?.resourceType) searchParams.set('resourceType', params.resourceType)
   if (params?.connectionId) searchParams.set('connectionId', params.connectionId)
   if (params?.action) searchParams.set('action', params.action)

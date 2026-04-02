@@ -65,6 +65,7 @@ import type { InventorySelection, DetailsPayload, RrdTimeframe, SeriesPoint, Sta
 import { formatBps, formatTime, formatUptime, parseMarkdown, markdownSx, parseNodeId, parseVmId, cpuPct, pct, buildSeriesFromRrd, fetchRrd, tagColor } from '../helpers'
 import { AreaPctChart, AreaBpsChart2 } from '../components/RrdCharts'
 import InventorySummary from '../components/InventorySummary'
+import EntityTagManager from '../components/EntityTagManager'
 
 export default function NodeTabs(props: any) {
   const t = useTranslations()
@@ -235,6 +236,28 @@ export default function NodeTabs(props: any) {
   const [nodeCephFlagToggling, setNodeCephFlagToggling] = useState<string | null>(null)
 
   const nodeConnId = selection?.type === 'node' ? parseNodeId(selection.id).connId : ''
+  const nodeNodeName = selection?.type === 'node' ? parseNodeId(selection.id).node : ''
+
+  // Node tags
+  const [nodeTags, setNodeTags] = useState<string[]>([])
+  const [nodeTagsLoaded, setNodeTagsLoaded] = useState<string | null>(null)
+
+  useEffect(() => {
+    const selId = selection?.id || ''
+    if (!selId || selection?.type !== 'node' || nodeTagsLoaded === selId) return
+    setNodeTagsLoaded(selId)
+    const { connId, node } = parseNodeId(selId)
+    if (!connId || !node) return
+    fetch(`/api/v1/hosts?connId=${encodeURIComponent(connId)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        const hosts = json?.data?.hosts || []
+        const host = hosts.find((h: any) => h.node === node)
+        const tags = host?.managedHost?.tags || host?.tags
+        setNodeTags(tags ? String(tags).split(';').filter(Boolean) : [])
+      })
+      .catch(() => {})
+  }, [selection?.id, selection?.type, nodeTagsLoaded])
 
   // Fetch Ceph OSD flags when on OSD sub-tab
   useEffect(() => {

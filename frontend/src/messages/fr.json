@@ -20,6 +20,7 @@
     "ok": "OK",
     "retry": "Réessayer",
     "refresh": "Actualiser",
+    "rowsPerPage": "Lignes par page",
     "loadDetails": "Charger les détails",
     "nodes": "Nœuds",
     "back": "Retour",
@@ -501,6 +502,7 @@
     "pbsNoBackups": "Aucune sauvegarde trouvée dans ce stockage PBS",
     "pbsSearchBackups": "Rechercher des sauvegardes...",
     "addTag": "Ajouter un tag",
+    "manageTags": "Gestion des tags",
     "deleteVm": "Supprimer la VM",
     "deleteVmDisks": "Supprimer également les disques associés",
     "vmRunningWarning": "Arrêtez la VM avant de la supprimer",
@@ -1145,6 +1147,7 @@
   "inventoryPage": {
     "newTag": "Nouveau tag...",
     "existingTagsProxmox": "Tags existants dans Proxmox :",
+    "existingTags": "Tags existants :",
     "shutdownClean": "Shutdown (arrêt propre)",
     "clickToCopy": "Cliquer pour copier",
     "toImplement": "À implémenter",
