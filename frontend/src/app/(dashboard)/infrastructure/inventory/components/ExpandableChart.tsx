@@ -6,7 +6,7 @@ import { ResponsiveContainer } from 'recharts'
 
 type ExpandableChartProps = {
   title: string
-  height?: number
+  height?: number | string
   children: React.ReactNode
   /** Custom header content (replaces default title) */
   header?: React.ReactNode

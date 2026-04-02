@@ -4703,11 +4703,6 @@ return vm?.isCluster ?? false
             )
           })()}
 
-          {data.lastUpdated && (
-            <Typography variant="caption" sx={{ color: 'text.secondary', opacity: 0.95 }}>
-              {t('inventoryPage.lastUpdated')} {data.lastUpdated}
-            </Typography>
-          )}
         </Stack>
       ) : null}
 

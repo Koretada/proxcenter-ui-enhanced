@@ -1228,9 +1228,9 @@ export default function ClusterTabs(props: any) {
                       </Box>
                       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                         {/* CPU Usage */}
-                        <ExpandableChart title={t('inventory.cpuUsage')} height={180}>
+                        <ExpandableChart title={t('inventory.cpuUsage')} height={185}>
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <AreaChart data={clusterRrdSeries}>
+                            <AreaChart data={clusterRrdSeries} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                               <defs>
                                 {clusterRrdNodeNames.map(name => (
                                   <linearGradient key={name} id={`cGradCpu_${name}`} x1="0" y1="0" x2="0" y2="1">
@@ -1268,9 +1268,9 @@ export default function ClusterTabs(props: any) {
                         </ExpandableChart>
 
                         {/* Memory Usage */}
-                        <ExpandableChart title={t('inventory.memoryUsage')} height={180}>
+                        <ExpandableChart title={t('inventory.memoryUsage')} height={185}>
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <AreaChart data={clusterRrdSeries}>
+                            <AreaChart data={clusterRrdSeries} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                               <defs>
                                 {clusterRrdNodeNames.map(name => (
                                   <linearGradient key={name} id={`cGradRam_${name}`} x1="0" y1="0" x2="0" y2="1">
@@ -1308,9 +1308,9 @@ export default function ClusterTabs(props: any) {
                         </ExpandableChart>
 
                         {/* Network Traffic */}
-                        <ExpandableChart title={t('inventory.networkTrafficChart')} height={180}>
+                        <ExpandableChart title={t('inventory.networkTrafficChart')} height={185}>
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <AreaChart data={clusterRrdSeries}>
+                            <AreaChart data={clusterRrdSeries} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                               <defs>
                                 {clusterRrdNodeNames.map(name => (
                                   <linearGradient key={name} id={`cGradNet_${name}`} x1="0" y1="0" x2="0" y2="1">
@@ -1355,9 +1355,9 @@ export default function ClusterTabs(props: any) {
                         </ExpandableChart>
 
                         {/* Server Load */}
-                        <ExpandableChart title={t('inventory.serverLoad')} height={180}>
+                        <ExpandableChart title={t('inventory.serverLoad')} height={185}>
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <AreaChart data={clusterRrdSeries}>
+                            <AreaChart data={clusterRrdSeries} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                               <defs>
                                 {clusterRrdNodeNames.map(name => (
                                   <linearGradient key={name} id={`cGradLoad_${name}`} x1="0" y1="0" x2="0" y2="1">
@@ -2459,7 +2459,7 @@ export default function ClusterTabs(props: any) {
                                 }
                               >
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                                  <AreaChart data={clusterCephPerfFiltered}>
+                                  <AreaChart data={clusterCephPerfFiltered} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                     <XAxis dataKey="time" tickFormatter={v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} minTickGap={40} tick={{ fontSize: 9 }} />
                                     <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
                                     <Tooltip
@@ -2517,7 +2517,7 @@ export default function ClusterTabs(props: any) {
                                 }
                               >
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                                  <AreaChart data={clusterCephPerfFiltered}>
+                                  <AreaChart data={clusterCephPerfFiltered} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                     <XAxis dataKey="time" tickFormatter={v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} minTickGap={40} tick={{ fontSize: 9 }} />
                                     <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
                                     <Tooltip
@@ -2575,7 +2575,7 @@ export default function ClusterTabs(props: any) {
                                 }
                               >
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                                  <AreaChart data={clusterCephPerfFiltered}>
+                                  <AreaChart data={clusterCephPerfFiltered} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                     <XAxis dataKey="time" tickFormatter={v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} minTickGap={40} tick={{ fontSize: 9 }} />
                                     <YAxis tick={{ fontSize: 9 }} width={40} domain={[0, 'auto']} />
                                     <Tooltip
@@ -2633,7 +2633,7 @@ export default function ClusterTabs(props: any) {
                                 }
                               >
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                                  <AreaChart data={clusterCephPerfFiltered}>
+                                  <AreaChart data={clusterCephPerfFiltered} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                     <XAxis dataKey="time" tickFormatter={v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} minTickGap={40} tick={{ fontSize: 9 }} />
                                     <YAxis tick={{ fontSize: 9 }} width={40} domain={[0, 'auto']} />
                                     <Tooltip

@@ -21,6 +21,8 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  Menu,
+  MenuItem,
   Stack,
   Typography,
   useTheme,
@@ -36,6 +38,154 @@ import UsageBar from './UsageBar'
 import ConsolePreview from './ConsolePreview'
 import StatusChip from './StatusChip'
 import NodeUpdateDialog from '@/components/NodeUpdateDialog'
+
+/* ------------------------------------------------------------------ */
+/* HA State Selector                                                   */
+/* ------------------------------------------------------------------ */
+
+const HA_STATES = ['started', 'stopped', 'enabled', 'disabled', 'ignored'] as const
+
+function HaStateSelector({ haState, haGroup, vmInfo, t }: {
+  haState?: string | null
+  haGroup?: string | null
+  vmInfo?: { connId: string; node: string; type: string; vmid: string } | null
+  t: (key: string, values?: any) => string
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [displayState, setDisplayState] = useState(haState || '')
+
+  React.useEffect(() => { setDisplayState(haState || '') }, [haState])
+
+  const handleChange = async (newState: string) => {
+    setAnchorEl(null)
+    if (!vmInfo || newState === displayState) return
+    setDisplayState(newState)
+    setSaving(true)
+    const haSid = `${vmInfo.type === 'lxc' ? 'ct' : 'vm'}:${vmInfo.vmid}`
+    try {
+      await fetch(
+        `/api/v1/connections/${encodeURIComponent(vmInfo.connId)}/ha/${encodeURIComponent(haSid)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: newState, group: haGroup || undefined }),
+        }
+      )
+    } catch { /* ignore */ }
+    setSaving(false)
+  }
+
+  const stateColor = (s: string) => {
+    if (s === 'started') return 'success'
+    if (s === 'error') return 'error'
+    if (s === 'stopped' || s === 'disabled') return 'default'
+    return 'warning'
+  }
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <i className="ri-shield-check-line" style={{ fontSize: 14, opacity: 0.6 }} />
+      <Typography variant="body2" sx={{ opacity: 0.7 }}>HA:</Typography>
+      {displayState ? (
+        <>
+          <Chip
+            size="small"
+            icon={<i className="ri-shield-check-fill" style={{ fontSize: 12, marginLeft: 6 }} />}
+            label={`${displayState}${haGroup ? ` (${haGroup})` : ''}`}
+            color={stateColor(displayState) as any}
+            variant="outlined"
+            onClick={vmInfo ? (e) => setAnchorEl(e.currentTarget) : undefined}
+            deleteIcon={vmInfo ? <i className="ri-arrow-down-s-line" style={{ fontSize: 14 }} /> : undefined}
+            onDelete={vmInfo ? (e: any) => setAnchorEl(e.currentTarget.closest('.MuiChip-root')) : undefined}
+            sx={{ height: 20, fontSize: '0.75rem', cursor: vmInfo ? 'pointer' : 'default', '& .MuiChip-deleteIcon': { fontSize: 14, ml: -0.25, color: 'inherit', opacity: 0.6 } }}
+          />
+          {saving && <CircularProgress size={12} />}
+          <Menu
+            anchorEl={anchorEl}
+            open={!!anchorEl}
+            onClose={() => setAnchorEl(null)}
+            slotProps={{ paper: { sx: { minWidth: 150 } } }}
+          >
+            {HA_STATES.map(s => {
+              const meta: Record<string, { color: string; icon: string }> = {
+                started:  { color: '#22c55e', icon: 'ri-play-circle-line' },
+                stopped:  { color: '#9ca3af', icon: 'ri-stop-circle-line' },
+                enabled:  { color: '#3b82f6', icon: 'ri-checkbox-circle-line' },
+                disabled: { color: '#6b7280', icon: 'ri-forbid-line' },
+                ignored:  { color: '#f59e0b', icon: 'ri-eye-off-line' },
+              }
+              const { color, icon } = meta[s]
+              return (
+                <MenuItem
+                  key={s}
+                  selected={s === displayState}
+                  onClick={() => handleChange(s)}
+                  sx={{ fontSize: 13, py: 0.75, gap: 1 }}
+                >
+                  <i className={icon} style={{ fontSize: 16, color, flexShrink: 0 }} />
+                  <Typography variant="body2" sx={{ fontWeight: s === displayState ? 700 : 400, color, textTransform: 'capitalize' }}>
+                    {s}
+                  </Typography>
+                </MenuItem>
+              )
+            })}
+          </Menu>
+        </>
+      ) : vmInfo ? (
+        <>
+          <Chip
+            size="small"
+            label={t('common.disabled')}
+            variant="outlined"
+            onClick={(e) => setAnchorEl(e.currentTarget)}
+            deleteIcon={<i className="ri-arrow-down-s-line" style={{ fontSize: 14 }} />}
+            onDelete={(e: any) => setAnchorEl(e.currentTarget.closest('.MuiChip-root'))}
+            sx={{ height: 20, fontSize: '0.75rem', cursor: 'pointer', opacity: 0.5, '& .MuiChip-deleteIcon': { fontSize: 14, ml: -0.25, color: 'inherit', opacity: 0.6 } }}
+          />
+          {saving && <CircularProgress size={12} />}
+          <Menu
+            anchorEl={anchorEl}
+            open={!!anchorEl}
+            onClose={() => setAnchorEl(null)}
+            slotProps={{ paper: { sx: { minWidth: 150 } } }}
+          >
+            {HA_STATES.map(s => {
+              const meta: Record<string, { color: string; icon: string }> = {
+                started:  { color: '#22c55e', icon: 'ri-play-circle-line' },
+                stopped:  { color: '#9ca3af', icon: 'ri-stop-circle-line' },
+                enabled:  { color: '#3b82f6', icon: 'ri-checkbox-circle-line' },
+                disabled: { color: '#6b7280', icon: 'ri-forbid-line' },
+                ignored:  { color: '#f59e0b', icon: 'ri-eye-off-line' },
+              }
+              const { color, icon } = meta[s]
+              return (
+                <MenuItem
+                  key={s}
+                  onClick={() => handleChange(s)}
+                  sx={{ fontSize: 13, py: 0.75, gap: 1 }}
+                >
+                  <i className={icon} style={{ fontSize: 16, color, flexShrink: 0 }} />
+                  <Typography variant="body2" sx={{ color, textTransform: 'capitalize' }}>
+                    {s}
+                  </Typography>
+                </MenuItem>
+              )
+            })}
+          </Menu>
+        </>
+      ) : (
+        <Typography variant="body2" sx={{ opacity: 0.4 }}>
+          {t('common.disabled')}
+        </Typography>
+      )}
+    </Box>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Main component                                                      */
+/* ------------------------------------------------------------------ */
 
 function InventorySummary({
   kindLabel,
@@ -360,32 +510,15 @@ return `${mins}m`
                       sx={{ height: 20, fontSize: '0.75rem' }}
                     />
                   </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <i className="ri-shield-check-line" style={{ fontSize: 14, opacity: 0.6 }} />
-                    <Typography variant="body2" sx={{ opacity: 0.7 }}>HA:</Typography>
-                    {haState ? (
-                      <Chip
-                        size="small"
-                        icon={<i className="ri-shield-check-fill" style={{ fontSize: 12, marginLeft: 6 }} />}
-                        label={`${haState}${haGroup ? ` (${haGroup})` : ''}`}
-                        color={haState === 'started' ? 'success' : haState === 'stopped' ? 'default' : haState === 'error' ? 'error' : 'warning'}
-                        variant="outlined"
-                        sx={{ height: 20, fontSize: '0.75rem' }}
-                      />
-                    ) : (
-                      <Typography variant="body2" sx={{ opacity: 0.4 }}>
-                        {t('common.disabled')}
-                      </Typography>
-                    )}
-                  </Box>
+                  <HaStateSelector haState={haState} haGroup={haGroup} vmInfo={vmInfo} t={t} />
                 </Box>
               </Box>
             </Box>
 
             {!isTemplate && (
-              <Box sx={{ width: consoleWidth, flex: '0 0 auto' }}>
+              <Box sx={{ width: consoleWidth, flex: '0 0 auto', display: 'flex', flexDirection: 'column' }}>
                 <ConsolePreview
-                  height={210}
+                  height="100%"
                   connId={vmInfo?.connId}
                   node={vmInfo?.node}
                   type={vmInfo?.type}

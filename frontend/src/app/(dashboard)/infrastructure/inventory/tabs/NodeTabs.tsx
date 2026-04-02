@@ -563,9 +563,9 @@ export default function NodeTabs(props: any) {
                     ) : (
                       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                         {/* CPU Usage */}
-                        <ExpandableChart title={t('inventory.cpuUsage')} height={160}>
+                        <ExpandableChart title={t('inventory.cpuUsage')} height={185}>
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <AreaChart data={series}>
+                            <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                               <defs>
                                 <linearGradient id="nGradCpu" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -602,9 +602,9 @@ export default function NodeTabs(props: any) {
                         </ExpandableChart>
 
                         {/* Memory Usage */}
-                        <ExpandableChart title={t('inventory.memoryUsage')} height={160}>
+                        <ExpandableChart title={t('inventory.memoryUsage')} height={185}>
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <AreaChart data={series}>
+                            <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                               <defs>
                                 <linearGradient id="nGradRam" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -640,9 +640,9 @@ export default function NodeTabs(props: any) {
                         </ExpandableChart>
 
                         {/* Network Traffic */}
-                        <ExpandableChart title={t('inventory.networkTrafficChart')} height={160}>
+                        <ExpandableChart title={t('inventory.networkTrafficChart')} height={185}>
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <AreaChart data={series}>
+                            <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                               <defs>
                                 <linearGradient id="nGradNetIn" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -683,10 +683,10 @@ export default function NodeTabs(props: any) {
                         </ExpandableChart>
 
                         {/* Server Load (nodes) ou Disk I/O (VMs) */}
-                        <ExpandableChart title={selection?.type === 'node' ? t('inventory.serverLoad') : t('inventory.diskIo')} height={160}>
+                        <ExpandableChart title={selection?.type === 'node' ? t('inventory.serverLoad') : t('inventory.diskIo')} height={185}>
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             {selection?.type === 'node' ? (
-                              <AreaChart data={series}>
+                              <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                 <defs>
                                   <linearGradient id="nGradLoad" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -719,7 +719,7 @@ export default function NodeTabs(props: any) {
                                 <Area type="monotone" dataKey="loadAvg" stroke={primaryColor} fill="url(#nGradLoad)" strokeWidth={1.5} isAnimationActive={false} connectNulls />
                               </AreaChart>
                             ) : (
-                              <AreaChart data={series}>
+                              <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                 <defs>
                                   <linearGradient id="nGradDiskRead" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -762,9 +762,9 @@ export default function NodeTabs(props: any) {
 
                         {/* Memory Available & ZFS ARC (nodes only) */}
                         {selection?.type === 'node' && series.some(p => p.memAvailable != null || p.arcSize != null) && (
-                          <ExpandableChart title="Memory Available / ZFS ARC" height={160}>
+                          <ExpandableChart title="Memory Available / ZFS ARC" height={185}>
                             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                              <AreaChart data={series}>
+                              <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                 <defs>
                                   <linearGradient id="nGradMemAvail" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
@@ -807,9 +807,9 @@ export default function NodeTabs(props: any) {
 
                         {/* PSI - Pressure Stall Information (nodes only, kernel 4.20+) */}
                         {selection?.type === 'node' && series.some(p => p.psiCpuSome != null) && (
-                          <ExpandableChart title="Pressure Stall Information (PSI)" height={160}>
+                          <ExpandableChart title="Pressure Stall Information (PSI)" height={185}>
                             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                              <AreaChart data={series}>
+                              <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
                                 <YAxis domain={[0, 'auto']} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={35} />
                                 <Tooltip wrapperStyle={{ backgroundColor: 'transparent', boxShadow: 'none' }} content={({ active, payload, label }) => {

@@ -414,11 +414,11 @@ export default function VmDetailTabs(props: any) {
 
               {/* ==================== ONGLET 0 - RÉSUMÉ ==================== */}
               {detailTab === 0 && (
-                <Box sx={{ py: 2 }}>
+                <Box sx={{ pt: 2 }}>
                   {/* Graphiques de performances (RRD) - dans le résumé */}
                   {canShowRrd && (
                     <Card variant="outlined" sx={{ width: '100%', borderRadius: 2 }}>
-                      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <CardContent sx={{ p: 2, '&:last-child': { pb: 1 } }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                           <Typography fontWeight={700} fontSize={14}>
                             <i className="ri-line-chart-line" style={{ fontSize: 16, marginRight: 6 }} />
@@ -460,9 +460,9 @@ export default function VmDetailTabs(props: any) {
 
                         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                           {/* CPU Usage */}
-                          <ExpandableChart title={t('inventory.cpuUsage')} height={160}>
+                          <ExpandableChart title={t('inventory.cpuUsage')} height={185}>
                             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                              <AreaChart data={series}>
+                              <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                 <defs>
                                   <linearGradient id="gradCpu" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -470,7 +470,7 @@ export default function VmDetailTabs(props: any) {
                                   </linearGradient>
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
-                                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
+                                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={25} />
                                 <Tooltip wrapperStyle={{ backgroundColor: 'transparent', boxShadow: 'none' }} content={({ active, payload, label }) => {
                                   if (!active || !payload?.length) return null
                                   return (
@@ -498,9 +498,9 @@ export default function VmDetailTabs(props: any) {
                           </ExpandableChart>
 
                           {/* Memory Usage */}
-                          <ExpandableChart title={t('inventory.memoryUsage')} height={160}>
+                          <ExpandableChart title={t('inventory.memoryUsage')} height={185}>
                             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                              <AreaChart data={series}>
+                              <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                 <defs>
                                   <linearGradient id="gradRam" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -508,7 +508,7 @@ export default function VmDetailTabs(props: any) {
                                   </linearGradient>
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
-                                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={30} />
+                                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 9 }} width={25} />
                                 <Tooltip wrapperStyle={{ backgroundColor: 'transparent', boxShadow: 'none' }} content={({ active, payload, label }) => {
                                   if (!active || !payload?.length) return null
                                   return (
@@ -536,9 +536,9 @@ export default function VmDetailTabs(props: any) {
                           </ExpandableChart>
 
                           {/* Network Traffic */}
-                          <ExpandableChart title={t('inventoryPage.networkTraffic')} height={160}>
+                          <ExpandableChart title={t('inventoryPage.networkTraffic')} height={185}>
                             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                              <AreaChart data={series}>
+                              <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                 <defs>
                                   <linearGradient id="gradNetIn" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -550,7 +550,7 @@ export default function VmDetailTabs(props: any) {
                                   </linearGradient>
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
-                                <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
+                                <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={40} domain={[0, 'auto']} />
                                 <Tooltip wrapperStyle={{ backgroundColor: 'transparent', boxShadow: 'none' }} content={({ active, payload, label }) => {
                                   if (!active || !payload?.length) return null
                                   return (
@@ -579,9 +579,9 @@ export default function VmDetailTabs(props: any) {
                           </ExpandableChart>
 
                           {/* Disk I/O (VMs) */}
-                          <ExpandableChart title={t('inventory.diskIo')} height={160}>
+                          <ExpandableChart title={t('inventory.diskIo')} height={185}>
                             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                              <AreaChart data={series}>
+                              <AreaChart data={series} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
                                 <defs>
                                   <linearGradient id="gradDiskRead" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
@@ -593,7 +593,7 @@ export default function VmDetailTabs(props: any) {
                                   </linearGradient>
                                 </defs>
                                 <XAxis dataKey="t" tickFormatter={v => formatTime(Number(v))} minTickGap={40} tick={{ fontSize: 9 }} />
-                                <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={50} domain={[0, 'auto']} />
+                                <YAxis tickFormatter={v => formatBps(Number(v))} tick={{ fontSize: 9 }} width={40} domain={[0, 'auto']} />
                                 <Tooltip wrapperStyle={{ backgroundColor: 'transparent', boxShadow: 'none' }} content={({ active, payload, label }) => {
                                   if (!active || !payload?.length) return null
                                   return (
