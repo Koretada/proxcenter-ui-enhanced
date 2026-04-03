@@ -65,7 +65,7 @@ return () => clearTimeout(timer)
           fontWeight: 700,
           fontSize: '0.85rem',
           lineHeight: 1,
-          color: 'rgba(255,255,255,0.95)',
+          color: c.textPrimary,
         }}>
           {Math.round(animatedValue)}%
         </Typography>
@@ -148,7 +148,7 @@ function ResourcesGaugesWidget({ data, loading }) {
               strokeWidth={6}
             />
             <Typography sx={{
-              color: 'rgba(255,255,255,0.95)',
+              color: c.textPrimary,
               fontWeight: 600,
               fontSize: '0.8rem',
               lineHeight: 1,
@@ -173,14 +173,14 @@ function ResourcesGaugesWidget({ data, loading }) {
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderTop: '1px solid', borderColor: c.borderLight,
         pt: 1,
         gap: 1,
       }}>
         {provStats.map((s) => (
           <Box key={s.label} sx={{ textAlign: 'center', flex: 1 }}>
             <Typography sx={{
-              color: 'rgba(255,255,255,0.4)',
+              color: c.textFaint,
               fontSize: '0.6rem',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',

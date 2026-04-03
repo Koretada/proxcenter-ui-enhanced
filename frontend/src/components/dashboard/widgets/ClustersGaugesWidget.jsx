@@ -109,8 +109,9 @@ return base.map((point, i) => {
     }
 
     if (count === 0) return { t: point.t, cpu: 0, ram: 0, net: 0, diskio: 0 }
-    
-return { t: point.t, cpu: Math.round(cpu / count), ram: Math.round(ram / count), net: Math.round(net / count), diskio: Math.round(diskio / count) }
+
+    // CPU/RAM = average across nodes, IO/NET = sum (total throughput)
+    return { t: point.t, cpu: Math.round(cpu / count), ram: Math.round(ram / count), net, diskio }
   })
 }
 
