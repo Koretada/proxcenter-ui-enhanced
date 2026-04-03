@@ -641,11 +641,35 @@ const EXTRA_MOCKS: MockDataMap = {
     // Node list
     const nodesList = nodesData.map((n: any) => ({
       name: n.node,
+      node: n.node,
+      connId: 'demo-pve-cluster-001',
+      connectionId: 'demo-pve-cluster-001',
       connection: 'Production Cluster',
       status: n.status || 'online',
       cpuPct: Math.round((n.cpu || 0) * 100 * 10) / 10,
       memPct: Math.round(((n.mem || 0) / (n.maxmem || 1)) * 100 * 10) / 10,
+      uptime: 86400 * (7 + Math.floor(Math.random() * 30)),
+      _cpuCores: n.maxcpu || 4,
+      _storageUsed: 50 * 1073741824,
+      _storageMax: 200 * 1073741824,
     }))
+
+    // DR Cluster nodes (4 nodes)
+    const drNodes = ['pve-dr-01', 'pve-dr-02', 'pve-dr-03', 'pve-dr-04'].map(name => ({
+      name, node: name,
+      connId: 'demo-pve-cluster-002',
+      connectionId: 'demo-pve-cluster-002',
+      connection: 'DR Cluster (GRA)',
+      status: 'online',
+      cpuPct: Math.round((5 + Math.random() * 20) * 10) / 10,
+      memPct: Math.round((40 + Math.random() * 30) * 10) / 10,
+      uptime: 86400 * (10 + Math.floor(Math.random() * 20)),
+      _cpuCores: 8,
+      _storageUsed: 30 * 1073741824,
+      _storageMax: 100 * 1073741824,
+    }))
+
+    nodesList.push(...drNodes)
 
     // Total provisioned vCPUs and memory
     const totalProvCpu = resources.reduce((s: number, r: any) => s + (r.maxcpu || 0), 0)
@@ -662,15 +686,32 @@ const EXTRA_MOCKS: MockDataMap = {
     }
 
     // VM list
-    const vmList = vms.map((v: any) => ({
-      vmid: v.vmid, name: v.name, node: v.node, type: 'qemu',
-      status: v.status, template: v.template || false,
-      connId: 'demo-pve-cluster-001',
-      cpu: v.cpu || 0, cpuPct: Math.round((v.cpu || 0) * 100 * 10) / 10,
-      mem: v.mem || 0, maxmem: v.maxmem || 0,
-      ramPct: v.maxmem ? Math.round((v.mem / v.maxmem) * 100 * 10) / 10 : 0,
-      connection: 'Production Cluster',
-    }))
+    const vmList = vms.map((v: any, idx: number) => {
+      // Override some VMs to show varied states in heatmap
+      let status = v.status
+      let cpuOverride = v.cpu || 0
+      let memOverride = v.mem || 0
+      const maxmem = v.maxmem || 1
+
+      if (idx === 5 || idx === 12) { status = 'paused'; cpuOverride = 0 }
+      else if (idx === 8 || idx === 22) { status = 'stopped'; cpuOverride = 0; memOverride = 0 }
+      else if (idx === 3) { cpuOverride = 0.92 } // CPU critical
+      else if (idx === 7) { cpuOverride = 0.78 } // CPU high
+      else if (idx === 15) { memOverride = maxmem * 0.95 } // RAM critical
+      else if (idx === 19) { cpuOverride = 0.65; memOverride = maxmem * 0.88 } // both high
+      else if (idx === 25) { cpuOverride = 0.85 } // CPU high
+      else if (idx === 30) { memOverride = maxmem * 0.92 } // RAM critical
+
+      return {
+        vmid: v.vmid, name: v.name, node: v.node, type: 'qemu',
+        status, template: v.template || false,
+        connId: 'demo-pve-cluster-001',
+        cpu: cpuOverride, cpuPct: Math.round(cpuOverride * 100 * 10) / 10,
+        mem: memOverride, maxmem,
+        ramPct: maxmem ? Math.round((memOverride / maxmem) * 100 * 10) / 10 : 0,
+        connection: 'Production Cluster',
+      }
+    })
 
     const lxcList = lxcs.map((v: any) => ({
       vmid: v.vmid, name: v.name, node: v.node, type: 'lxc',
@@ -726,19 +767,21 @@ const EXTRA_MOCKS: MockDataMap = {
         },
         clusters: [
           {
+            id: 'demo-pve-cluster-001',
             name: 'Production Cluster',
             nodes: nodesData.length,
             onlineNodes: nodesData.filter((n: any) => n.status === 'online').length,
             isCluster: true,
-            quorum: { quorate: true },
+            quorum: { quorate: true, votes: nodesData.length, expected_votes: nodesData.length },
             cephHealth: 'HEALTH_OK',
           },
           {
+            id: 'demo-pve-cluster-002',
             name: 'DR Cluster (GRA)',
             nodes: 4,
             onlineNodes: 4,
             isCluster: true,
-            quorum: { quorate: true },
+            quorum: { quorate: true, votes: 4, expected_votes: 4 },
             cephHealth: 'HEALTH_OK',
           },
         ],
@@ -752,6 +795,28 @@ const EXTRA_MOCKS: MockDataMap = {
           readBps: 52428800,
           writeBps: 31457280,
         },
+        cephClusters: [
+          {
+            connId: 'demo-pve-cluster-001',
+            name: 'Production Cluster',
+            health: 'HEALTH_OK',
+            osdsTotal: 36, osdsUp: 36, osdsIn: 36,
+            pgsTotal: 256,
+            bytesTotal: 21474836480000, bytesUsed: 9019431321600,
+            usedPct: 42,
+            readBps: 52428800, writeBps: 31457280,
+          },
+          {
+            connId: 'demo-pve-cluster-002',
+            name: 'DR Cluster (GRA)',
+            health: 'HEALTH_ERR',
+            osdsTotal: 12, osdsUp: 10, osdsIn: 10,
+            pgsTotal: 128,
+            bytesTotal: 8589934592000, bytesUsed: 6442450944000,
+            usedPct: 75,
+            readBps: 10485760, writeBps: 5242880,
+          },
+        ],
         pbs: {
           servers: 2,
           usagePct: 40,
@@ -1691,23 +1756,58 @@ export function demoResponse(req: Request): NextResponse | Response | null {
       const nodeNames = nodesData.map((n: any) => n.node)
       const result: Record<string, any[]> = {}
 
-      for (const nodeName of nodeNames) {
-        const baseCpu = 0.02 + Math.random() * 0.06
-        const rrd = generateRrdData('day', { cpu: baseCpu })
+      // Generate distinct realistic patterns per node
+      const nodeProfiles = [
+        { cpu: 0.08, mem: 0.72, spike: 0.4 },  // busy web server
+        { cpu: 0.03, mem: 0.85, spike: 0.1 },  // memory-heavy DB
+        { cpu: 0.15, mem: 0.55, spike: 0.6 },  // compute bursts
+        { cpu: 0.05, mem: 0.60, spike: 0.2 },  // light workload
+        { cpu: 0.12, mem: 0.78, spike: 0.3 },  // medium load
+        { cpu: 0.02, mem: 0.45, spike: 0.15 }, // idle standby
+        { cpu: 0.20, mem: 0.68, spike: 0.5 },  // CI runner
+        { cpu: 0.07, mem: 0.90, spike: 0.1 },  // near-full RAM
+        { cpu: 0.04, mem: 0.50, spike: 0.25 }, // balanced
+        { cpu: 0.10, mem: 0.62, spike: 0.35 }, // moderate
+        { cpu: 0.06, mem: 0.75, spike: 0.2 },  // storage node
+        { cpu: 0.18, mem: 0.58, spike: 0.45 }, // batch processing
+      ]
 
-        result[nodeName] = rrd.map(p => {
-          const d = new Date(p.time * 1000)
-          const hh = String(d.getHours()).padStart(2, '0')
-          const mm = String(d.getMinutes()).padStart(2, '0')
+      const now = Math.floor(Date.now() / 1000)
+
+      for (let idx = 0; idx < nodeNames.length; idx++) {
+        const nodeName = nodeNames[idx]
+        const profile = nodeProfiles[idx % nodeProfiles.length]
+        const phase = idx * 1.7 // phase offset per node
+        const points = 70
+        const interval = 1200
+
+        result[`node:${nodeName}`] = Array.from({ length: points }, (_, i) => {
+          const time = now - (points - 1 - i) * interval
+          const d = new Date(time * 1000)
+          const hour = d.getHours()
+
+          // Day/night cycle: extreme contrast
+          const dayFactor = hour >= 9 && hour <= 17
+            ? 1.0 + 0.2 * Math.sin((hour - 9) / 8 * Math.PI) // peak: full load
+            : hour === 8
+              ? 0.6 // morning wake-up
+              : hour === 18
+                ? 0.7 // just after work
+                : hour >= 19 && hour <= 22
+                  ? 0.15 - 0.05 * ((hour - 19) / 3) // evening drop
+                  : 0.02 + 0.02 * Math.random() // night: almost zero
+
+          const t2 = i / points
+          const microWave = Math.sin(t2 * Math.PI * 8 + phase * 2) * 0.08
+          const noise = (Math.random() - 0.5) * 0.02
+          const cpuVal = Math.max(0.5, Math.min(95, (profile.cpu * 100) * dayFactor + microWave * 15 + noise * 10))
+          const ramVal = Math.max(10, Math.min(98, profile.mem * 100 * (0.85 + dayFactor * 0.15) + microWave * 5 + (Math.random() - 0.5) * 2))
 
           return {
-            t: `${hh}:${mm}`,
-            cpu: Math.round(p.cpu * 1000) / 10,
-            ram: Math.round((p.memused / p.memtotal) * 1000) / 10,
-            netin: p.netin,
-            netout: p.netout,
-            diskread: p.diskread,
-            diskwrite: p.diskwrite,
+            ts: time,
+            t: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+            cpu: Math.round(cpuVal * 10) / 10,
+            ram: Math.round(ramVal * 10) / 10,
           }
         })
       }

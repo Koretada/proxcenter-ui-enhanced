@@ -601,7 +601,13 @@ return () => document.removeEventListener('fullscreenchange', handler)
             className="layout"
             style={{ width: '100%' }}
             width={containerWidth}
-            layouts={{ lg: gridLayout }}
+            layouts={{
+              lg: gridLayout,
+              md: gridLayout.map(item => ({ ...item, w: Math.min(item.w, 12), x: Math.min(item.x, 12 - Math.min(item.w, 12)) })),
+              sm: gridLayout.map(item => ({ ...item, w: Math.min(item.w, 6), x: 0 })),
+              xs: gridLayout.map(item => ({ ...item, w: Math.min(item.w, 4), x: 0 })),
+              xxs: gridLayout.map(item => ({ ...item, w: Math.min(item.w, 2), x: 0 })),
+            }}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
             cols={GRID_COLS}
             rowHeight={ROW_HEIGHT}
@@ -609,7 +615,7 @@ return () => document.removeEventListener('fullscreenchange', handler)
             isDraggable={editMode}
             isResizable={editMode}
             draggableHandle=".widget-drag-handle"
-            onLayoutChange={(newLayout) => handleLayoutChange(newLayout)}
+            onLayoutChange={(currentLayout, allLayouts) => handleLayoutChange(allLayouts.lg || currentLayout)}
             useCSSTransforms={true}
             compactType="vertical"
           >
@@ -789,7 +795,7 @@ return () => document.removeEventListener('fullscreenchange', handler)
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert variant='filled' severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert variant='filled' severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })} sx={{ color: '#fff' }}>
           {snackbar.message}
         </Alert>
       </Snackbar>

@@ -11,6 +11,7 @@ import { generateFingerprint } from "@/lib/alerts/fingerprint"
 import { authOptions } from "@/lib/auth/config"
 import { filterVmsByPermission, filterNodesByPermission } from "@/lib/rbac"
 import { alertsApi } from "@/lib/orchestrator/client"
+import { demoResponse } from "@/lib/demo/demo-api"
 
 export const runtime = "nodejs"
 
@@ -106,7 +107,10 @@ async function syncAlertsToDatabase(alerts: any[]) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const demo = demoResponse(req)
+  if (demo) return demo
+
   try {
     const prisma = await getSessionPrisma()
     const session = await getServerSession(authOptions)

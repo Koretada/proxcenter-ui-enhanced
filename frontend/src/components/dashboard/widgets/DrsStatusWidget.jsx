@@ -419,7 +419,7 @@ return !info || info.isCluster || info.nodes > 1
     <Box sx={{
       height: '100%', overflow: 'auto',
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
       gap: 1, p: 0.5,
     }}>
       {clusterIds.map((clusterId) => (

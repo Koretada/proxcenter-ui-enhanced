@@ -150,7 +150,7 @@ function VmHeatmapWidget({ data, loading: dashboardLoading, config, onUpdateSett
   const router = useRouter()
   const isDark = theme.palette.mode === 'dark'
   const c = widgetColors(isDark)
-  const [mode, setMode] = useState('status')
+  const [mode, setMode] = useState('cpu')
   const [minThreshold, setMinThreshold] = useState(0)
 
   const selectedConnections = config?.settings?.selectedConnections || []
