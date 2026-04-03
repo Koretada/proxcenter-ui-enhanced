@@ -84,6 +84,24 @@ export function getDb() {
     }
   } catch {}
 
+  // Migration: add missing columns to Prisma-managed tables
+  const prismaMigrations: [string, string, string][] = [
+    ['Connection', 'tags', 'TEXT'],
+    ['ManagedHost', 'tags', 'TEXT'],
+    ['custom_images', 'tags', 'TEXT'],
+    ['blueprints', 'tags', 'TEXT'],
+  ]
+
+  for (const [table, col, type] of prismaMigrations) {
+    try {
+      const cols = db.pragma(`table_info(${table})`) as any[]
+
+      if (cols.length > 0 && !cols.some((c: any) => c.name === col)) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`)
+      }
+    } catch {}
+  }
+
   db.exec(`
     -- Table des sessions
     CREATE TABLE IF NOT EXISTS sessions (
