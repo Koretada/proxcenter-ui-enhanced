@@ -19,7 +19,7 @@ NC='\033[0m'
 
 # Configuration
 INSTALL_DIR="/opt/proxcenter"
-COMPOSE_URL="https://raw.githubusercontent.com/adminsyspro/proxcenter-ui/main/docker-compose.community.yml"
+COMPOSE_PATH="https://raw.githubusercontent.com/Koretada/proxcenter-ui-enhanced/refs/heads/main/docker-compose.community.yml"
 FRONTEND_IMAGE="ghcr.io/adminsyspro/proxcenter-frontend:latest"
 
 TOTAL_STEPS=4
