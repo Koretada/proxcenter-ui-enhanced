@@ -7,7 +7,7 @@ const VerticalNavContext = createContext({})
 
 export const VerticalNavProvider = ({ children }) => {
   // States
-  const [verticalNavState, setVerticalNavState] = useState()
+  const [verticalNavState, setVerticalNavState] = useState({ isCollapsed: true })
 
   // Hooks
   const updateVerticalNavState = useCallback(values => {

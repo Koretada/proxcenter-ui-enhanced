@@ -904,8 +904,8 @@ const EXTRA_MOCKS: MockDataMap = {
     { id: 'kpi-2', type: 'kpi-vms', x: 1, y: 4, w: 1, h: 4 },
     { id: 'kpi-3', type: 'kpi-lxc', x: 1, y: 1, w: 1, h: 3 },
     { id: 'kpi-4', type: 'kpi-alerts', x: 11, y: 1, w: 1, h: 7 },
-    { id: 'clusters-g', type: 'clusters-gauges', x: 2, y: 1, w: 4, h: 7 },
-    { id: 'resources-1', type: 'resources-gauges', x: 6, y: 1, w: 3, h: 7 },
+    { id: 'clusters-g', type: 'clusters-gauges', x: 2, y: 1, w: 5, h: 7 },
+    { id: 'resources-1', type: 'resources-gauges', x: 7, y: 1, w: 2, h: 7 },
     { id: 'drs-1', type: 'drs-status', x: 9, y: 1, w: 2, h: 7 },
     { id: 'sec-2', type: 'section-header', x: 0, y: 18, w: 12, h: 1, settings: { title: 'Cluster / Ceph' } },
     { id: 'ceph-1', type: 'ceph-status', x: 0, y: 8, w: 3, h: 10 },
@@ -1440,20 +1440,60 @@ const EXTRA_MOCKS: MockDataMap = {
     data: { health: { status: 'HEALTH_OK' }, osdmap: { num_osds: 12, num_up_osds: 12, num_in_osds: 12 } },
   },
   'GET:/api/v1/connections/demo-pve-dr-001/ceph': {
-    pools: {
-      list: [
-        { name: 'rbd-dr', size: 3, minSize: 2, type: 'replicated', crushRule: 0, application: 'rbd' },
-      ],
+    data: {
+      hasCeph: true,
+      health: { status: 'HEALTH_ERR', checks: { OSD_DOWN: { severity: 'HEALTH_ERR', summary: { message: '2 osds down' } } } },
+      osdmap: { num_osds: 12, num_up_osds: 10, num_in_osds: 10 },
+      pgmap: { num_pgs: 128, bytes_total: 8589934592000, bytes_used: 6442450944000, read_bytes_sec: 10485760, write_bytes_sec: 5242880 },
+      pools: {
+        total: 1,
+        list: [
+          { id: 0, name: 'rbd-dr', size: 3, min_size: 2, pg_num: 128, type: 'replicated', crush_rule: 0, application: 'rbd', bytes_used: 6000000000000, max_avail: 2000000000000, percent_used: 75 },
+        ],
+      },
+      osds: {
+        total: 12, up: 10, in: 10,
+        list: Array.from({ length: 12 }, (_, i) => ({ id: i, name: `osd.${i}`, status: i >= 10 ? 'down' : 'up', in: i < 10 ? 1 : 0, host: `pve-dr-${String((i % 4) + 1).padStart(2, '0')}`, deviceClass: 'ssd', crushWeight: 3.64, reweight: i < 10 ? 1 : 0, pgs: i < 10 ? 12 : 0, kbUsed: 500000000, kb: 3906250000, utilization: i < 10 ? 75 + Math.random() * 5 : 0, commitLatencyMs: 1 + Math.random() * 5, applyLatencyMs: 0.8 + Math.random() * 3 })),
+      },
+      monitors: {
+        total: 3,
+        list: [
+          { name: 'pve-dr-01', host: 'pve-dr-01', addr: '10.20.10.1:6789/0', rank: 0, status: 'leader' },
+          { name: 'pve-dr-02', host: 'pve-dr-02', addr: '10.20.10.2:6789/0', rank: 1, status: 'peon' },
+          { name: 'pve-dr-03', host: 'pve-dr-03', addr: '10.20.10.3:6789/0', rank: 2, status: 'peon' },
+        ],
+      },
     },
   },
   'GET:/api/v1/connections/demo-pve-cluster-001/ceph-vms': {
     data: Array.from({ length: 24 }, (_, i) => ({ vmid: 100 + i, cephDiskGb: 50 + Math.floor(Math.random() * 200) })),
   },
   'GET:/api/v1/connections/demo-pve-cluster-001/ceph': {
-    pools: {
-      list: [
-        { name: 'CephStoragePool', size: 3, minSize: 2, type: 'replicated', crushRule: 0, application: 'rbd' },
-      ],
+    data: {
+      hasCeph: true,
+      health: { status: 'HEALTH_OK', checks: {} },
+      osdmap: { num_osds: 36, num_up_osds: 36, num_in_osds: 36 },
+      pgmap: { num_pgs: 256, bytes_total: 21474836480000, bytes_used: 9019431321600, read_bytes_sec: 52428800, write_bytes_sec: 31457280 },
+      pools: {
+        total: 3,
+        list: [
+          { id: 0, name: 'rbd-pool', size: 3, min_size: 2, pg_num: 128, type: 'replicated', crush_rule: 0, application: 'rbd', bytes_used: 5000000000000, max_avail: 8000000000000, percent_used: 38 },
+          { id: 1, name: 'cephfs-data', size: 3, min_size: 2, pg_num: 64, type: 'replicated', crush_rule: 0, application: 'cephfs', bytes_used: 3000000000000, max_avail: 5000000000000, percent_used: 37 },
+          { id: 2, name: 'rgw-pool', size: 3, min_size: 2, pg_num: 64, type: 'replicated', crush_rule: 0, application: 'rgw', bytes_used: 1000000000000, max_avail: 3000000000000, percent_used: 25 },
+        ],
+      },
+      osds: {
+        total: 36, up: 36, in: 36,
+        list: Array.from({ length: 36 }, (_, i) => ({ id: i, name: `osd.${i}`, status: 'up', in: 1, host: `pve-node-${String((i % 12) + 1).padStart(2, '0')}`, deviceClass: i < 24 ? 'ssd' : 'hdd', crushWeight: 3.64, reweight: 1, pgs: 7 + Math.floor(Math.random() * 3), kbUsed: 250000000 + Math.floor(Math.random() * 50000000), kb: 3906250000, utilization: 6 + Math.random() * 2, commitLatencyMs: 0.5 + Math.random() * 2, applyLatencyMs: 0.3 + Math.random() * 1.5 })),
+      },
+      monitors: {
+        total: 3,
+        list: [
+          { name: 'pve-node-01', host: 'pve-node-01', addr: '10.10.10.1:6789/0', rank: 0, status: 'leader' },
+          { name: 'pve-node-02', host: 'pve-node-02', addr: '10.10.10.2:6789/0', rank: 1, status: 'peon' },
+          { name: 'pve-node-03', host: 'pve-node-03', addr: '10.10.10.3:6789/0', rank: 2, status: 'peon' },
+        ],
+      },
     },
   },
   'GET:/api/v1/connections/demo-pve-dr-001/ceph-vms': { data: [] },

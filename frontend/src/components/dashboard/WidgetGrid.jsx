@@ -580,6 +580,18 @@ return () => document.removeEventListener('fullscreenchange', handler)
         }}
       >
       <style>{`
+        .react-grid-item {
+          container-type: inline-size;
+        }
+        @container (max-width: 250px) {
+          .react-grid-item > div { zoom: 0.8; }
+        }
+        @container (max-width: 180px) {
+          .react-grid-item > div { zoom: 0.65; }
+        }
+        @container (max-width: 120px) {
+          .react-grid-item > div { zoom: 0.5; }
+        }
         .react-grid-item.react-grid-placeholder {
           background-color: var(--mui-palette-primary-main);
           opacity: 0.2;
