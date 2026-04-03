@@ -109,32 +109,43 @@ function InfraGlobalChartWidget({ data, loading: dashboardLoading, config, onUpd
     if (onUpdateSettings) onUpdateSettings({ selectedConnections: newSelected })
   }
 
-  // All connections for filter
+  // All connections for filter (try clusters first, fallback to unique connections from nodes)
   const allConnections = useMemo(() => {
-    return (data?.clusters || []).map(c => ({ id: c.id, name: c.name }))
-  }, [data?.clusters])
+    const clusters = (data?.clusters || []).map(c => ({ id: c.id, name: c.name }))
+
+    if (clusters.length > 0) return clusters
+    const seen = new Set()
+
+    return (data?.nodes || []).reduce((acc, n) => {
+      const id = n.connectionId || n.connId
+
+      if (id && !seen.has(id)) { seen.add(id); acc.push({ id, name: n.connection || id }) }
+
+      return acc
+    }, [])
+  }, [data?.clusters, data?.nodes])
 
   // Stable key for nodes
-  const nodesStableKey = (data?.nodes || []).map(n => `${n.connectionId}:${n.name}`).join(',')
+  const nodesStableKey = (data?.nodes || []).map(n => `${n.connectionId || n.connId}:${n.name}`).join(',')
   const selectedKey = selectedConnections.join(',')
 
   // Group nodes by connection, filtered
   const nodesByConnection = useMemo(() => {
     const nodes = data?.nodes || []
     const grouped = {}
-    const validConnIds = new Set(nodes.map(n => n.connectionId).filter(Boolean))
+    const validConnIds = new Set(nodes.map(n => n.connectionId || n.connId).filter(Boolean))
 
     // If selectedConnections references IDs that don't exist, ignore the filter
     const effectiveFilter = selectedConnections.length > 0 && selectedConnections.some(id => validConnIds.has(id))
       ? selectedConnections : []
 
     nodes.forEach((node) => {
-      const connId = node.connectionId
+      const connId = node.connectionId || node.connId
 
       if (!connId) return
       if (effectiveFilter.length > 0 && !effectiveFilter.includes(connId)) return
       if (!grouped[connId]) grouped[connId] = []
-      grouped[connId].push({ node: node.name })
+      grouped[connId].push({ node: node.node || node.name })
     })
 
     return grouped
