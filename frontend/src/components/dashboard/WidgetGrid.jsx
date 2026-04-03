@@ -15,7 +15,7 @@ import { WIDGET_REGISTRY, WIDGET_CATEGORIES, getWidgetsByCategory } from './widg
 import { DEFAULT_LAYOUT, PRESET_LAYOUTS } from './types'
 import { CardsSkeleton } from '@/components/skeletons'
 
-const GRID_COLS = { lg: 12, md: 12, sm: 6, xs: 4, xxs: 2 }
+const GRID_COLS = { lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }
 const ROW_HEIGHT = 40
 const MARGIN = [6, 4]
 
@@ -601,13 +601,7 @@ return () => document.removeEventListener('fullscreenchange', handler)
             className="layout"
             style={{ width: '100%' }}
             width={containerWidth}
-            layouts={{
-              lg: gridLayout,
-              md: gridLayout.map(item => ({ ...item, w: Math.min(item.w, 12), x: Math.min(item.x, 12 - Math.min(item.w, 12)) })),
-              sm: gridLayout.map(item => ({ ...item, w: Math.min(item.w, 6), x: 0 })),
-              xs: gridLayout.map(item => ({ ...item, w: Math.min(item.w, 4), x: 0 })),
-              xxs: gridLayout.map(item => ({ ...item, w: Math.min(item.w, 2), x: 0 })),
-            }}
+            layouts={{ lg: gridLayout }}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
             cols={GRID_COLS}
             rowHeight={ROW_HEIGHT}
