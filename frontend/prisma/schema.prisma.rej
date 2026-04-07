@@ -1,0 +1,96 @@
+diff a/frontend/prisma/schema.prisma b/frontend/prisma/schema.prisma	(rejected hunks)
+@@ -6,46 +6,68 @@ datasource db {
+   provider = "sqlite"
+ }
+ 
+-// ============================================
+-// Modèles gérés par Prisma
+-// Les autres tables (users, sessions, RBAC, audit_logs, etc.)
+-// sont créées et gérées par sqlite.ts
+-// ============================================
++model User {
++  id           String    @id
++  email        String    @unique
++  password     String?
++  name         String?
++  avatar       String?
++  role         String    @default("viewer")
++  authProvider String    @default("credentials") @map("auth_provider")
++  ldapDn       String?   @map("ldap_dn")
++  enabled      Boolean   @default(true)
++  lastLoginAt  DateTime? @map("last_login_at")
++  createdAt    DateTime  @map("created_at")
++  updatedAt    DateTime  @map("updated_at")
++  tenantId     String    @default("default") @map("tenant_id")
++
++  @@map("users")
++}
+ 
+-model Connection {
+-  id          String  @id @default(cuid())
+-  tenantId    String  @default("default") @map("tenant_id")
++model Tenant {
++  id          String   @id
++  slug        String   @unique
+   name        String
+-  type        String  @default("pve")
+-  baseUrl      String
+-  behindProxy  Boolean @default(false)
+-  insecureTLS  Boolean @default(false)
+-  hasCeph     Boolean @default(false)
++  description String?
++  enabled     Boolean  @default(true)
++  settings    String?
++  createdBy   String?  @map("created_by")
++  createdAt   DateTime @map("created_at")
++  updatedAt   DateTime @map("updated_at")
++
++  @@map("tenants")
++}
++
++model Connection {
++  id            String        @id @default(cuid())
++  tenantId      String        @default("default") @map("tenant_id")
++  enabled       Boolean       @default(true)
++  name          String
++  type          String        @default("pve")
++  baseUrl       String
++  behindProxy   Boolean       @default(false)
++  insecureTLS   Boolean       @default(false)
++  hasCeph       Boolean       @default(false)
+   latitude      Float?
+   longitude     Float?
+   locationLabel String?
+-  apiTokenEnc String
+-
+-  // SSH fields
+-  sshEnabled    Boolean @default(false)
+-  sshPort       Int     @default(22)
+-  sshUser       String  @default("root")
++  apiTokenEnc   String
++  sshEnabled    Boolean       @default(false)
++  sshPort       Int           @default(22)
++  sshUser       String        @default("root")
+   sshAuthMethod String?
+   sshKeyEnc     String?
+   sshPassEnc    String?
+-  sshUseSudo    Boolean @default(false)
+-
+-  createdAt DateTime @default(now())
+-  updatedAt DateTime @updatedAt
+-
+-  hosts ManagedHost[]
++  sshUseSudo    Boolean       @default(false)
++  createdAt     DateTime      @default(now())
++  updatedAt     DateTime      @updatedAt
++  hosts         ManagedHost[]
+ }
+ 
+ model ManagedHost {
+   id           String      @id @default(cuid())
+   tenantId     String      @default("default") @map("tenant_id")
+   connectionId String?
+-  connection   Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+   node         String
+   ip           String?
+   sshAddress   String?

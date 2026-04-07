@@ -28,6 +28,12 @@ export const menuData = (t = (key) => key) => [
         permissions: ['vm.view', 'node.view']
       },
       {
+        label: t('navigation.ipam'),
+        icon: 'ri-hashtag',
+        href: '/infrastructure/ipam',
+        permissions: ['vm.view']
+      },
+      {
         label: t('navigation.storage'),
         icon: 'ri-database-2-fill',
         href: '/storage/overview',

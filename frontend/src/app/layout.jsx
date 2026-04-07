@@ -38,7 +38,7 @@ const RootLayout = async props => {
 
   return (
     <html id='__next' lang={locale} dir={direction} suppressHydrationWarning>
-      <body className='flex is-full min-bs-full flex-auto flex-col'>
+      <body className='flex is-full min-bs-full flex-auto flex-col' suppressHydrationWarning>
         <InitColorSchemeScript attribute='data' defaultMode={systemMode} />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <BrandingProvider>

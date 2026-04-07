@@ -1,4 +1,25 @@
 {
+  "ipam": {
+    "title": "Gestion des adresses IP",
+    "subtitle": "Aperçu du réseau et détection des doublons",
+    "stats": {
+      "totalIps": "Total IPs",
+      "subnets": "Sous-réseaux",
+      "duplicatesCount": "Doublons",
+      "duplicatesCountDesc": "IPs en conflit détectées"
+    },
+    "table": {
+      "ip": "Adresse IP",
+      "vm": "Machine Virtuelle",
+      "interface": "Interface",
+      "node": "Nœud",
+      "cluster": "Cluster",
+      "duplicate": "Doublon"
+    },
+    "noIps": "Aucune adresse IP trouvée dans les configurations Cloud-Init.",
+    "searchPlaceholder": "Rechercher l'IP, la VM ou le sous-réseau...",
+    "duplicateAlert": "Doublon détecté ! Cette adresse est utilisée par plusieurs VMs."
+  },
   "common": {
     "add": "Ajouter",
     "edit": "Modifier",
@@ -185,6 +206,7 @@
     "favorites": "Favoris",
     "reports": "Rapports",
     "topology": "Topologie",
+    "ipam": "IPAM",
     "compliance": "Conformité",
     "changes": "Suivi des changements",
     "networkFlows": "Flux réseau"
@@ -414,7 +436,8 @@
     "thresholdsConfig": "Seuils d'alertes",
     "resourceUsage": "Utilisation des ressources",
     "maintenance": "Maintenance",
-    "memory": "Mémoire",
+    "topology": "Topologie",
+    "ipam": "IPAM",
     "storage": "Stockage",
     "rulesDescription": "Les règles permettent de déclencher des alertes sur les événements Proxmox (tâches, logs)",
     "editRule": "Modifier la règle",

@@ -30,9 +30,16 @@ export async function GET(req: Request) {
 
     return NextResponse.json(data)
   } catch (error: any) {
-    if ((error as any)?.code !== 'ORCHESTRATOR_UNAVAILABLE') {
-      console.error('Error fetching recent changes:', error)
+    // If orchestrator is down or connection refused, return empty list gracefully
+    if (
+      (error as any)?.code === 'ORCHESTRATOR_UNAVAILABLE' ||
+      error?.message?.includes('fetch failed') ||
+      error?.code === 'ECONNREFUSED'
+    ) {
+      return NextResponse.json({ data: [], meta: { total: 0 } })
     }
+
+    console.error('Error fetching recent changes:', error)
 
     return NextResponse.json(
       { error: error?.message || 'Server error' },

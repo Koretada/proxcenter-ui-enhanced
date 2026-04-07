@@ -1,4 +1,25 @@
 {
+  "ipam": {
+    "title": "IP 地址管理",
+    "subtitle": "网络概览与冲突检测",
+    "stats": {
+      "totalIps": "总 IP 数",
+      "subnets": "子网数",
+      "duplicatesCount": "冲突数",
+      "duplicatesCountDesc": "检测到冲突的 IP"
+    },
+    "table": {
+      "ip": "IP 地址",
+      "vm": "虚拟机",
+      "interface": "接口",
+      "node": "节点",
+      "cluster": "集群",
+      "duplicate": "冲突"
+    },
+    "noIps": "在 Cloud-Init 配置中未找到 IP 地址。",
+    "searchPlaceholder": "搜索 IP、虚拟机或子网...",
+    "duplicateAlert": "检测到冲突！此地址被多个虚拟机使用。"
+  },
   "common": {
     "add": "添加",
     "edit": "编辑",
@@ -185,6 +206,7 @@
     "favorites": "收藏",
     "reports": "报告",
     "topology": "拓扑",
+    "ipam": "IPAM",
     "compliance": "合规性",
     "changes": "变更追踪",
     "networkFlows": "网络流量"

@@ -1,4 +1,25 @@
 {
+  "ipam": {
+    "title": "IP-Adressverwaltung",
+    "subtitle": "Netzwerkübersicht und Duplikaterkennung",
+    "stats": {
+      "totalIps": "Gesamt IPs",
+      "subnets": "Subnetze",
+      "duplicatesCount": "Duplikate",
+      "duplicatesCountDesc": "Konfiktbehaftete IPs erkannt"
+    },
+    "table": {
+      "ip": "IP-Adresse",
+      "vm": "Virtuelle Maschine",
+      "interface": "Schnittstelle",
+      "node": "Node",
+      "cluster": "Cluster",
+      "duplicate": "Duplikat"
+    },
+    "noIps": "Keine IP-Adressen in den Cloud-Init-Konfigurationen gefunden.",
+    "searchPlaceholder": "Suche nach IP, VM oder Subnetz...",
+    "duplicateAlert": "Duplikat erkannt! Diese Adresse wird von mehreren VMs verwendet."
+  },
   "common": {
     "delete": "Löschen",
     "cancel": "Abbrechen",
@@ -181,6 +202,7 @@
     "favorites": "Favoriten",
     "reports": "Berichte",
     "topology": "Topologie",
+    "ipam": "IPAM",
     "compliance": "Compliance",
     "changes": "Änderungen",
     "networkFlows": "Netzwerk-Flows"
@@ -1738,7 +1760,7 @@
     "tdpPerCoreHelper": "Xeon ~10-15W, EPYC ~8-12W",
     "ramConsumptionPerGb": "RAM-Verbrauch pro GB",
     "ramConsumptionHelper": "DDR4 ~0,375W, DDR5 ~0,3W",
-    "overheadPerServer": "Overhead pro Server",
+    "overheadPer Server": "Overhead pro Server",
     "overheadHelper": "Festplatten, Netzwerk, Netzteil, Lüfter...",
     "avgCoresPerServer": "Durchschnittliche Kerne pro Server",
     "avgCoresHelper": "Zur Schätzung der Serveranzahl",

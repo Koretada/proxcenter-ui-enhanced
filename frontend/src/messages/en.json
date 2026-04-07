@@ -1,4 +1,25 @@
 {
+  "ipam": {
+    "title": "IP Address Management",
+    "subtitle": "Network overview and duplicate detection",
+    "stats": {
+      "totalIps": "Total IPs",
+      "subnets": "Subnets",
+      "duplicatesCount": "Duplicates",
+      "duplicatesCountDesc": "Duplicate IPs detected"
+    },
+    "table": {
+      "ip": "IP Address",
+      "vm": "Virtual Machine",
+      "interface": "Interface",
+      "node": "Node",
+      "cluster": "Cluster",
+      "duplicate": "Duplicate"
+    },
+    "noIps": "No IP addresses found in Cloud-Init configurations.",
+    "searchPlaceholder": "Search IP, VM or Subnet...",
+    "duplicateAlert": "Duplicate IP detected! This address is used by multiple VMs."
+  },
   "common": {
     "add": "Add",
     "edit": "Edit",
@@ -185,6 +206,7 @@
     "favorites": "Favorites",
     "reports": "Reports",
     "topology": "Topology",
+    "ipam": "IPAM",
     "compliance": "Compliance",
     "changes": "Change Tracking",
     "networkFlows": "Network Flows"
@@ -414,7 +436,8 @@
     "thresholdsConfig": "Alert Thresholds",
     "resourceUsage": "Resource Usage",
     "maintenance": "Maintenance",
-    "memory": "Memory",
+    "topology": "Topology",
+    "ipam": "IPAM",
     "storage": "Storage",
     "rulesDescription": "Rules allow you to trigger alerts on Proxmox events (tasks, logs)",
     "editRule": "Edit rule",
