@@ -277,7 +277,7 @@ export default function IpamPage() {
                         size="small"
                         label={t('ipam.table.duplicate')}
                         color="error"
-                        variant="soft"
+                        variant="tonal"
                         icon={<i className="ri-error-warning-fill" />}
                         sx={{ fontWeight: 700 }}
                       />
@@ -348,7 +348,7 @@ export default function IpamPage() {
                                 <Chip
                                   label={ip.connectionName}
                                   size="small"
-                                  variant="soft"
+                                  variant="tonal"
                                   color="primary"
                                   sx={{ fontWeight: 600, borderRadius: '6px' }}
                                 />
