@@ -123,7 +123,7 @@ export default function IpamPage() {
     <Box sx={{ p: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
       {/* Stats row */}
       <Grid container spacing={6}>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{
             background: 'linear-gradient(135deg, var(--mui-palette-primary-main) 0%, var(--mui-palette-primary-dark) 100%)',
             color: 'white',
@@ -142,7 +142,7 @@ export default function IpamPage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{
             bgcolor: 'background.paper',
             borderRadius: '16px',
@@ -160,7 +160,7 @@ export default function IpamPage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{
             bgcolor: data?.stats.totalDuplicates ? 'rgba(var(--mui-palette-error-mainChannel), 0.05)' : 'background.paper',
             border: `1px solid ${data?.stats.totalDuplicates ? 'rgba(var(--mui-palette-error-mainChannel), 0.5)' : 'var(--mui-palette-divider)'}`,
