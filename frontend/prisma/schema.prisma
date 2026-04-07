@@ -59,7 +59,6 @@ model ManagedHost {
   tags         String?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
-  connection   Connection? @relation(fields: [connectionId], references: [id])
 
   @@unique([connectionId, node])
 }
