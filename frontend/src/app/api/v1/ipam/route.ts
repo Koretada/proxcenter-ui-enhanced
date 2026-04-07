@@ -95,7 +95,7 @@ export async function GET() {
     // 1. Fetch all PVE connections
     const prisma = await getSessionPrisma()
     const connections = await prisma.connection.findMany({
-      where: { type: "pve", enabled: true }
+      where: { type: "pve" }
     })
 
     const allIps: IPInfo[] = []
