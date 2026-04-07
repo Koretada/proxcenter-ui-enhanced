@@ -6,7 +6,7 @@
   </picture>
 </p>
 
-<h1 align="center">ProxCenter</h1>
+<h1 align="center">ProxCenter - Enhanced fork</h1>
 
 <p align="center">
   <a href="https://www.proxcenter.io/">www.proxcenter.io</a> · <a href="https://demo.proxcenter.io/">Live Demo</a> · <a href="https://docs.proxcenter.io/">Documentation</a>
