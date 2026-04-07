@@ -236,10 +236,8 @@ export default function ClusterFirewallTab({ connectionId }: Props) {
   }, [connectionId])
 
   useEffect(() => {
-    if (!isEnterprise) return
-
     loadFirewallData()
-  }, [loadFirewallData, isEnterprise])
+  }, [loadFirewallData])
 
   // Toggle firewall enable
   const handleToggleFirewall = async () => {
@@ -457,18 +455,6 @@ export default function ClusterFirewallTab({ connectionId }: Props) {
     }
   }
 
-  // Enterprise guard
-  if (!isEnterprise) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8, textAlign: 'center' }}>
-        <i className='ri-vip-crown-fill' style={{ fontSize: 48, color: 'var(--mui-palette-warning-main)', marginBottom: 16 }} />
-        <Typography variant='h6' sx={{ mb: 1 }}>Enterprise Feature</Typography>
-        <Typography variant='body2' sx={{ opacity: 0.6 }}>
-          Cluster Firewall management requires an Enterprise license.
-        </Typography>
-      </Box>
-    )
-  }
 
   if (loading) {
     return (

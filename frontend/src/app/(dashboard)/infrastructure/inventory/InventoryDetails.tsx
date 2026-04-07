@@ -3151,12 +3151,12 @@ return vm?.isCluster ?? false
                 handleSaveClusterNotes, handleTableMigrate, handleTableVmAction, joinClusterDialogOpen, joinClusterInfo,
                 joinClusterPassword, joinInfoDialogOpen, loading, localVmsDialogNode, localVmsDialogOpen,
                 migratingVmIds, newClusterLinks, newClusterName, nodeLocalVms, nodeUpdates,
-                cveAvailable, onSelect, primaryColor, rollingUpdateAvailable, rollingUpdateWizardOpen, selection,
+                onSelect, primaryColor, selection,
                 setClusterActionError, setClusterCephTimeframe, setClusterNotesContent, setClusterNotesEditMode, setClusterTab,
                 setCreateClusterDialogOpen, setDeleteHaGroupDialog, setDeleteHaRuleDialog, setEditingHaGroup, setEditingHaRule,
                 setExpandedClusterNodes, setHaGroupDialogOpen, setHaRuleDialogOpen, setHaRuleType, setJoinClusterDialogOpen,
                 setJoinClusterInfo, setJoinClusterPassword, setJoinInfoDialogOpen, setLocalVmsDialogNode, setLocalVmsDialogOpen,
-                setNewClusterLinks, setNewClusterName, setNodeLocalVms, setNodeUpdates, setRollingUpdateWizardOpen,
+                setNewClusterLinks, setNewClusterName, setNodeLocalVms, setNodeUpdates,
                 setUpdatesDialogNode, setUpdatesDialogOpen, toggleFavorite, updatesDialogNode,
                 updatesDialogOpen}}
             />
@@ -3166,7 +3166,7 @@ return vm?.isCluster ?? false
           {/* Node Tabs */}
           {selection?.type === 'node' && data.vmsData && data.status !== 'crit' && (
             <NodeTabs
-              {...{canShowRrd, clusterConfigLoaded, clusterConfigLoading, cveAvailable, data, deleteReplicationDialogOpen, deletingReplicationJob,
+              {...{canShowRrd, clusterConfigLoaded, clusterConfigLoading, data, deleteReplicationDialogOpen, deletingReplicationJob,
                 dnsFormData, editDnsDialogOpen, editHostsDialogOpen, editTimeDialogOpen, editingReplicationJob,
                 error, expandedVmsTable, favorites, handleTableMigrate, handleTableVmAction, hosts,
                 hostsFormData, loadClusterConfig, loadVmTrendsBatch, loading, migratingVmIds,
@@ -3175,7 +3175,7 @@ return vm?.isCluster ?? false
                 nodeNotesLoading, nodeNotesSaving, nodeReplicationData, nodeReplicationLoading, nodeShellData,
                 nodeShellLoading, nodeSubscriptionData, nodeSubscriptionLoading, nodeSyslogData, nodeSyslogLive,
                 nodeSyslogLoading, nodeSystemData, nodeSystemLoading, nodeSystemSubTab, nodeTab,
-                nodeUpdates, setNodeUpdates, nodeLocalVms, setNodeLocalVms, rollingUpdateAvailable, rollingUpdateWizardOpen, setRollingUpdateWizardOpen,
+                nodeUpdates, setNodeUpdates, nodeLocalVms, setNodeLocalVms,
                 updatesDialogOpen, setUpdatesDialogOpen, updatesDialogNode, setUpdatesDialogNode,
                 onSelect, pools, primaryColor, primaryColorLight, removeSubscriptionDialogOpen,
                 removeSubscriptionLoading, replicationDeleting, replicationDialogMode, replicationDialogOpen, replicationFormData,

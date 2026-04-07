@@ -8,7 +8,7 @@ services:
   # Frontend (Next.js + WebSocket Proxy)
   # ========================================
   frontend:
-    image: ghcr.io/koretada/proxcenter-ui-enhanced:latest
+    image: proxcenter-frontend:local
     container_name: proxcenter-frontend
     restart: unless-stopped
     ports:

@@ -43,9 +43,7 @@ const ClusterHealthWidget = dynamic(() => import('./widgets/ClusterHealthWidget'
 // Section Header
 const SectionHeaderWidget = dynamic(() => import('./widgets/SectionHeaderWidget'), { ssr: false })
 
-// Enterprise: DRS & Site Recovery
-const DrsStatusWidget = dynamic(() => import('./widgets/DrsStatusWidget'), { ssr: false })
-const SiteRecoveryWidget = dynamic(() => import('./widgets/SiteRecoveryWidget'), { ssr: false })
+// Enterprise: DRS & Site Recovery removed in Community Edition
 
 export const WIDGET_REGISTRY = {
   'section-header': {
@@ -355,33 +353,7 @@ export const WIDGET_REGISTRY = {
     component: ClusterHealthWidget,
   },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ENTERPRISE: AUTOMATION & ORCHESTRATION
-  // ═══════════════════════════════════════════════════════════════════════════
-  'drs-status': {
-    type: 'drs-status',
-    name: 'DRS Status',
-    description: 'DRS status, active migrations and recommendations',
-    icon: 'ri-swap-line',
-    category: 'automation',
-    defaultSize: { w: 8, h: 6 },
-    minSize: { w: 1, h: 1 },
-    maxSize: { w: 12, h: 20 },
-    noContainer: true,
-    component: DrsStatusWidget,
-  },
-  'site-recovery': {
-    type: 'site-recovery',
-    name: 'Site Recovery',
-    description: 'VM protection, RPO compliance and replication status',
-    icon: 'ri-shield-star-line',
-    category: 'automation',
-    defaultSize: { w: 4, h: 4 },
-    minSize: { w: 3, h: 3 },
-    maxSize: { w: 12, h: 20 },
-    noContainer: true,
-    component: SiteRecoveryWidget,
-  },
+  // Automation widgets removed in Community Edition
 }
 
 export const WIDGET_CATEGORIES = [
@@ -390,7 +362,6 @@ export const WIDGET_CATEGORIES = [
   { id: 'backup', name: 'Backups', icon: 'ri-shield-check-line' },
   { id: 'storage', name: 'Storage', icon: 'ri-hard-drive-2-line' },
   { id: 'monitoring', name: 'Monitoring', icon: 'ri-alarm-warning-line' },
-  { id: 'automation', name: 'Automation', icon: 'ri-robot-2-line' },
 ]
 
 export function getWidgetsByCategory(category) {

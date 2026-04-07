@@ -317,11 +317,8 @@ export default function VmFirewallTab({ connectionId, node, vmType, vmid, vmName
   }, [connectionId, node, vmType, vmid])
 
   useEffect(() => {
-    // En mode Community, pas d'orchestrator pour le firewall
-    if (!isEnterprise) return
-
     loadFirewallData()
-  }, [loadFirewallData, isEnterprise])
+  }, [loadFirewallData])
 
   // Auto-refresh logs every 5s when log dialog is open
   useEffect(() => {
@@ -587,18 +584,6 @@ export default function VmFirewallTab({ connectionId, node, vmType, vmid, vmName
     </li>
   )
 
-  // En mode Community, afficher un message
-  if (!isEnterprise) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8, textAlign: 'center' }}>
-        <i className='ri-vip-crown-fill' style={{ fontSize: 48, color: 'var(--mui-palette-warning-main)', marginBottom: 16 }} />
-        <Typography variant='h6' sx={{ mb: 1 }}>Enterprise Feature</Typography>
-        <Typography variant='body2' sx={{ opacity: 0.6 }}>
-          VM Firewall management requires an Enterprise license.
-        </Typography>
-      </Box>
-    )
-  }
 
   if (loading) {
     return (

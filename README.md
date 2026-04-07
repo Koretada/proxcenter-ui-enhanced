@@ -6,19 +6,19 @@
   </picture>
 </p>
 
-<h1 align="center">ProxCenter - Enhanced fork</h1>
+<h1 align="center">ProxCenter - Community Edition</h1>
 
 <p align="center">
   <a href="https://www.proxcenter.io/">www.proxcenter.io</a> · <a href="https://demo.proxcenter.io/">Live Demo</a> · <a href="https://docs.proxcenter.io/">Documentation</a>
 </p>
 
 <p align="center">
-  <strong>Enterprise-grade management platform for Proxmox Virtual Environment</strong>
+  <strong>The open alternative for Proxmox Virtual Environment management</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Proxmox-8.x%20%7C%209.x-E57000" alt="Proxmox">
-  <img src="https://img.shields.io/badge/License-Community%20%7C%20Enterprise-blue" alt="License">
+  <img src="https://img.shields.io/badge/License-Community-blue" alt="License">
   <a href="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/codeql.yml"><img src="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/security-scan.yml"><img src="https://github.com/adminsyspro/proxcenter-ui/actions/workflows/security-scan.yml/badge.svg" alt="Security Scan"></a>
   <a href="https://github.com/adminsyspro/proxcenter-ui/stargazers"><img src="https://img.shields.io/github/stars/adminsyspro/proxcenter-ui?style=flat&color=f5c542&logo=github" alt="Stars"></a>
@@ -34,7 +34,7 @@
 
 ## Overview
 
-**ProxCenter** is a modern web interface for monitoring, managing, and optimizing Proxmox VE infrastructure. Multi-cluster management, cross-hypervisor migration, workload balancing, and more — from a single pane of glass.
+**ProxCenter** is a modern web interface for monitoring and managing Proxmox VE infrastructure. Multi-cluster management, cross-hypervisor migration, and centralized monitoring — from a single pane of glass.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="100%">
@@ -42,21 +42,19 @@
 
 ---
 
-## Quick Start
+## Quick Start (Docker)
 
 ```bash
-# Community Edition (Free)
-curl -fsSL https://proxcenter.io/install/community | sudo bash
+# Clone the repository
+git clone https://github.com/walid/proxcenter-ui-enhanced.git
+cd proxcenter-ui-enhanced
 
-# Enterprise Edition
-curl -fsSL https://proxcenter.io/install/enterprise | sudo bash -s -- --token YOUR_TOKEN
+# Copy environment variables
+cp .env.example .env
+
+# Start the stack
+docker compose -f docker-compose.community.yml up -d
 ```
-
----
-
-## Features
-
-[See the full feature comparison (Community vs Enterprise)](https://proxcenter.io/#comparison)
 
 ---
 
@@ -68,7 +66,7 @@ curl -fsSL https://proxcenter.io/install/enterprise | sudo bash -s -- --token YO
 
 - **Single port** (3000) — HTTP + WebSocket from one process
 - **Nginx optional** — SSL termination + reverse proxy
-- **Enterprise** adds a Go orchestrator for DRS, alerts, reports, etc.
+- **Lightweight** — Focused on essential management and monitoring
 
 ---
 
@@ -76,14 +74,13 @@ curl -fsSL https://proxcenter.io/install/enterprise | sudo bash -s -- --token YO
 
 After install, ProxCenter runs at `http://your-server:3000`.
 
-Files in `/opt/proxcenter/`:
+Files in current directory:
 - `.env` — Environment variables
-- `config/orchestrator.yaml` — Backend config (Enterprise only)
+- `docker-compose.community.yml` — Service definition
 
 **Reverse proxy**: Enable the *"Behind reverse proxy"* toggle in connection settings to prevent failover from switching to internal node IPs.
 
 ```bash
-cd /opt/proxcenter
 docker compose logs -f          # View logs
 docker compose pull && docker compose up -d  # Update
 docker compose restart          # Restart
@@ -103,10 +100,8 @@ Automated scanning via **CodeQL**, **Trivy**, and **Dependabot**. Report vulnera
 
 ## License
 
-- **Community**: Free for personal and commercial use
-- **Enterprise**: Commercial license
+- **Community**: Free for personal and commercial use (MIT-style for this enhanced fork)
 
 ## Support
 
-- Community: [GitHub Issues](https://github.com/adminsyspro/proxcenter-ui/issues)
-- Enterprise: [support@proxcenter.io](mailto:support@proxcenter.io)
+- [GitHub Issues](https://github.com/adminsyspro/proxcenter-ui/issues)

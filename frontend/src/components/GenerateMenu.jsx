@@ -28,9 +28,7 @@ export const GenerateVerticalMenu = ({ menuData }) => {
 
   // Fonction pour vérifier si la feature de licence est disponible
   const hasRequiredFeature = (item) => {
-    if (licenseLoading) return true // Afficher pendant le chargement
-    if (!item.requiredFeature) return true // Pas de feature requise
-    return hasFeature(item.requiredFeature)
+    return true // All features in menuData are available in Community Edition
   }
 
   // Fonction pour filtrer les enfants accessibles (RBAC + licence)

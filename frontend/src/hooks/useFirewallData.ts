@@ -25,7 +25,7 @@ interface UseFirewallDataReturn {
   setClusterOptions: React.Dispatch<React.SetStateAction<firewallAPI.ClusterOptions | null>>
 }
 
-export function useFirewallData(connectionId: string | null, isEnterprise: boolean): UseFirewallDataReturn {
+export function useFirewallData(connectionId: string | null): UseFirewallDataReturn {
   const [aliases, setAliases] = useState<firewallAPI.Alias[]>([])
   const [ipsets, setIPSets] = useState<firewallAPI.IPSet[]>([])
   const [securityGroups, setSecurityGroups] = useState<firewallAPI.SecurityGroup[]>([])
@@ -141,10 +141,10 @@ export function useFirewallData(connectionId: string | null, isEnterprise: boole
 
   // Load firewall data when connection changes
   useEffect(() => {
-    if (isEnterprise && connectionId) {
+    if (connectionId) {
       loadFirewallData()
     }
-  }, [connectionId, loadFirewallData, isEnterprise])
+  }, [connectionId, loadFirewallData])
 
   return {
     aliases,

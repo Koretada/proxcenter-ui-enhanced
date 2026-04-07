@@ -62,51 +62,6 @@ export const menuData = (t = (key) => key) => [
 
   {
     isSection: true,
-    label: t('navigation.orchestration'),
-    icon: 'ri-robot-line',
-    permissions: ['vm.migrate', 'vm.config'], // Section nécessite au moins une de ces permissions
-    requiredFeature: 'drs', // Whole section requires DRS feature
-    children: [
-      {
-        label: t('navigation.drs'),
-        icon: 'ri-loop-left-fill',
-        href: '/automation/drs',
-        permissions: ['vm.migrate'],
-        requiredFeature: 'drs'
-      },
-      {
-        label: t('navigation.siteRecovery'),
-        icon: 'ri-shield-star-line',
-        href: '/automation/site-recovery',
-        permissions: ['vm.config'],
-        requiredFeature: 'ceph_replication'
-      },
-      {
-        label: t('navigation.networkSecurity'),
-        icon: 'ri-shield-flash-fill',
-        href: '/automation/network',
-        permissions: ['admin.settings'],
-        requiredFeature: 'microsegmentation'
-      },
-      {
-        label: t('navigation.networkFlows'),
-        icon: 'ri-flow-chart',
-        href: '/operations/network-flows',
-        permissions: ['vm.view'],
-        requiredFeature: 'sflow_monitoring'
-      },
-      {
-        label: t('navigation.resources'),
-        icon: 'ri-pie-chart-fill',
-        href: '/infrastructure/resources',
-        permissions: ['vm.view', 'node.view'],
-        requiredFeature: 'green_metrics' // Requires Enterprise license
-      }
-    ]
-  },
-
-  {
-    isSection: true,
     label: t('navigation.operations'),
     icon: 'ri-pulse-line',
     children: [
@@ -117,32 +72,10 @@ export const menuData = (t = (key) => key) => [
         permissions: ['events.view']
       },
       {
-        label: t('navigation.changes'),
-        icon: 'ri-git-commit-line',
-        href: '/operations/changes',
-        permissions: ['events.view'],
-        requiredFeature: 'change_tracking'
-      },
-      {
-        label: t('navigation.alerts'),
-        icon: 'ri-notification-3-line',
-        href: '/operations/alerts',
-        permissions: ['alerts.view'],
-        requiredFeature: 'alerts'
-      },
-      {
-        label: t('navigation.jobs'),
+        label: t('navigation.taskCenter'),
         icon: 'ri-play-list-2-line',
         href: '/operations/task-center',
-        permissions: ['tasks.view'],
-        requiredFeature: 'task_center' // Requires Enterprise license
-      },
-      {
-        label: t('navigation.reports'),
-        icon: 'ri-file-chart-line',
-        href: '/operations/reports',
-        permissions: ['reports.view'],
-        requiredFeature: 'reports'
+        permissions: ['tasks.view']
       }
     ]
   },
@@ -160,24 +93,10 @@ export const menuData = (t = (key) => key) => [
         permissions: ['admin.users']
       },
       {
-        label: t('navigation.rbacRoles'),
-        icon: 'ri-lock-2-line',
-        href: '/security/rbac',
-        permissions: ['admin.rbac'],
-        requiredFeature: 'rbac' // Requires Enterprise license
-      },
-      {
         label: t('navigation.auditLogs'),
         icon: 'ri-file-search-line',
         href: '/security/audit',
         permissions: ['admin.audit']
-      },
-      {
-        label: t('navigation.compliance'),
-        icon: 'ri-shield-check-line',
-        href: '/security/compliance',
-        permissions: ['admin.compliance'],
-        requiredFeature: 'compliance'
       }
     ]
   },

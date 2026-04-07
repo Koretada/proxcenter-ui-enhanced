@@ -36,7 +36,8 @@ export default function XTermShell({ wsUrl, host, port, ticket, node, user, pveP
       const { Terminal } = await import('xterm')
       const { FitAddon } = await import('@xterm/addon-fit')
       
-      // Importer le CSS
+      // Importer le CSS (dynamiquement pour éviter le chargement inutile hors shell)
+      // @ts-ignore
       await import('xterm/css/xterm.css')
 
       // Créer le terminal si pas encore fait

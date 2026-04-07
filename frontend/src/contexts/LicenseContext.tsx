@@ -1,8 +1,8 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from 'react'
+import { createContext, useContext, useMemo, ReactNode } from 'react'
 
-// Features disponibles
+// Features list (kept for type compatibility)
 export const Features = {
   DRS: 'drs',
   FIREWALL: 'firewall',
@@ -31,64 +31,11 @@ export const Features = {
 
 type FeatureId = typeof Features[keyof typeof Features]
 
-// Edition → features mapping (single source of truth, mirrors backend EditionFeatures)
-const EDITION_FEATURES: Record<string, readonly FeatureId[]> = {
-  enterprise: [
-    Features.DRS,
-    Features.FIREWALL,
-    Features.MICROSEGMENTATION,
-    Features.ROLLING_UPDATES,
-    Features.AI_INSIGHTS,
-    Features.PREDICTIVE_ALERTS,
-    Features.ALERTS,
-    Features.GREEN_METRICS,
-    Features.CROSS_CLUSTER_MIGRATION,
-    Features.VMWARE_MIGRATION,
-    Features.CEPH_REPLICATION,
-    Features.LDAP,
-    Features.REPORTS,
-    Features.RBAC,
-    Features.TASK_CENTER,
-    Features.NOTIFICATIONS,
-    Features.CVE_SCANNER,
-    Features.COMPLIANCE,
-    Features.OIDC,
-    Features.CHANGE_TRACKING,
-    Features.WHITE_LABEL,
-    Features.MULTI_TENANCY,
-    Features.SFLOW_MONITORING,
-  ],
-  enterprise_plus: [
-    Features.DRS,
-    Features.FIREWALL,
-    Features.MICROSEGMENTATION,
-    Features.ROLLING_UPDATES,
-    Features.AI_INSIGHTS,
-    Features.PREDICTIVE_ALERTS,
-    Features.ALERTS,
-    Features.GREEN_METRICS,
-    Features.CROSS_CLUSTER_MIGRATION,
-    Features.VMWARE_MIGRATION,
-    Features.CEPH_REPLICATION,
-    Features.LDAP,
-    Features.REPORTS,
-    Features.RBAC,
-    Features.TASK_CENTER,
-    Features.NOTIFICATIONS,
-    Features.CVE_SCANNER,
-    Features.COMPLIANCE,
-    Features.OIDC,
-    Features.CHANGE_TRACKING,
-    Features.MULTI_TENANCY,
-    Features.SFLOW_MONITORING,
-  ],
-}
-
 interface LicenseStatus {
   licensed: boolean
   expired: boolean
-  edition?: string
-  features?: string[]
+  edition: string
+  features: string[]
   [key: string]: any
 }
 
@@ -109,77 +56,38 @@ interface LicenseContextValue {
   refresh: () => Promise<void>
 }
 
+const COMMUNITY_STATUS: LicenseStatus = {
+  licensed: true,
+  expired: false,
+  edition: 'community',
+  features: [],
+}
+
 const LicenseContext = createContext<LicenseContextValue>({
-  status: null,
-  loading: true,
+  status: COMMUNITY_STATUS,
+  loading: false,
   error: null,
-  isLicensed: false,
+  isLicensed: true,
   isEnterprise: false,
   features: [],
-  hasFeature: () => false,
+  hasFeature: () => true,
   refresh: async () => {},
 })
 
 export function LicenseProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<LicenseStatus | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadLicenseStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/v1/license/status')
-      if (res.ok) {
-        const data = await res.json()
-        setStatus(data)
-        setError(null)
-      } else {
-        setError('Failed to load license status')
-      }
-    } catch (e: any) {
-      console.error('Failed to load license status:', e)
-      setError(e?.message || 'Failed to load license status')
-    }
-  }, [])
-
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    await loadLicenseStatus()
-    setLoading(false)
-  }, [loadLicenseStatus])
-
-  useEffect(() => {
-    refresh()
-  }, [refresh])
-
-  const isLicensed = Boolean(status?.licensed && !status?.expired)
-  const isEnterprise = status?.edition === 'enterprise' || status?.edition === 'enterprise_plus'
-
-  // Derive features from edition
-  const features: Feature[] = useMemo(() => {
-    const edition = status?.edition || ''
-    const editionFeatures = EDITION_FEATURES[edition] || []
-    return editionFeatures.map(id => ({ id, enabled: isLicensed }))
-  }, [status?.edition, isLicensed])
-
-  const hasFeature = useCallback((featureId: FeatureId | string): boolean => {
-    if (!isLicensed) return false
-    const edition = status?.edition || ''
-    const editionFeatures = EDITION_FEATURES[edition]
-    if (!editionFeatures) return false
-    return editionFeatures.includes(featureId as FeatureId)
-  }, [isLicensed, status?.edition])
+  const value = useMemo(() => ({
+    status: COMMUNITY_STATUS,
+    loading: false,
+    error: null,
+    isLicensed: true,
+    isEnterprise: false,
+    features: [],
+    hasFeature: () => true,
+    refresh: async () => {},
+  }), [])
 
   return (
-    <LicenseContext.Provider value={{
-      status,
-      loading,
-      error,
-      isLicensed,
-      isEnterprise,
-      features,
-      hasFeature,
-      refresh,
-    }}>
+    <LicenseContext.Provider value={value}>
       {children}
     </LicenseContext.Provider>
   )

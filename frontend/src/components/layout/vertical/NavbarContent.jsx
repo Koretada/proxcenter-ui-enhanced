@@ -168,17 +168,10 @@ const NavbarContent = ({ targetLayout } = {}) => {
   const { roles: rbacRoles, hasPermission } = useRBAC()
   const { currentTenant, availableTenants, switchTenant, isMultiTenant } = useTenant()
 
-  // Check if AI feature is available AND enabled in settings
-  const [aiEnabled, setAiEnabled] = useState(false)
-  const aiAvailable = !licenseLoading && hasFeature(Features.AI_INSIGHTS) && aiEnabled
+  // AI feature is disabled in Community Edition
+  const aiAvailable = false
 
-  useEffect(() => {
-    if (licenseLoading || !hasFeature(Features.AI_INSIGHTS)) return
-    fetch('/api/v1/settings/ai')
-      .then(r => r.ok ? r.json() : null)
-      .then(json => { if (json?.data?.enabled) setAiEnabled(true) })
-      .catch(() => {})
-  }, [licenseLoading, hasFeature])
+  // AI settings check removed in Community Edition
 
   // i18n hooks
   const t = useTranslations()
@@ -209,12 +202,13 @@ const NavbarContent = ({ targetLayout } = {}) => {
   const canViewDrs = hasPermission('automation.view')
 
   // SWR hooks for notifications — gated by permissions to avoid unnecessary fetches
-  const { data: alertsResponse, mutate: mutateAlerts } = useActiveAlerts(isEnterprise && canViewAlerts)
-  const { data: drsRecsResponse, mutate: mutateDrsRecs } = useDRSRecommendations(isEnterprise && canViewDrs, hasFeature(Features.DRS))
-  const { data: drsSettingsData } = useDRSSettings(isEnterprise && canViewDrs)
-  const maxPendingRecs = drsSettingsData?.max_pending_recommendations || 10
+  // SWR hooks for notifications
+  const { data: alertsResponse, mutate: mutateAlerts } = useActiveAlerts(canViewAlerts)
+  const { data: drsRecsResponse } = useDRSRecommendations(false, false)
+  const { data: drsSettingsData } = useDRSSettings(false)
+  const maxPendingRecs = 10
   const { data: updateInfoData } = useVersionCheck(3600000)
-  const { data: healthData } = useOrchestratorHealth(isEnterprise)
+  const { data: healthData } = useOrchestratorHealth(false)
 
   // Derive notifications from SWR data
   const notifications = useMemo(() => {
@@ -246,28 +240,8 @@ const NavbarContent = ({ targetLayout } = {}) => {
 
   const updateInfo = updateInfoData || null
 
-  // License expiration notification (admin only)
-  const licenseExpirationNotif = canViewAdmin && licenseStatus?.licensed &&
-    licenseStatus?.expiration_warn &&
-    licenseStatus?.days_remaining > 0 ? {
-      id: 'license-expiration',
-      message: t('license.expirationWarning', { days: licenseStatus.days_remaining }),
-      severity: licenseStatus.days_remaining <= 7 ? 'crit' : 'warn',
-      source: 'License',
-      isLicenseNotif: true
-    } : null
-
-  // Node limit exceeded notification (admin only)
-  const nodeLimitNotif = canViewAdmin && licenseStatus?.node_status?.exceeded ? {
-    id: 'node-limit-exceeded',
-    message: t('license.nodeLimitExceeded', {
-      current: licenseStatus.node_status.current_nodes,
-      max: licenseStatus.node_status.max_nodes
-    }),
-    severity: 'crit',
-    source: 'License',
-    isNodeLimitNotif: true
-  } : null
+  const licenseExpirationNotif = null
+  const nodeLimitNotif = null
 
   // Update available notification (admin only)
   const updateNotif = canViewAdmin && updateInfo?.updateAvailable ? {
@@ -279,32 +253,7 @@ const NavbarContent = ({ targetLayout } = {}) => {
     releaseUrl: updateInfo.releaseUrl
   } : null
 
-  // DRS recommendations as notifications (only pending ones, limited per cluster by settings)
-  const drsLimitedRecs = useMemo(() => {
-    const pending = drsRecommendations.filter(r => r.status === 'pending').sort((a, b) => (b.score || 0) - (a.score || 0))
-    const byCluster = new Map()
-    for (const rec of pending) {
-      const cid = rec.connection_id
-      if (!byCluster.has(cid)) byCluster.set(cid, [])
-      const arr = byCluster.get(cid)
-      if (arr.length < maxPendingRecs) arr.push(rec)
-    }
-    return Array.from(byCluster.values()).flat()
-  }, [drsRecommendations, maxPendingRecs])
-
-  const drsNotifications = drsLimitedRecs
-    .map(r => ({
-      id: `drs-${r.id}`,
-      message: t('drs.recommendationNotif', {
-        vm: r.vm_name,
-        source: r.source_node,
-        target: r.target_node
-      }),
-      severity: r.priority === 'critical' ? 'crit' : r.priority === 'high' ? 'warn' : 'info',
-      source: 'DRS',
-      isDrsNotif: true,
-      recommendation: r
-    }))
+  const drsNotifications = []
 
   // Combined notifications (update + node limit + license + DRS + alerts)
   const allNotifications = [
@@ -316,8 +265,8 @@ const NavbarContent = ({ targetLayout } = {}) => {
   ]
 
   // Combined count
-  const drsCount = drsNotifications.length
-  const totalNotifCount = notifCount + (licenseExpirationNotif ? 1 : 0) + (updateNotif ? 1 : 0) + (nodeLimitNotif ? 1 : 0) + drsCount
+  const drsCount = 0
+  const totalNotifCount = notifCount + (updateNotif ? 1 : 0)
 
   // Combined stats
   const totalNotifStats = {
@@ -841,220 +790,6 @@ return () => window.removeEventListener('keydown', onKeyDown)
                 )
               }
 
-              // Handle license notification specially
-              if (notif.isLicenseNotif) {
-                const licenseColor = notif.severity === 'crit' ? 'error' : 'warning'
-                return (
-                  <Box
-                    key={notif.id}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      py: 1.5,
-                      px: 2,
-                      borderLeft: '3px solid',
-                      borderColor: `${licenseColor}.main`,
-                      cursor: 'pointer',
-                      bgcolor: `${licenseColor}.lighter`,
-                      '&:hover': { bgcolor: `${licenseColor}.light`, opacity: 0.9 }
-                    }}
-                    onClick={() => {
-                      setNotifAnchor(null)
-                      router.push('/settings')
-                    }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <i className='ri-key-2-line' style={{
-                        color: `var(--mui-palette-${licenseColor}-main)`,
-                        fontSize: 20
-                      }} />
-                    </ListItemIcon>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant='body2' sx={{
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: '0.8rem'
-                      }}>
-                        {notif.message}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <Chip
-                          size='small'
-                          label={notif.severity === 'crit' ? t('license.expiringSoon') : t('license.expiringNotice')}
-                          color={licenseColor}
-                          sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700 }}
-                        />
-                        <Typography variant='caption' sx={{ opacity: 0.6, fontSize: '0.65rem' }}>
-                          {notif.source}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <Box sx={{ display: 'flex', ml: 1 }}>
-                      <Tooltip title={t('license.renewLicense')}>
-                        <IconButton
-                          size='small'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setNotifAnchor(null)
-                            router.push('/settings')
-                          }}
-                          sx={{
-                            opacity: 0.7,
-                            '&:hover': { opacity: 1, color: `${licenseColor}.main` }
-                          }}
-                        >
-                          <i className='ri-arrow-right-line' style={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-                )
-              }
-
-              // Handle node limit exceeded notification
-              if (notif.isNodeLimitNotif) {
-                return (
-                  <Box
-                    key={notif.id}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      py: 1.5,
-                      px: 2,
-                      borderLeft: '3px solid',
-                      borderColor: 'error.main',
-                      cursor: 'pointer',
-                      bgcolor: 'error.lighter',
-                      '&:hover': { bgcolor: 'error.light', opacity: 0.9 }
-                    }}
-                    onClick={() => {
-                      setNotifAnchor(null)
-                      router.push('/settings')
-                    }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <i className='ri-server-line' style={{
-                        color: 'var(--mui-palette-error-main)',
-                        fontSize: 20
-                      }} />
-                    </ListItemIcon>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant='body2' sx={{
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: '0.8rem'
-                      }}>
-                        {notif.message}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <Chip
-                          size='small'
-                          label={t('license.nodeLimitWarning')}
-                          color='error'
-                          sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700 }}
-                        />
-                      </Box>
-                    </Box>
-                    <Box sx={{ display: 'flex', ml: 1 }}>
-                      <Tooltip title={t('license.nodeLimitUpgrade')}>
-                        <IconButton
-                          size='small'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            window.open('https://proxcenter.io/account/subscribe', '_blank')
-                          }}
-                          sx={{
-                            opacity: 0.7,
-                            '&:hover': { opacity: 1, color: 'error.main' }
-                          }}
-                        >
-                          <i className='ri-shopping-cart-line' style={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-                )
-              }
-
-              // Handle DRS recommendation notification
-              if (notif.isDrsNotif) {
-                const drsColor = notif.severity === 'crit' ? 'error' : notif.severity === 'warn' ? 'warning' : 'info'
-                const rec = notif.recommendation
-                return (
-                  <Box
-                    key={notif.id}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      py: 1.5,
-                      px: 2,
-                      borderLeft: '3px solid',
-                      borderColor: 'primary.main',
-                      cursor: 'pointer',
-                      '&:hover': { bgcolor: 'action.hover' }
-                    }}
-                    onClick={() => {
-                      setNotifAnchor(null)
-                      router.push('/automation/drs')
-                    }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <i className='ri-swap-line' style={{
-                        color: 'var(--mui-palette-primary-main)',
-                        fontSize: 20
-                      }} />
-                    </ListItemIcon>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant='body2' sx={{
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: '0.8rem'
-                      }}>
-                        {rec.vm_name}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <Chip
-                          size='small'
-                          label='DRS'
-                          color='primary'
-                          sx={{ height: 16, fontSize: '0.55rem', fontWeight: 700 }}
-                        />
-                        <Typography variant='caption' sx={{ opacity: 0.6, fontSize: '0.65rem' }}>
-                          {rec.source_node} → {rec.target_node}
-                        </Typography>
-                      </Box>
-                      <Typography variant='caption' sx={{ opacity: 0.5, fontSize: '0.6rem', display: 'block', mt: 0.25 }}>
-                        {rec.reason}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', ml: 1 }}>
-                      <Tooltip title={t('drs.viewRecommendations')}>
-                        <IconButton
-                          size='small'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setNotifAnchor(null)
-                            router.push('/automation/drs')
-                          }}
-                          sx={{
-                            opacity: 0.7,
-                            '&:hover': { opacity: 1, color: 'primary.main' }
-                          }}
-                        >
-                          <i className='ri-arrow-right-line' style={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-                )
-              }
-
               const { icon, color } = getAlertIcon(notif)
 
               return (
@@ -1205,48 +940,7 @@ return () => window.removeEventListener('keydown', onKeyDown)
           )}
         </Box>
 
-        {isEnterprise && (
-          <>
-            <Divider />
-            <Box sx={{ px: 2, py: 1 }}>
-              <Typography variant='caption' sx={{ opacity: 0.6, fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>
-                Backend Status
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                <Box
-                  sx={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    bgcolor: pxcoreInfo.color,
-                    boxShadow: `0 0 6px ${pxcoreInfo.color}`,
-                    flexShrink: 0,
-                    animation: pxcoreStatus.syncing
-                      ? 'pxcore-sync 0.8s ease-in-out infinite'
-                      : pxcoreStatus.status === 'healthy'
-                        ? 'pxcore-glow 2s ease-in-out infinite'
-                        : 'none',
-                    '@keyframes pxcore-glow': {
-                      '0%, 100%': { opacity: 1, boxShadow: `0 0 6px ${pxcoreInfo.color}` },
-                      '50%': { opacity: 0.6, boxShadow: `0 0 2px ${pxcoreInfo.color}` }
-                    },
-                    '@keyframes pxcore-sync': {
-                      '0%, 100%': { transform: 'scale(1)', opacity: 1 },
-                      '50%': { transform: 'scale(1.3)', opacity: 0.5 }
-                    },
-                  }}
-                />
-                <Typography variant='body2' sx={{ fontSize: '0.8rem' }}>
-                  {pxcoreStatus.status === 'healthy' ? t('pxcore.operational') :
-                   pxcoreStatus.status === 'degraded' ? t('pxcore.degraded') :
-                   pxcoreStatus.status === 'error' ? t('pxcore.error') :
-                   pxcoreStatus.status === 'offline' ? t('pxcore.offline') :
-                   t('pxcore.unknown')}
-                </Typography>
-              </Box>
-            </Box>
-          </>
-        )}
+        {/* Backend Status removed in Community Edition */}
 
         {isMultiTenant && availableTenants.length > 1 && (
           <>

@@ -52,11 +52,7 @@ import NodesTable, { NodeRow, BulkAction } from '@/components/NodesTable'
 import VmsTable, { VmRow, TrendPoint } from '@/components/VmsTable'
 import ClusterFirewallTab from '@/components/ClusterFirewallTab'
 import BackupJobsPanel from '../BackupJobsPanel'
-import CveTab from '@/components/CveTab'
-import ChangeTrackingTab from './ChangeTrackingTab'
-import ComplianceTab from '@/components/ComplianceTab'
 import SnapshotsTab from '@/components/SnapshotsTab'
-import RollingUpdateWizard from '@/components/RollingUpdateWizard'
 
 import type { InventorySelection, DetailsPayload, RrdTimeframe, SeriesPoint, Status } from '../types'
 import { formatBps, formatTime, formatUptime, parseMarkdown, markdownSx, parseNodeId, parseVmId, cpuPct, pct, buildSeriesFromRrd, fetchRrd, tagColor } from '../helpers'
@@ -66,11 +62,7 @@ import HaGroupDialog from '../HaGroupDialog'
 import HaRuleDialog from '../HaRuleDialog'
 import EntityTagManager from '../components/EntityTagManager'
 import { AddIcon } from '../components/IconWrappers'
-import { useLicense, Features } from '@/contexts/LicenseContext'
 import { useToast } from '@/contexts/ToastContext'
-import { useRollingUpdates } from '@/contexts/RollingUpdateContext'
-import { useDRSStatus, useDRSMetrics, useDRSSettings, useDRSRecommendations } from '@/hooks/useDRS'
-import { computeDrsHealthScore } from '@/lib/utils/drs-health'
 
 function HaResourceChips({ resources, allVms }: { resources: string; allVms: any[] }) {
   if (!resources) return <Typography variant="body2" sx={{ opacity: 0.4 }}>-</Typography>
@@ -193,20 +185,6 @@ function HaResourceStateCell({ sid, state, group, connId, t }: {
 export default function ClusterTabs(props: any) {
   const t = useTranslations()
   const router = useRouter()
-  const { hasFeature, loading: licenseLoading } = useLicense()
-  const isEnterprise = !licenseLoading && hasFeature(Features.DRS)
-  const { data: drsStatus } = useDRSStatus(isEnterprise)
-  const { data: metricsData } = useDRSMetrics(isEnterprise)
-  const { data: drsSettings } = useDRSSettings(isEnterprise)
-  const { data: drsRecommendations, mutate: mutateRecs } = useDRSRecommendations(isEnterprise)
-  const [evaluating, setEvaluating] = useState(false)
-  const [recsExpanded, setRecsExpanded] = useState(false)
-  const [executingRecId, setExecutingRecId] = useState<string | null>(null)
-  const [executingAll, setExecutingAll] = useState(false)
-  const [executedRecIds, setExecutedRecIds] = useState<Set<string>>(new Set())
-  const [expandedRecId, setExpandedRecId] = useState<string | null>(null)
-  const [recSeries, setRecSeries] = useState<SeriesPoint[]>([])
-  const [recRrdLoading, setRecRrdLoading] = useState(false)
   const [cephOsdFlags, setCephOsdFlags] = useState<string[]>([])
   const [cephOsdFlagsLoading, setCephOsdFlagsLoading] = useState(false)
   const [cephFlagToggling, setCephFlagToggling] = useState<string | null>(null)
@@ -254,7 +232,6 @@ export default function ClusterTabs(props: any) {
     clusterStorageLoading,
     clusterTab,
     createClusterDialogOpen,
-    cveAvailable,
     data,
     error,
     expandedClusterNodes,
@@ -279,8 +256,6 @@ export default function ClusterTabs(props: any) {
     nodeUpdates,
     onSelect,
     primaryColor,
-    rollingUpdateAvailable,
-    rollingUpdateWizardOpen,
     selection,
     setClusterActionError,
     setClusterCephTimeframe,
@@ -306,7 +281,6 @@ export default function ClusterTabs(props: any) {
     setNewClusterName,
     setNodeLocalVms,
     setNodeUpdates,
-    setRollingUpdateWizardOpen,
     setUpdatesDialogNode,
     setUpdatesDialogOpen,
     toggleFavorite,
@@ -314,31 +288,6 @@ export default function ClusterTabs(props: any) {
     updatesDialogOpen,
   } = props
 
-  // Track active rolling update for this cluster (from global context)
-  const { hasActiveUpdate, openMonitor } = useRollingUpdates()
-  const clusterConnId = selection?.type === 'cluster' ? selection.id : ''
-  const activeRollingUpdateId = hasActiveUpdate(clusterConnId)
-
-  const drsHealth = useMemo(() => {
-    if (!isEnterprise || !(drsStatus as any)?.enabled || !metricsData) return null
-    const connId = selection?.type === 'cluster' ? selection.id : ''
-    // Hide DRS status for clusters excluded from DRS
-    if ((drsSettings as any)?.excluded_clusters?.includes(connId)) return null
-    const clusterMetrics = (metricsData as any)?.[connId]
-    if (!clusterMetrics?.summary) return null
-    return computeDrsHealthScore(clusterMetrics.summary, clusterMetrics.nodes)
-  }, [isEnterprise, drsStatus, drsSettings, metricsData, selection])
-
-  const maxPendingRecs = drsSettings?.max_pending_recommendations || 10
-
-  const clusterRecs = useMemo(() => {
-    if (!drsRecommendations || !Array.isArray(drsRecommendations)) return []
-    const connId = selection?.type === 'cluster' ? selection.id : ''
-    return drsRecommendations
-      .filter((r: any) => r.connection_id === connId && r.status === 'pending' && !executedRecIds.has(r.id))
-      .sort((a: any, b: any) => (b.score || 0) - (a.score || 0))
-      .slice(0, maxPendingRecs)
-  }, [drsRecommendations, selection, executedRecIds, maxPendingRecs])
 
   // VMs/CTs available for HA (not already in HA resources, filtered by current cluster)
   const availableVmsForHa = useMemo(() => {
@@ -383,76 +332,6 @@ export default function ClusterTabs(props: any) {
       setAddHaSaving(false)
     }
   }, [addHaSid, addHaState, addHaMaxRestart, addHaMaxRelocate, addHaGroup, addHaComment, selection, loadClusterHa, toast, t])
-
-  const handleEvaluate = useCallback(async () => {
-    setEvaluating(true)
-    try {
-      await fetch('/api/v1/orchestrator/drs/evaluate', { method: 'POST' })
-      // Wait briefly for evaluation to produce results
-      setTimeout(() => mutateRecs(), 3000)
-    } catch { /* ignore */ } finally {
-      setEvaluating(false)
-    }
-  }, [mutateRecs])
-
-  const handleExecuteRec = useCallback(async (id: string, vmName: string) => {
-    setExecutingRecId(id)
-    try {
-      const res = await fetch(`/api/v1/orchestrator/drs/recommendations/${id}/execute`, { method: 'POST' })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Action failed')
-      }
-      setExecutedRecIds(prev => new Set(prev).add(id))
-      toast.success(t('inventory.drsExecSuccess', { vm: vmName }))
-      setTimeout(() => mutateRecs(), 2000)
-    } catch (e: any) {
-      const msg = e.message || ''
-      if (msg.includes('has moved') || msg.includes('stale')) {
-        toast.warning(t('inventory.drsRecStale'))
-        mutateRecs()
-      } else if (msg.includes('not found')) {
-        setExecutedRecIds(prev => new Set(prev).add(id))
-        toast.warning(t('inventory.drsRecExpired'))
-        mutateRecs()
-      } else if (msg.includes('already on target')) {
-        setExecutedRecIds(prev => new Set(prev).add(id))
-        toast.info(t('inventory.drsAlreadyOnTarget'))
-        mutateRecs()
-      } else {
-        toast.error(t('inventory.drsExecError', { error: msg }))
-      }
-    } finally {
-      setExecutingRecId(null)
-    }
-  }, [mutateRecs, toast, t])
-
-  const handleExecuteAll = useCallback(async () => {
-    setExecutingAll(true)
-    const recsToExecute = [...clusterRecs]
-    let success = 0
-    let errors = 0
-    for (const rec of recsToExecute) {
-      try {
-        const res = await fetch(`/api/v1/orchestrator/drs/recommendations/${rec.id}/execute`, { method: 'POST' })
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
-          throw new Error(data.error || 'Action failed')
-        }
-        setExecutedRecIds(prev => new Set(prev).add(rec.id))
-        success++
-      } catch {
-        errors++
-      }
-    }
-    if (errors === 0) {
-      toast.success(t('inventory.drsExecAllSuccess', { count: success }))
-    } else {
-      toast.warning(t('inventory.drsExecAllPartial', { success, errors }))
-    }
-    setTimeout(() => mutateRecs(), 2000)
-    setExecutingAll(false)
-  }, [clusterRecs, mutateRecs, toast, t])
 
   // Auto-HA state
   const connId = selection?.type === 'cluster' ? selection.id : ''
@@ -761,103 +640,7 @@ export default function ClusterTabs(props: any) {
                     </Box>
                   }
                 />
-                <Tab
-                  disabled={!rollingUpdateAvailable}
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, opacity: rollingUpdateAvailable ? 1 : 0.4 }}>
-                      <i className="ri-refresh-line" style={{ fontSize: 16 }} />
-                      {t('inventory.tabRollingUpdate')}
-                      {!rollingUpdateAvailable && (
-                        <Chip
-                          size="small"
-                          label="Enterprise"
-                          sx={{
-                            height: 18,
-                            fontSize: '0.6rem',
-                            fontWeight: 600,
-                            bgcolor: 'primary.main',
-                            color: 'primary.contrastText',
-                            ml: 0.5,
-                            '& .MuiChip-label': { px: 0.75 }
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
-                />
-                <Tab
-                  disabled={!cveAvailable}
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, opacity: cveAvailable ? 1 : 0.4 }}>
-                      <i className="ri-shield-cross-line" style={{ fontSize: 16 }} />
-                      CVE
-                      {!cveAvailable && (
-                        <Chip
-                          size="small"
-                          label="Enterprise"
-                          sx={{
-                            height: 18,
-                            fontSize: '0.6rem',
-                            fontWeight: 600,
-                            bgcolor: 'primary.main',
-                            color: 'primary.contrastText',
-                            ml: 0.5,
-                            '& .MuiChip-label': { px: 0.75 }
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
-                />
-                <Tab
-                  disabled={!hasFeature(Features.CHANGE_TRACKING)}
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, opacity: hasFeature(Features.CHANGE_TRACKING) ? 1 : 0.4 }}>
-                      <i className="ri-git-commit-line" style={{ fontSize: 16 }} />
-                      {t('inventory.tabChangeTracking')}
-                      {!hasFeature(Features.CHANGE_TRACKING) && (
-                        <Chip
-                          size="small"
-                          label="Enterprise"
-                          sx={{
-                            height: 18,
-                            fontSize: '0.6rem',
-                            fontWeight: 600,
-                            bgcolor: 'primary.main',
-                            color: 'primary.contrastText',
-                            ml: 0.5,
-                            '& .MuiChip-label': { px: 0.75 }
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
-                />
-                <Tab
-                  disabled={!hasFeature(Features.COMPLIANCE)}
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, opacity: hasFeature(Features.COMPLIANCE) ? 1 : 0.4 }}>
-                      <i className="ri-shield-check-line" style={{ fontSize: 16 }} />
-                      {t('inventory.tabCompliance')}
-                      {!hasFeature(Features.COMPLIANCE) && (
-                        <Chip
-                          size="small"
-                          label="Enterprise"
-                          sx={{
-                            height: 18,
-                            fontSize: '0.6rem',
-                            fontWeight: 600,
-                            bgcolor: 'primary.main',
-                            color: 'primary.contrastText',
-                            ml: 0.5,
-                            '& .MuiChip-label': { px: 0.75 }
-                          }}
-                        />
-                      )}
-                    </Box>
-                  }
-                />
-              </Tabs>
+               </Tabs>
               
               <CardContent sx={{ p: 0, '&:last-child': { pb: 0 }, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
                 {/* Onglet Summary - Index 0 */}
@@ -1142,233 +925,7 @@ export default function ClusterTabs(props: any) {
                       </Card>
                     )}
 
-                    {/* DRS Status */}
-                    {drsHealth !== null && (
-                      <Card variant="outlined" sx={{ mb: 2 }}>
-                        <CardContent sx={{ py: 1.5, px: 2 }}>
-                          {/* Header row: score ring + title + breakdown + actions */}
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                            <Box sx={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                              <CircularProgress
-                                variant="determinate"
-                                value={drsHealth.score}
-                                size={48}
-                                thickness={5}
-                                sx={{ color: drsHealth.score >= 85 ? 'success.main' : drsHealth.score >= 60 ? 'warning.main' : 'error.main' }}
-                              />
-                              <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Typography variant="caption" fontWeight={700} sx={{ fontSize: 11 }}>{drsHealth.score}</Typography>
-                              </Box>
-                            </Box>
-                            <Box sx={{ minWidth: 100 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="subtitle2" fontWeight={700}>{t('inventory.drsStatusTitle')}</Typography>
-                                {(() => {
-                                  const connId = selection?.type === 'cluster' ? selection.id : ''
-                                  const effectiveMode = (drsSettings as any)?.cluster_modes?.[connId] || (drsSettings as any)?.mode || 'manual'
-                                  const modeColor = effectiveMode === 'automatic' ? 'success' : effectiveMode === 'partial' ? 'warning' : 'info'
-                                  const modeLabel = effectiveMode.charAt(0).toUpperCase() + effectiveMode.slice(1)
-                                  return <Chip size="small" label={modeLabel} color={modeColor as any} variant="outlined" />
-                                })()}
-                              </Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: 11 }}>
-                                {drsHealth.score} / 100 — {drsHealth.score >= 85 ? t('drsPage.balanced') : drsHealth.score >= 60 ? t('drsPage.toOptimize') : t('drsPage.unbalanced')}
-                              </Typography>
-                            </Box>
 
-                            {/* Score breakdown - inline */}
-                            <Box sx={{ display: 'flex', gap: 1, flex: 1, minWidth: 0 }}>
-                              {[
-                                { label: t('inventory.drsAvgMemory'), value: drsHealth.avgMem, penalty: drsHealth.memPenalty },
-                                { label: t('inventory.drsAvgCpu'), value: drsHealth.avgCpu, penalty: drsHealth.cpuPenalty },
-                                { label: t('inventory.drsImbalance'), value: drsHealth.imbalance, penalty: drsHealth.imbalancePenalty },
-                              ].map((item) => (
-                                <Box
-                                  key={item.label}
-                                  sx={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    px: 1,
-                                    py: 0.5,
-                                    borderRadius: 1,
-                                    bgcolor: (t) => alpha(t.palette.divider, 0.3),
-                                    textAlign: 'center',
-                                  }}
-                                >
-                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, fontSize: 10 }}>
-                                    {item.label}
-                                  </Typography>
-                                  <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 0.5 }}>
-                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: 12 }}>
-                                      {item.value.toFixed(1)}%
-                                    </Typography>
-                                    {item.penalty !== 0 ? (
-                                      <Typography variant="caption" color="error.main" fontWeight={600} sx={{ fontSize: 10 }}>
-                                        {item.penalty}
-                                      </Typography>
-                                    ) : (
-                                      <Typography variant="caption" color="success.main" fontWeight={600} sx={{ fontSize: 10 }}>
-                                        OK
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                </Box>
-                              ))}
-                            </Box>
-
-                            <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
-                              <MuiTooltip title={t('inventory.drsEvaluate')}>
-                                <span>
-                                  <IconButton size="small" onClick={handleEvaluate} disabled={evaluating} sx={{ width: 32, height: 32 }}>
-                                    {evaluating ? <CircularProgress size={16} /> : <i className="ri-refresh-line" style={{ fontSize: 18 }} />}
-                                  </IconButton>
-                                </span>
-                              </MuiTooltip>
-                              <MuiTooltip title={t('inventory.drsGoToDrs')}>
-                                <IconButton size="small" onClick={() => router.push('/automation/drs')} sx={{ width: 32, height: 32 }}>
-                                  <i className="ri-settings-3-line" style={{ fontSize: 18 }} />
-                                </IconButton>
-                              </MuiTooltip>
-                            </Stack>
-                          </Box>
-
-                          {/* Recommendations for this cluster */}
-                          {clusterRecs.length > 0 && (
-                            <>
-                              <Divider sx={{ my: 1.5 }} />
-                              <Box
-                                sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
-                                onClick={() => setRecsExpanded(prev => !prev)}
-                              >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <i
-                                    className={recsExpanded ? 'ri-subtract-line' : 'ri-add-line'}
-                                    style={{ fontSize: 18, opacity: 0.6 }}
-                                  />
-                                  <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                                    {t('inventory.drsPendingRecs', { count: clusterRecs.length })}
-                                  </Typography>
-                                </Box>
-                              </Box>
-                              <Collapse in={recsExpanded} timeout="auto">
-                                <Stack spacing={0.75} sx={{ mt: 1 }}>
-                                  {clusterRecs.map((rec: any) => {
-                                    const pColor = rec.priority === 'critical' || rec.priority === 3 ? 'error'
-                                      : rec.priority === 'high' || rec.priority === 2 ? 'warning'
-                                      : rec.priority === 'medium' || rec.priority === 1 ? 'info' : 'default'
-                                    const isExecuting = executingRecId === rec.id
-                                    const isExpanded = expandedRecId === rec.id
-                                    return (
-                                      <Box key={rec.id}>
-                                        <Box
-                                          sx={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 1.5,
-                                            py: 0.75,
-                                            px: 1.5,
-                                            borderRadius: 1,
-                                            border: '1px solid',
-                                            borderColor: isExpanded ? 'primary.main' : 'divider',
-                                            cursor: 'pointer',
-                                            '&:hover': { borderColor: 'primary.main', bgcolor: (t) => alpha(t.palette.primary.main, 0.03) },
-                                          }}
-                                          onClick={async () => {
-                                            if (isExpanded) {
-                                              setExpandedRecId(null)
-                                              setRecSeries([])
-                                              return
-                                            }
-                                            setExpandedRecId(rec.id)
-                                            setRecSeries([])
-                                            setRecRrdLoading(true)
-                                            try {
-                                              const guestType = rec.guest_type || 'qemu'
-                                              const data = await fetchRrd(rec.connection_id, `/nodes/${rec.source_node}/${guestType}/${rec.vmid}`, 'hour')
-                                              setRecSeries(buildSeriesFromRrd(data))
-                                            } catch {
-                                              setRecSeries([])
-                                            } finally {
-                                              setRecRrdLoading(false)
-                                            }
-                                          }}
-                                        >
-                                          <i className={isExpanded ? 'ri-arrow-down-s-line' : 'ri-swap-line'} style={{ fontSize: 16, opacity: 0.5 }} />
-                                          <Typography variant="body2" fontWeight={600} noWrap sx={{ flex: 1, minWidth: 0, fontSize: '0.8rem' }}>
-                                            {rec.vm_name || `VM ${rec.vmid}`}{' '}
-                                            <Typography component="span" variant="caption" color="text.secondary" sx={{ fontWeight: 400 }}>
-                                              ({rec.reason})
-                                            </Typography>
-                                          </Typography>
-                                          <Chip
-                                            size="small"
-                                            label={rec.source_node}
-                                            sx={{ height: 20, fontSize: 10, bgcolor: (t) => alpha(t.palette.error.main, 0.1), color: 'error.main', fontWeight: 500 }}
-                                          />
-                                          <Typography variant="caption" sx={{ opacity: 0.4 }}>→</Typography>
-                                          <Chip
-                                            size="small"
-                                            label={rec.target_node}
-                                            sx={{ height: 20, fontSize: 10, bgcolor: (t) => alpha(t.palette.success.main, 0.1), color: 'success.main', fontWeight: 500 }}
-                                          />
-                                          <Chip size="small" color={pColor as any} label={(typeof rec.priority === 'number' ? ['low', 'medium', 'high', 'critical'][rec.priority] : rec.priority).toUpperCase()} sx={{ height: 20, fontSize: 10, minWidth: 50 }} />
-                                          <MuiTooltip title={t('inventory.drsExecOne')}>
-                                            <span>
-                                              <IconButton
-                                                size="small"
-                                                color="primary"
-                                                disabled={isExecuting || executingAll || (executingRecId !== null && !isExecuting)}
-                                                onClick={(e) => { e.stopPropagation(); handleExecuteRec(rec.id, rec.vm_name || `VM ${rec.vmid}`) }}
-                                                sx={{ width: 28, height: 28 }}
-                                              >
-                                                {isExecuting ? <CircularProgress size={14} /> : <i className="ri-play-line" style={{ fontSize: 16 }} />}
-                                              </IconButton>
-                                            </span>
-                                          </MuiTooltip>
-                                        </Box>
-                                        <Collapse in={isExpanded} timeout="auto">
-                                          <Box sx={{ px: 1.5, py: 1.5 }}>
-                                            {recRrdLoading ? (
-                                              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                                                <CircularProgress size={20} />
-                                              </Box>
-                                            ) : recSeries.length > 0 ? (
-                                              <Grid container spacing={2}>
-                                                <Grid size={{ xs: 6 }}>
-                                                  <AreaPctChart title="CPU" data={recSeries} dataKey="cpuPct" height={140} />
-                                                </Grid>
-                                                <Grid size={{ xs: 6 }}>
-                                                  <AreaPctChart title="RAM" data={recSeries} dataKey="ramPct" height={140} />
-                                                </Grid>
-                                              </Grid>
-                                            ) : (
-                                              <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                                No RRD data available
-                                              </Typography>
-                                            )}
-                                          </Box>
-                                        </Collapse>
-                                      </Box>
-                                    )
-                                  })}
-                                </Stack>
-                              </Collapse>
-                            </>
-                          )}
-                          {clusterRecs.length === 0 && drsHealth.score >= 85 && (
-                            <>
-                              <Divider sx={{ my: 1.5 }} />
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                                <i className="ri-checkbox-circle-line" style={{ fontSize: 16, color: theme.palette.success.main }} />
-                                <Typography variant="caption" color="success.main" fontWeight={500}>
-                                  {t('inventory.drsClusterBalanced')}
-                                </Typography>
-                              </Box>
-                            </>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )}
 
                     {/* Section Nodes Table removed — now in dedicated Nodes tab */}
                     {/* Cluster RRD Charts — all nodes overlaid */}
@@ -3560,56 +3117,14 @@ export default function ClusterTabs(props: any) {
                         })()
                       )}
 
-                      {/* Active rolling update — monitor button */}
-                      {activeRollingUpdateId && (
-                        <Button
-                          variant="contained"
-                          color="info"
-                          size="large"
-                          startIcon={<i className="ri-eye-line" style={{ fontSize: 20 }} />}
-                          onClick={() => openMonitor(activeRollingUpdateId, clusterConnId)}
-                          sx={{ alignSelf: 'flex-start' }}
-                        >
-                          {t('updates.monitorRollingUpdate')}
-                        </Button>
-                      )}
-
-                      {/* Bouton démarrer le Rolling Update */}
-                      {!activeRollingUpdateId && (Object.values(nodeUpdates) as any[]).reduce((sum: number, n: any) => sum + n.count, 0) > 0 ? (
-                        <Button
-                          variant="contained"
-                          color="warning"
-                          size="large"
-                          startIcon={<i className="ri-play-circle-line" style={{ fontSize: 20 }} />}
-                          onClick={() => setRollingUpdateWizardOpen(true)}
-                          sx={{ alignSelf: 'flex-start' }}
-                        >
-                          {t('updates.startRollingUpdate')}
-                        </Button>
-                      ) : !activeRollingUpdateId && Object.keys(nodeUpdates).length > 0 ? (
+                      {Object.keys(nodeUpdates).length > 0 && (Object.values(nodeUpdates) as any[]).every((n: any) => n.count === 0) && (
                         <Alert severity="success" icon={<i className="ri-checkbox-circle-line" />}>
                           <Typography variant="body2" fontWeight={600}>
                             {t('updates.upToDate')}
                           </Typography>
                         </Alert>
-                      ) : null}
+                      )}
                     </Stack>
-
-                    {/* Rolling Update Wizard */}
-                    <RollingUpdateWizard
-                      open={rollingUpdateWizardOpen}
-                      onClose={() => setRollingUpdateWizardOpen(false)}
-                      connectionId={selection?.type === 'cluster' ? selection.id : ''}
-                      nodes={data.nodesData?.map((n: any) => ({
-                        node: n.node,
-                        version: nodeUpdates[n.node]?.version || '',
-                        vms: n.vms || 0,
-                        status: n.status,
-                      })) || []}
-                      nodeUpdates={nodeUpdates}
-                      connectedNode={data.connectedNode || null}
-                      hasCeph={!!data.cephHealth}
-                    />
 
                     {/* Dialog pour afficher les mises à jour */}
                     <Dialog 
@@ -3881,12 +3396,6 @@ export default function ClusterTabs(props: any) {
                   </Box>
                 )}
 
-                {/* Onglet CVE - Index 12 */}
-                {clusterTab === 12 && (
-                  <Box sx={{ p: 2, overflow: 'auto' }}>
-                    <CveTab connectionId={selection?.id?.split(':')[0] || ''} available={cveAvailable} />
-                  </Box>
-                )}
 
                 {/* Onglet Cluster - Index 10 */}
                 {clusterTab === 10 && (
@@ -4063,19 +3572,6 @@ export default function ClusterTabs(props: any) {
                   </Box>
                 )}
 
-                {/* Onglet Change Tracking - Index 13 */}
-                {clusterTab === 13 && (
-                  <ChangeTrackingTab
-                    connectionId={selection?.id || ''}
-                  />
-                )}
-
-                {/* Onglet Compliance - Index 14 */}
-                {clusterTab === 14 && (
-                  <ComplianceTab
-                    connectionId={selection?.id || ''}
-                  />
-                )}
               </CardContent>
             </Card>
           ) : null}
