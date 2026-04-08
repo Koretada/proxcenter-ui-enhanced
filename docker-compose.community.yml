@@ -8,10 +8,10 @@ services:
   # Frontend (Next.js + WebSocket Proxy)
   # ========================================
   frontend:
-    # image: proxcenter-frontend:local
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/koretada/proxcenter-ui-enhanced:main
+    # build:
+    #   context: ./frontend
+    #   dockerfile: Dockerfile
     container_name: proxcenter-frontend
     restart: unless-stopped
     ports:
