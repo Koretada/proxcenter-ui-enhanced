@@ -8,11 +8,14 @@ services:
   # Frontend (Next.js + WebSocket Proxy)
   # ========================================
   frontend:
-    image: proxcenter-frontend:local
+    # image: proxcenter-frontend:local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: proxcenter-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"  # Unified HTTP + WebSocket
+      - "3000:3000" # Unified HTTP + WebSocket
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/data/proxcenter.db
@@ -34,7 +37,7 @@ services:
     networks:
       - proxcenter
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -62,5 +65,4 @@ networks:
 
 volumes:
   proxcenter_data:
-    name: proxcenter_data
-      #external: true
+    name: proxcenter_data #external: true
