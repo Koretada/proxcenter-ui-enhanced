@@ -20,7 +20,7 @@ NC='\033[0m'
 # Configuration
 INSTALL_DIR="/opt/proxcenter"
 COMPOSE_PATH="https://raw.githubusercontent.com/Koretada/proxcenter-ui-enhanced/refs/heads/main/docker-compose.community.yml"
-FRONTEND_IMAGE="ghcr.io/adminsyspro/proxcenter-frontend:latest"
+FRONTEND_IMAGE="ghcr.io/koretada/proxcenter-ui-enhanced:latest"
 
 TOTAL_STEPS=4
 START_TIME=$(date +%s)
