@@ -197,7 +197,7 @@ setup_proxcenter() {
     cd "$INSTALL_DIR"
 
     # Download docker-compose
-    curl -fsSL "$COMPOSE_URL" -o docker-compose.yml 2>/dev/null
+    curl -fsSL "$COMPOSE_PATH" -o docker-compose.yml 2>/dev/null
     log_success "Downloaded compose configuration"
 
     # Generate secrets
